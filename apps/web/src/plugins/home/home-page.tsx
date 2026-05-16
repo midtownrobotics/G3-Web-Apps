@@ -6,7 +6,7 @@ export function HomePage() {
           FRC Team 1648
         </p>
         <h1 className="text-6xl font-bold text-white tracking-tight">G3 Robotics</h1>
-        <p className="text-gray-400 text-lg">FIRST Robotics Competition · Open Alliance</p>
+        <p className="text-gray-400 text-lg">FIRST Robotics Competition</p>
       </div>
     </main>
   );
