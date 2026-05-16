@@ -7,7 +7,7 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "ignore": ["dist", ".wrangler", "node_modules", "*.tsbuildinfo"]
+    "ignore": ["dist", ".wrangler", "node_modules", "*.tsbuildinfo", ".claude"]
   },
   "formatter": {
     "enabled": true,
