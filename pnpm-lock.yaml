@@ -14,6 +14,40 @@ importers:
 
   apps/admin: {}
 
+  apps/g3id:
+    dependencies:
+      react:
+        specifier: ^19.0.0
+        version: 19.2.6
+      react-dom:
+        specifier: ^19.0.0
+        version: 19.2.6(react@19.2.6)
+      react-router-dom:
+        specifier: ^6.28.0
+        version: 6.30.3(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+    devDependencies:
+      '@tailwindcss/vite':
+        specifier: ^4.0.0
+        version: 4.3.0(vite@6.4.2(jiti@2.7.0)(lightningcss@1.32.0))
+      '@types/react':
+        specifier: ^19.0.0
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19.0.0
+        version: 19.2.3(@types/react@19.2.14)
+      '@vitejs/plugin-react':
+        specifier: ^4.3.4
+        version: 4.7.0(vite@6.4.2(jiti@2.7.0)(lightningcss@1.32.0))
+      tailwindcss:
+        specifier: ^4.0.0
+        version: 4.3.0
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vite:
+        specifier: ^6.0.5
+        version: 6.4.2(jiti@2.7.0)(lightningcss@1.32.0)
+
   apps/scouting: {}
 
   apps/web:
