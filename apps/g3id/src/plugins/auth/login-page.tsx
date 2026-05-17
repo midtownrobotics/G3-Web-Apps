@@ -1,0 +1,55 @@
+import { KeySquare } from "lucide-react";
+import { FaGoogle, FaSlack } from "react-icons/fa";
+import { Link } from "react-router-dom";
+
+export function LoginPage() {
+  return (
+    <main className="flex-1 flex items-center justify-center px-4">
+      <div className="w-full max-w-sm space-y-6">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold text-white">
+            Welcome to <span className="text-red-400">G3</span>ID
+          </h1>
+          <p className="mt-2 text-gray-400 text-sm">Choose a sign-in method</p>
+        </div>
+
+        <div className="space-y-3">
+          <button
+            type="button"
+            className="w-full flex items-center justify-center gap-3 rounded-lg bg-gray-900 border border-gray-700 hover:border-red-400 px-4 py-2.5 text-sm text-white transition-colors"
+          >
+            <span className="text-base">
+              <FaSlack size={20} />
+            </span>
+            Sign in with Slack
+          </button>
+          <button
+            type="button"
+            className="w-full flex items-center justify-center gap-3 rounded-lg bg-gray-900 border border-gray-700 hover:border-red-400 px-4 py-2.5 text-sm text-white transition-colors"
+          >
+            <span className="text-base">
+              <FaGoogle size={20} />
+            </span>
+            Sign in with Google
+          </button>
+          <Link
+            to="/login/email"
+            className="w-full flex items-center justify-center gap-3 rounded-lg bg-gray-900 border border-gray-700 hover:border-red-400 px-4 py-2.5 text-sm text-white transition-colors"
+          >
+            <span className="text-base">
+              <KeySquare />
+            </span>
+            Continue with Email
+          </Link>
+        </div>
+
+        <p className="text-center text-sm text-gray-500">
+          Don't have an account?{" "}
+          <Link to="/signup" className="text-red-400 hover:text-red-300 transition-colors">
+            Sign up
+          </Link>
+        </p>
+      </div>
+    </main>
+  );
+}

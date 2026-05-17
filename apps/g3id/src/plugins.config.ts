@@ -1,3 +1,3 @@
-import { homePlugin } from "./plugins/home";
+import { authPlugin } from "./plugins/auth";
 
-export const plugins = [homePlugin];
+export const plugins = [authPlugin];
