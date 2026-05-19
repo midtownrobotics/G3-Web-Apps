@@ -1,5 +1,11 @@
 {
   "name": "@g3/auth",
+  "version": "0.1.0",
   "private": true,
-  "version": "0.0.0"
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.0"
+  }
 }
