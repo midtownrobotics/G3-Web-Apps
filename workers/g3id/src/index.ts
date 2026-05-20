@@ -15,6 +15,19 @@ app.onError((err, c) => {
   return c.json({ error: "Internal server error." }, 500);
 });
 
+import { cors } from 'hono/cors'
+
+app.use('*', cors({
+  origin: [
+    'http://localhost:5173',
+    'https://g3id.g3robotics.com',
+    'https://*.g3id.pages.dev',  // ← covers your pages.dev preview URLs
+  ],
+  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,  // ← required for cookies to work cross-origin
+}));
+
 app.get("/health", (c) => c.json({ status: "ok", service: "g3id" }));
 
 app.route("/auth", authRouter);
