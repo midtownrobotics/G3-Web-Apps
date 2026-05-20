@@ -33,6 +33,13 @@ id = "c27ba19a75fb4eb6b93f9d2d47de6c0f"
 binding = "RATE_LIMIT"
 id = "45e7485d5f0e4f2abf76bd6400e64897"
 
+[env.dev.vars]
+GOOGLE_CLIENT_ID = "your-client-id"
+GOOGLE_REDIRECT_URI = "http://localhost:8787/auth/google/callback"
+GITHUB_CLIENT_ID = "your-client-id"
+GITHUB_REDIRECT_URI = "http://localhost:8787/auth/github/callback"
+SLACK_TEAM_ID = "T04LF3F0D"
+
 [env.production]
 name = "g3id-production"
 
@@ -49,3 +56,10 @@ id = "db4457ce43c9468eb9ec5a049afa65b1"
 [[env.production.kv_namespaces]]
 binding = "RATE_LIMIT"
 id = "d36a0313dd774bf78bacd76250ec085a"
+
+[env.production.vars]
+GOOGLE_CLIENT_ID = "26070176131-lom1rtgi2tmahrd12md7452oieha1vbl.apps.googleusercontent.com"
+GOOGLE_REDIRECT_URI = "https://api.g3id.g3robotics.com/auth/google/callback"
+GITHUB_CLIENT_ID = "Ov23liIzEnTs03zGJPKJ"
+GITHUB_REDIRECT_URI = "https://api.g3id.g3robotics.com/auth/github/callback"
+SLACK_TEAM_ID = "T04LF3F0D"
