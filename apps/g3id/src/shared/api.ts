@@ -1,7 +1,7 @@
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
 
 export async function getApi<T>(path: string): Promise<{ data: T; ok: boolean; status: number }> {
-  const res = await fetch(`${apiBase}${path}`. { credentials: 'include', });
+  const res = await fetch(`${apiBase}${path}`, { credentials: 'include', });
   const data = (await res.json()) as T;
   return { data, ok: res.ok, status: res.status };
 }
