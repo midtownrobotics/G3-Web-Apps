@@ -1,5 +1,5 @@
-import { ChessBishop, KeySquare } from "lucide-react";
-import { FaGithub, FaGoogle, FaSlack, FaSpotify } from "react-icons/fa";
+import { KeySquare } from "lucide-react";
+import { FaGithub, FaGoogle, FaSlack } from "react-icons/fa";
 import { Link } from "react-router-dom";
 
 export function SignupPage() {
@@ -14,13 +14,13 @@ export function SignupPage() {
         </div>
 
         <div className="space-y-3">
-          <button
-            type="button"
+          <a
+            href="/api/auth/slack/initiate"
             className="w-full flex items-center justify-center gap-3 rounded-lg bg-gray-900 border border-gray-700 hover:border-red-400 px-4 py-2.5 text-sm text-white transition-colors"
           >
             <FaSlack size={20} />
             Sign up with Slack
-          </button>
+          </a>
           <a
             href="/api/auth/google"
             className="w-full flex items-center justify-center gap-3 rounded-lg bg-gray-900 border border-gray-700 hover:border-red-400 px-4 py-2.5 text-sm text-white transition-colors"
@@ -35,13 +35,6 @@ export function SignupPage() {
             <FaGithub size={20} />
             Sign up with GitHub
           </a>
-          <button
-            type="button"
-            className="w-full flex items-center justify-center gap-3 rounded-lg bg-gray-900 border border-gray-700 hover:border-red-400 px-4 py-2.5 text-sm text-white transition-colors"
-          >
-            <FaSpotify size={20} />
-            Sign up with Spotify
-          </button>
           <Link
             to="/signup/email"
             className="w-full flex items-center justify-center gap-3 rounded-lg bg-gray-900 border border-gray-700 hover:border-red-400 px-4 py-2.5 text-sm text-white transition-colors"

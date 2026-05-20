@@ -6,6 +6,7 @@ import { LoginPage } from "./login-page";
 import { OAuthErrorPage } from "./oauth-error-page";
 import { PendingPage } from "./pending-page";
 import { SignupPage } from "./signup-page";
+import { SlackLoginPage } from "./slack-login-page";
 
 export const authPlugin: Plugin = {
   name: "auth",
@@ -13,6 +14,7 @@ export const authPlugin: Plugin = {
     { path: "/login", element: <LoginPage /> },
     { path: "/login/email", element: <EmailLoginPage /> },
     { path: "/login/error", element: <OAuthErrorPage /> },
+    { path: "/login/slack", element: <SlackLoginPage /> },
     { path: "/signup", element: <SignupPage /> },
     { path: "/signup/email", element: <EmailSignupPage /> },
     { path: "/signup/pending", element: <PendingPage /> },

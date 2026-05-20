@@ -58,13 +58,19 @@ export const coreSessions = sqliteTable("core_sessions", {
   createdAt: integer("created_at").notNull(),
 });
 
-export const coreSlackLinkCodes = sqliteTable("core_slack_link_codes", {
-  id: text("id").primaryKey(),
-  userId: text("user_id")
-    .notNull()
-    .references(() => coreUsers.id),
-  code: text("code").notNull(),
-  expiresAt: integer("expires_at").notNull(),
-  used: integer("used").notNull().default(0),
-  createdAt: integer("created_at").notNull(),
-});
+export const coreSlackLinkCodes = sqliteTable(
+  "core_slack_link_codes",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").references(() => coreUsers.id), // null for signin codes
+    code: text("code").notNull().unique(),
+    type: text("type").notNull(),
+    pollingToken: text("polling_token"),
+    expiresAt: integer("expires_at").notNull(),
+    used: integer("used").notNull().default(0),
+    createdAt: integer("created_at").notNull(),
+  },
+  (table) => [
+    check("core_slack_link_codes_type_check", sql`${table.type} IN ('signin', 'link')`),
+  ],
+);

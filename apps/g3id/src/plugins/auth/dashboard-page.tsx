@@ -1,8 +1,10 @@
-import { Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
-import { FaGithub, FaGoogle } from "react-icons/fa";
+import { KeySquare, Loader2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { FaGithub, FaGoogle, FaSlack } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import { getApi, postApi } from "../../shared/api";
+
+const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
 
 type Identity = { provider: string; createdAt: number };
 
@@ -27,6 +29,78 @@ export function DashboardPage() {
   const navigate = useNavigate();
   const [me, setMe] = useState<Me | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordDone, setPasswordDone] = useState(false);
+
+  const [slackCode, setSlackCode] = useState<string | null>(null);
+  const [slackError, setSlackError] = useState<string | null>(null);
+  const slackPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  async function handleConnectSlack() {
+    setSlackError(null);
+    const { ok, data } = await getApi<{ code: string; token: string }>("/auth/slack/link");
+    if (!ok) { setSlackError("Failed to start linking. Try again."); return; }
+    setSlackCode(data.code);
+
+    slackPollRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(`${apiBase}/auth/slack/status?token=${data.token}`, {
+          credentials: "include",
+        });
+        if (!res.ok) return;
+        const status = (await res.json()) as {
+          status: string;
+          action?: string;
+          message?: string;
+        };
+        if (status.status === "pending") return;
+        if (slackPollRef.current) clearInterval(slackPollRef.current);
+        if (status.status === "success" && status.action === "linked") {
+          setSlackCode(null);
+          setMe((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  identities: [
+                    ...prev.identities,
+                    { provider: "slack", createdAt: Math.floor(Date.now() / 1000) },
+                  ],
+                }
+              : prev,
+          );
+        } else {
+          setSlackError(
+            status.status === "expired"
+              ? "Code expired. Please try again."
+              : (status.message ?? "Something went wrong."),
+          );
+          setSlackCode(null);
+        }
+      } catch {
+        // network error — keep polling
+      }
+    }, 2000);
+  }
+
+  useEffect(() => () => { if (slackPollRef.current) clearInterval(slackPollRef.current); }, []);
+
+  async function handleSetPassword(e: React.SyntheticEvent) {
+    e.preventDefault();
+    setPasswordLoading(true);
+    setPasswordError(null);
+    const { ok, data } = await postApi<{ ok?: boolean; error?: string }>("/auth/password", {
+      password: newPassword,
+    });
+    setPasswordLoading(false);
+    if (!ok) {
+      setPasswordError((data as { error?: string }).error ?? "Something went wrong.");
+      return;
+    }
+    setPasswordDone(true);
+    setMe((prev) => prev ? { ...prev, identities: [...prev.identities, { provider: "local", createdAt: Math.floor(Date.now() / 1000) }] } : prev);
+  }
 
   async function handleLogout() {
     await postApi("/auth/logout", {});
@@ -111,6 +185,65 @@ export function DashboardPage() {
               <FaGithub size={16} />
               Connect GitHub
             </a>
+          )}
+          {!me.identities.some((i) => i.provider === "slack") && (
+            <div className="mt-3">
+              {slackCode ? (
+                <div className="rounded-lg bg-gray-800 border border-gray-700 px-4 py-3 space-y-2">
+                  <p className="text-xs text-gray-400 text-center">
+                    DM this code to the G3 Slack bot, or run{" "}
+                    <span className="font-mono text-red-400">
+                      /link {slackCode}
+                    </span>
+                  </p>
+                  <p className="font-mono text-3xl font-bold text-white text-center tracking-widest">
+                    {slackCode}
+                  </p>
+                  <div className="flex items-center justify-center gap-1.5 text-xs text-gray-500">
+                    <Loader2 size={12} className="animate-spin" />
+                    Waiting…
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleConnectSlack}
+                    className="w-full flex items-center justify-center gap-2 rounded-lg bg-gray-800 border border-gray-700 hover:border-red-400 px-4 py-2 text-sm text-gray-300 transition-colors"
+                  >
+                    <FaSlack size={16} />
+                    Connect Slack
+                  </button>
+                  {slackError && <p className="mt-1 text-xs text-red-400 text-center">{slackError}</p>}
+                </>
+              )}
+            </div>
+          )}
+          {!me.identities.some((i) => i.provider === "local") && !passwordDone && (
+            <form onSubmit={handleSetPassword} className="mt-3 space-y-2">
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  placeholder="Set a password…"
+                  minLength={8}
+                  required
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  disabled={passwordLoading}
+                  className="flex-1 rounded-lg bg-gray-800 border border-gray-700 px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-red-400"
+                />
+                <button
+                  type="submit"
+                  disabled={passwordLoading || newPassword.length < 8}
+                  className="flex items-center gap-1.5 rounded-lg bg-gray-800 border border-gray-700 hover:border-red-400 px-3 py-2 text-sm text-gray-300 disabled:opacity-50 transition-colors"
+                >
+                  {passwordLoading ? <Loader2 size={14} className="animate-spin" /> : <KeySquare size={14} />}
+                  Set
+                </button>
+              </div>
+              {passwordError && <p className="text-xs text-red-400">{passwordError}</p>}
+            </form>
           )}
         </div>
 

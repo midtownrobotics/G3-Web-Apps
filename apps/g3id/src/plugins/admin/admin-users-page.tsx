@@ -17,7 +17,6 @@ const STATUS_STYLES: Record<string, string> = {
   pending: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
   active: "bg-green-500/20 text-green-300 border-green-500/30",
   rejected: "bg-red-500/20 text-red-300 border-red-500/30",
-  merged: "bg-gray-500/20 text-gray-400 border-gray-500/30",
 };
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -97,7 +96,7 @@ export function AdminUsersPage() {
         targetUserId: mergeTargetId,
       });
       if (ok) {
-        updateStatus(userId, "merged");
+        setUsers((prev) => prev.filter((u) => u.id !== userId));
         setMergingUserId(null);
         setMergeTargetId("");
       }
@@ -211,7 +210,7 @@ export function AdminUsersPage() {
                     </button>
                   )}
 
-                  {user.status !== "merged" && user.status !== "active" && (
+                  {user.status !== "active" && (
                     <button
                       type="button"
                       onClick={() =>
@@ -246,7 +245,7 @@ export function AdminUsersPage() {
                     <option value="">Select a user…</option>
                     {users
                       .filter((u) => {
-                        if (u.id === user.id || u.status === "merged") return false;
+                        if (u.id === user.id) return false;
                         const sourceProviders = new Set(user.identities.map((i) => i.provider));
                         return !u.identities.some((i) => sourceProviders.has(i.provider));
                       })

@@ -1,4 +1,4 @@
-import { desc, eq, inArray } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { createDb } from "../db";
 import { coreSlackLinkCodes, coreUserIdentities, coreSessions, coreUsers } from "../db/schema";
@@ -123,9 +123,6 @@ adminRouter.post("/users/:id/merge", async (c) => {
   const now = Math.floor(Date.now() / 1000);
 
   await db.batch([
-    db.update(coreUsers)
-      .set({ status: "merged", mergedIntoUserId: targetUserId, updatedAt: now })
-      .where(eq(coreUsers.id, id)),
     db.update(coreUserIdentities)
       .set({ userId: targetUserId, updatedAt: now })
       .where(eq(coreUserIdentities.userId, id)),
@@ -133,6 +130,10 @@ adminRouter.post("/users/:id/merge", async (c) => {
       .set({ userId: targetUserId })
       .where(eq(coreSessions.userId, id)),
   ]);
+
+  // Source user's identities and sessions are now on the target — delete the shell
+  await db.delete(coreSlackLinkCodes).where(eq(coreSlackLinkCodes.userId, id));
+  await db.delete(coreUsers).where(eq(coreUsers.id, id));
 
   return c.json({ message: "User merged." });
 });
@@ -150,24 +151,6 @@ adminRouter.delete("/users/:id", async (c) => {
   if (!user) return c.json({ error: "User not found." }, 404);
   if (user.status === "pending") {
     return c.json({ error: "Pending users must be rejected before deletion." }, 400);
-  }
-  if (user.status === "merged") {
-    return c.json({ error: "Merged users cannot be deleted." }, 400);
-  }
-
-  // Delete accounts that were merged into this one
-  const mergedUsers = await db
-    .select({ id: coreUsers.id })
-    .from(coreUsers)
-    .where(eq(coreUsers.mergedIntoUserId, id))
-    .all();
-
-  if (mergedUsers.length > 0) {
-    const mergedIds = mergedUsers.map((u) => u.id);
-    await db.delete(coreSlackLinkCodes).where(inArray(coreSlackLinkCodes.userId, mergedIds));
-    await db.delete(coreSessions).where(inArray(coreSessions.userId, mergedIds));
-    await db.delete(coreUserIdentities).where(inArray(coreUserIdentities.userId, mergedIds));
-    await db.delete(coreUsers).where(inArray(coreUsers.id, mergedIds));
   }
 
   await db.delete(coreSlackLinkCodes).where(eq(coreSlackLinkCodes.userId, id));

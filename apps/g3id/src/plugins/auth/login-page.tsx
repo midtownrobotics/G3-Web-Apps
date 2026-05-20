@@ -14,15 +14,15 @@ export function LoginPage() {
         </div>
 
         <div className="space-y-3">
-          <button
-            type="button"
+          <a
+            href="/api/auth/slack/initiate"
             className="w-full flex items-center justify-center gap-3 rounded-lg bg-gray-900 border border-gray-700 hover:border-red-400 px-4 py-2.5 text-sm text-white transition-colors"
           >
             <span className="text-base">
               <FaSlack size={20} />
             </span>
             Sign in with Slack
-          </button>
+          </a>
           <a
             href="/api/auth/google"
             className="w-full flex items-center justify-center gap-3 rounded-lg bg-gray-900 border border-gray-700 hover:border-red-400 px-4 py-2.5 text-sm text-white transition-colors"

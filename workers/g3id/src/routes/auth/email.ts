@@ -6,6 +6,7 @@ import { coreUserIdentities, coreUsers } from "../../db/schema";
 import { newId } from "../../lib/id";
 import { hashPassword, verifyPassword } from "../../lib/password";
 import { createSession } from "../../lib/session";
+import { requireAuth } from "../../middleware/auth";
 import type { AppEnv } from "../../types";
 
 export const emailAuthRouter = new Hono<AppEnv>();
@@ -121,6 +122,47 @@ emailAuthRouter.post("/login/email", async (c) => {
     sameSite: "Lax" as const,
     maxAge: 60 * 60 * 24 * 7,
     path: "/",
+  });
+
+  return c.json({ ok: true });
+});
+
+emailAuthRouter.post("/password", requireAuth, async (c) => {
+  let body: { password?: unknown };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "Invalid request body." }, 400);
+  }
+
+  const password = typeof body.password === "string" ? body.password : "";
+  if (password.length < 8) {
+    return c.json({ error: "Password must be at least 8 characters." }, 400);
+  }
+
+  const userId = c.get("userId");
+  const db = createDb(c.env.DB);
+
+  const existing = await db
+    .select({ id: coreUserIdentities.id })
+    .from(coreUserIdentities)
+    .where(and(eq(coreUserIdentities.userId, userId), eq(coreUserIdentities.provider, "local")))
+    .get();
+
+  if (existing) {
+    return c.json({ error: "A password is already set on this account." }, 409);
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const passwordHash = await hashPassword(password);
+
+  await db.insert(coreUserIdentities).values({
+    id: newId(),
+    userId,
+    provider: "local",
+    passwordHash,
+    createdAt: now,
+    updatedAt: now,
   });
 
   return c.json({ ok: true });

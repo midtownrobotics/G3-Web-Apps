@@ -4,6 +4,8 @@ import { authRouter } from "./routes/auth";
 import { emailAuthRouter } from "./routes/auth/email";
 import { githubAuthRouter } from "./routes/auth/github";
 import { googleAuthRouter } from "./routes/auth/google";
+import { slackAuthRouter } from "./routes/auth/slack";
+import { slackRouter } from "./routes/slack";
 import type { AppEnv } from "./types";
 
 const app = new Hono<AppEnv>();
@@ -19,6 +21,8 @@ app.route("/auth", authRouter);
 app.route("/auth", emailAuthRouter);
 app.route("/auth", githubAuthRouter);
 app.route("/auth", googleAuthRouter);
+app.route("/auth", slackAuthRouter);
 app.route("/admin", adminRouter);
+app.route("/slack", slackRouter);
 
 export default app;
