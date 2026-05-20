@@ -1,8 +1,5 @@
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
 
-console.log('API URL:', import.meta.env.VITE_API_URL)
-console.log('ALL ENV:', import.meta.env)
-
 export async function getApi<T>(path: string): Promise<{ data: T; ok: boolean; status: number }> {
   const res = await fetch(`${apiBase}${path}`);
   const data = (await res.json()) as T;
