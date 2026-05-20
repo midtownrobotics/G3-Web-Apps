@@ -1,5 +1,5 @@
 import { KeySquare } from "lucide-react";
-import { FaGoogle, FaSlack } from "react-icons/fa";
+import { FaGithub, FaGoogle, FaSlack, FaSteam } from "react-icons/fa";
 import { Link } from "react-router-dom";
 
 export function LoginPage() {
@@ -23,14 +23,32 @@ export function LoginPage() {
             </span>
             Sign in with Slack
           </button>
-          <button
-            type="button"
+          <a
+            href="/api/auth/google"
             className="w-full flex items-center justify-center gap-3 rounded-lg bg-gray-900 border border-gray-700 hover:border-red-400 px-4 py-2.5 text-sm text-white transition-colors"
           >
             <span className="text-base">
               <FaGoogle size={20} />
             </span>
             Sign in with Google
+          </a>
+          <a
+            href="/api/auth/github"
+            className="w-full flex items-center justify-center gap-3 rounded-lg bg-gray-900 border border-gray-700 hover:border-red-400 px-4 py-2.5 text-sm text-white transition-colors"
+          >
+            <span className="text-base">
+              <FaGithub size={20} />
+            </span>
+            Sign in with GitHub
+          </a>
+          <button
+            type="button"
+            className="w-full flex items-center justify-center gap-3 rounded-lg bg-gray-900 border border-gray-700 hover:border-red-400 px-4 py-2.5 text-sm text-white transition-colors"
+          >
+            <span className="text-base">
+              <FaSteam size={20} />
+            </span>
+            Sign in with Steam
           </button>
           <Link
             to="/login/email"

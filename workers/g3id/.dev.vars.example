@@ -1,0 +1,9 @@
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+# Dev: through Vite proxy. Production secret should be https://api.g3id.g3robotics.com/auth/google/callback
+GOOGLE_REDIRECT_URI=http://localhost:5173/api/auth/google/callback
+
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+# Dev: through Vite proxy. Production secret should be https://api.g3id.g3robotics.com/auth/github/callback
+GITHUB_REDIRECT_URI=http://localhost:5173/api/auth/github/callback

@@ -1,17 +1,24 @@
 import { Hono } from "hono";
+import { adminRouter } from "./routes/admin";
+import { authRouter } from "./routes/auth";
+import { emailAuthRouter } from "./routes/auth/email";
+import { githubAuthRouter } from "./routes/auth/github";
+import { googleAuthRouter } from "./routes/auth/google";
+import type { AppEnv } from "./types";
 
-type Env = {
-  Bindings: {
-    DB: D1Database;
-    SESSIONS: KVNamespace;
-    RATE_LIMIT: KVNamespace;
-  };
-};
+const app = new Hono<AppEnv>();
 
-const app = new Hono<Env>();
+app.onError((err, c) => {
+  console.error(err);
+  return c.json({ error: "Internal server error." }, 500);
+});
 
 app.get("/health", (c) => c.json({ status: "ok", service: "g3id" }));
-app.get("/hello", (c) => c.json({ res: "world" }));
 
+app.route("/auth", authRouter);
+app.route("/auth", emailAuthRouter);
+app.route("/auth", githubAuthRouter);
+app.route("/auth", googleAuthRouter);
+app.route("/admin", adminRouter);
 
 export default app;
