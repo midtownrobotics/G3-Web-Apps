@@ -2,6 +2,8 @@ import { KeySquare } from "lucide-react";
 import { FaGithub, FaGoogle, FaSlack, FaSteam } from "react-icons/fa";
 import { Link } from "react-router-dom";
 
+const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
+
 export function LoginPage() {
   return (
     <main className="flex-1 flex items-center justify-center px-4">
@@ -15,7 +17,7 @@ export function LoginPage() {
 
         <div className="space-y-3">
           <a
-            href="/api/auth/slack/initiate"
+            href={`${apiBase}/auth/slack/initiate`}
             className="w-full flex items-center justify-center gap-3 rounded-lg bg-gray-900 border border-gray-700 hover:border-red-400 px-4 py-2.5 text-sm text-white transition-colors"
           >
             <span className="text-base">
@@ -24,7 +26,7 @@ export function LoginPage() {
             Sign in with Slack
           </a>
           <a
-            href="/api/auth/google"
+            href={`${apiBase}/auth/google`}
             className="w-full flex items-center justify-center gap-3 rounded-lg bg-gray-900 border border-gray-700 hover:border-red-400 px-4 py-2.5 text-sm text-white transition-colors"
           >
             <span className="text-base">
@@ -33,7 +35,7 @@ export function LoginPage() {
             Sign in with Google
           </a>
           <a
-            href="/api/auth/github"
+            href={`${apiBase}/auth/github`}
             className="w-full flex items-center justify-center gap-3 rounded-lg bg-gray-900 border border-gray-700 hover:border-red-400 px-4 py-2.5 text-sm text-white transition-colors"
           >
             <span className="text-base">

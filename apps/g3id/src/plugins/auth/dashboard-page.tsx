@@ -170,7 +170,7 @@ export function DashboardPage() {
 
           {!me.identities.some((i) => i.provider === "google") && (
             <a
-              href="/api/auth/google/link"
+              href={`${apiBase}/auth/google/link`}
               className="mt-3 w-full flex items-center justify-center gap-2 rounded-lg bg-gray-800 border border-gray-700 hover:border-red-400 px-4 py-2 text-sm text-gray-300 transition-colors"
             >
               <FaGoogle size={16} />
@@ -179,7 +179,7 @@ export function DashboardPage() {
           )}
           {!me.identities.some((i) => i.provider === "github") && (
             <a
-              href="/api/auth/github/link"
+              href={`${apiBase}/auth/github/link`}
               className="mt-3 w-full flex items-center justify-center gap-2 rounded-lg bg-gray-800 border border-gray-700 hover:border-red-400 px-4 py-2 text-sm text-gray-300 transition-colors"
             >
               <FaGithub size={16} />
