@@ -56,11 +56,12 @@ googleAuthRouter.get("/google", async (c) => {
 
 // Link initiation — user must already be signed in
 googleAuthRouter.get("/google/link", async (c) => {
+  const app = (path: string) => `${c.env.FRONTEND_URL}${path}`;
   const sessionId = getCookie(c, "g3_session");
-  if (!sessionId) return c.redirect("/login");
+  if (!sessionId) return c.redirect(app("/login"));
 
   const userId = await getSession(sessionId, c.env);
-  if (!userId) return c.redirect("/login");
+  if (!userId) return c.redirect(app("/login"));
 
   const state = await generateState(c.env, `link:${userId}`);
   return c.redirect(buildGoogleUrl(c.env, state));
@@ -68,12 +69,13 @@ googleAuthRouter.get("/google/link", async (c) => {
 
 // Shared callback
 googleAuthRouter.get("/google/callback", async (c) => {
+  const app = (path: string) => `${c.env.FRONTEND_URL}${path}`;
   const oauthError = c.req.query("error");
   const code = c.req.query("code");
   const state = c.req.query("state");
 
   const err = (msg: string) =>
-    c.redirect(`/login/error?error=${encodeURIComponent(msg)}`);
+    c.redirect(app(`/login/error?error=${encodeURIComponent(msg)}`));
 
   if (oauthError) return err("Sign-in was cancelled or denied.");
   if (!code || !state) return err("Missing code or state.");
@@ -146,13 +148,13 @@ googleAuthRouter.get("/google/callback", async (c) => {
 
     if (existingIdentity) {
       if (existingIdentity.userId === linkUserId) {
-        return c.redirect("/dashboard"); // already linked, no-op
+        return c.redirect(app("/dashboard")); // already linked, no-op
       }
       return err("This Google account is already linked to a different account.");
     }
 
     await db.insert(coreUserIdentities).values({ ...identityValues, userId: linkUserId });
-    return c.redirect("/dashboard");
+    return c.redirect(app("/dashboard"));
   }
 
   // --- Sign-in flow ---
@@ -179,7 +181,7 @@ googleAuthRouter.get("/google/callback", async (c) => {
 
     const sessionId = await createSession(user.id, c.env);
     setCookie(c, "g3_session", sessionId, sessionCookieOptions());
-    return c.redirect("/dashboard");
+    return c.redirect(app("/dashboard"));
   }
 
   // No Google identity — check if email already belongs to an existing account.
@@ -209,5 +211,5 @@ googleAuthRouter.get("/google/callback", async (c) => {
     db.insert(coreUserIdentities).values({ ...identityValues, userId }),
   ]);
 
-  return c.redirect("/signup/pending");
+  return c.redirect(app("/signup/pending"));
 });

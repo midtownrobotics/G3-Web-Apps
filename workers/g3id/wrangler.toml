@@ -39,6 +39,7 @@ GOOGLE_REDIRECT_URI = "http://localhost:8787/auth/google/callback"
 GITHUB_CLIENT_ID = "your-client-id"
 GITHUB_REDIRECT_URI = "http://localhost:8787/auth/github/callback"
 SLACK_TEAM_ID = "T04LF3F0D"
+FRONTEND_URL = "http://localhost:5173"
 
 [env.production]
 name = "g3id-production"
@@ -63,6 +64,7 @@ GOOGLE_REDIRECT_URI = "https://api.g3id.g3robotics.com/auth/google/callback"
 GITHUB_CLIENT_ID = "Ov23liIzEnTs03zGJPKJ"
 GITHUB_REDIRECT_URI = "https://api.g3id.g3robotics.com/auth/github/callback"
 SLACK_TEAM_ID = "T04LF3F0D"
+FRONTEND_URL = "https://g3id.g3robotics.com"
 
 [observability]
 enabled = false

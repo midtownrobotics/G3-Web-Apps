@@ -82,11 +82,12 @@ githubAuthRouter.get("/github", async (c) => {
 
 // Link initiation — user must already be signed in
 githubAuthRouter.get("/github/link", async (c) => {
+  const app = (path: string) => `${c.env.FRONTEND_URL}${path}`;
   const sessionId = getCookie(c, "g3_session");
-  if (!sessionId) return c.redirect("/login");
+  if (!sessionId) return c.redirect(app("/login"));
 
   const userId = await getSession(sessionId, c.env);
-  if (!userId) return c.redirect("/login");
+  if (!userId) return c.redirect(app("/login"));
 
   const state = await generateState(c.env, `link:${userId}`);
   return c.redirect(buildGithubUrl(c.env, state));
@@ -94,12 +95,13 @@ githubAuthRouter.get("/github/link", async (c) => {
 
 // Shared callback
 githubAuthRouter.get("/github/callback", async (c) => {
+  const app = (path: string) => `${c.env.FRONTEND_URL}${path}`;
   const oauthError = c.req.query("error");
   const code = c.req.query("code");
   const state = c.req.query("state");
 
   const err = (msg: string) =>
-    c.redirect(`/login/error?error=${encodeURIComponent(msg)}`);
+    c.redirect(app(`/login/error?error=${encodeURIComponent(msg)}`));
 
   if (oauthError) return err("Sign-in was cancelled or denied.");
   if (!code || !state) return err("Missing code or state.");
@@ -179,12 +181,12 @@ githubAuthRouter.get("/github/callback", async (c) => {
       .get();
 
     if (existingIdentity) {
-      if (existingIdentity.userId === linkUserId) return c.redirect("/dashboard");
+      if (existingIdentity.userId === linkUserId) return c.redirect(app("/dashboard"));
       return err("This GitHub account is already linked to a different account.");
     }
 
     await db.insert(coreUserIdentities).values({ ...identityValues, userId: linkUserId });
-    return c.redirect("/dashboard");
+    return c.redirect(app("/dashboard"));
   }
 
   // --- Sign-in flow ---
@@ -211,7 +213,7 @@ githubAuthRouter.get("/github/callback", async (c) => {
 
     const sessionId = await createSession(user.id, c.env);
     setCookie(c, "g3_session", sessionId, sessionCookieOptions());
-    return c.redirect("/dashboard");
+    return c.redirect(app("/dashboard"));
   }
 
   // No GitHub identity — block email collision
@@ -241,5 +243,5 @@ githubAuthRouter.get("/github/callback", async (c) => {
     db.insert(coreUserIdentities).values({ ...identityValues, userId }),
   ]);
 
-  return c.redirect("/signup/pending");
+  return c.redirect(app("/signup/pending"));
 });
