@@ -63,3 +63,18 @@ GOOGLE_REDIRECT_URI = "https://api.g3id.g3robotics.com/auth/google/callback"
 GITHUB_CLIENT_ID = "Ov23liIzEnTs03zGJPKJ"
 GITHUB_REDIRECT_URI = "https://api.g3id.g3robotics.com/auth/github/callback"
 SLACK_TEAM_ID = "T04LF3F0D"
+
+[observability]
+enabled = false
+head_sampling_rate = 1
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+persist = true
+invocation_logs = true
+
+[observability.traces]
+enabled = false
+persist = true
+head_sampling_rate = 1
