@@ -5,19 +5,10 @@ import { createDb } from "../../db";
 import { coreSlackLinkCodes } from "../../db/schema";
 import { newId } from "../../lib/id";
 import { requireAuth } from "../../middleware/auth";
+import { sessionCookieOptions } from "../../lib/cookie";
 import type { AppEnv } from "../../types";
 
 export const slackAuthRouter = new Hono<AppEnv>();
-
-function sessionCookieOptions() {
-  return {
-    httpOnly: true,
-    secure: true,
-    sameSite: "Lax" as const,
-    maxAge: 60 * 60 * 24 * 7,
-    path: "/",
-  };
-}
 
 function generateCode(): string {
   return (crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).toString().padStart(6, "0");
@@ -98,7 +89,7 @@ slackAuthRouter.get("/slack/status", async (c) => {
   }
 
   // Value is a session ID — set cookie and report success
-  setCookie(c, "g3_session", value, sessionCookieOptions());
+  setCookie(c, "g3_session", value, sessionCookieOptions(c.env.FRONTEND_URL));
   await c.env.SESSIONS.delete(`slack_pending:${token}`);
   return c.json({ status: "success" });
 });

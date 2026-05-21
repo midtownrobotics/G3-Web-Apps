@@ -6,6 +6,7 @@ import { coreUserIdentities, coreUsers } from "../../db/schema";
 import { newId } from "../../lib/id";
 import { hashPassword, verifyPassword } from "../../lib/password";
 import { createSession } from "../../lib/session";
+import { sessionCookieOptions } from "../../lib/cookie";
 import { requireAuth } from "../../middleware/auth";
 import type { AppEnv } from "../../types";
 
@@ -116,13 +117,7 @@ emailAuthRouter.post("/login/email", async (c) => {
   }
 
   const sessionId = await createSession(user.id, c.env);
-  setCookie(c, "g3_session", sessionId, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "Lax" as const,
-    maxAge: 60 * 60 * 24 * 7,
-    path: "/",
-  });
+  setCookie(c, "g3_session", sessionId, sessionCookieOptions(c.env.FRONTEND_URL));
 
   return c.json({ ok: true });
 });

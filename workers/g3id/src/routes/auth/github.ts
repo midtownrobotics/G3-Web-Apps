@@ -4,6 +4,7 @@ import { getCookie, setCookie } from "hono/cookie";
 import { createDb } from "../../db";
 import { coreUserIdentities, coreUsers } from "../../db/schema";
 import { newId } from "../../lib/id";
+import { sessionCookieOptions } from "../../lib/cookie";
 import { createSession, getSession } from "../../lib/session";
 import type { AppEnv } from "../../types";
 
@@ -25,16 +26,6 @@ async function generateState(env: AppEnv["Bindings"], value: string): Promise<st
     .join("");
   await env.RATE_LIMIT.put(`oauth_state:${state}`, value, { expirationTtl: 600 });
   return state;
-}
-
-function sessionCookieOptions() {
-  return {
-    httpOnly: true,
-    secure: true,
-    sameSite: "Lax" as const,
-    maxAge: 60 * 60 * 24 * 7,
-    path: "/",
-  };
 }
 
 async function getGithubUser(
@@ -212,7 +203,7 @@ githubAuthRouter.get("/github/callback", async (c) => {
     }
 
     const sessionId = await createSession(user.id, c.env);
-    setCookie(c, "g3_session", sessionId, sessionCookieOptions());
+    setCookie(c, "g3_session", sessionId, sessionCookieOptions(c.env.FRONTEND_URL));
     return c.redirect(app("/dashboard"));
   }
 

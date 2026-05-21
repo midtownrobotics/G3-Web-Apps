@@ -5,6 +5,7 @@ import { createDb } from "../db";
 import { coreUserIdentities, coreUsers } from "../db/schema";
 import { requireAuth } from "../middleware/auth";
 import { deleteSession } from "../lib/session";
+import { deleteCookieOptions } from "../lib/cookie";
 import type { AppEnv } from "../types";
 
 export const authRouter = new Hono<AppEnv>();
@@ -39,6 +40,6 @@ authRouter.get("/me", requireAuth, async (c) => {
 authRouter.post("/logout", async (c) => {
   const sessionId = getCookie(c, "g3_session");
   if (sessionId) await deleteSession(sessionId, c.env);
-  deleteCookie(c, "g3_session", { path: "/" });
+  deleteCookie(c, "g3_session", deleteCookieOptions(c.env.FRONTEND_URL));
   return c.json({ ok: true });
 });
