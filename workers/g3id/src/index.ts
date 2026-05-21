@@ -7,6 +7,7 @@ import { googleAuthRouter } from "./routes/auth/google";
 import { slackAuthRouter } from "./routes/auth/slack";
 import { slackRouter } from "./routes/slack";
 import type { AppEnv } from "./types";
+import { cors } from 'hono/cors'
 
 const app = new Hono<AppEnv>();
 
@@ -15,18 +16,20 @@ app.onError((err, c) => {
   return c.json({ error: "Internal server error." }, 500);
 });
 
-import { cors } from 'hono/cors'
-
 app.use('*', cors({
-  origin: [
-    'http://localhost:5173',
-    'https://g3id.g3robotics.com',
-    'https://*.g3id.pages.dev',  // ← covers your pages.dev preview URLs
-  ],
+  origin: (origin) => {
+    const allowed = [
+      'http://localhost:5173',
+      'https://g3id.g3robotics.com',
+    ]
+    if (allowed.includes(origin)) return origin
+    if (origin?.endsWith('.pages.dev')) return origin
+    return null
+  },
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization'],
-  credentials: true,  // ← required for cookies to work cross-origin
-}));
+  credentials: true,
+}))
 
 app.get("/health", (c) => c.json({ status: "ok", service: "g3id" }));
 
