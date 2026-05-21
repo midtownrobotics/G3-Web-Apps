@@ -7,8 +7,12 @@ packages:
 onlyBuiltDependencies:
   - "@biomejs/biome"
   - esbuild
+  - sharp
+  - workerd
 
 # pnpm v11+ (local)
 allowBuilds:
   "@biomejs/biome": true
   esbuild: true
+  sharp: true
+  workerd: true
