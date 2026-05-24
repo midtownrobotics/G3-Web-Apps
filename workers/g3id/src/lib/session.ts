@@ -6,10 +6,7 @@ import { newId } from "./id";
 
 const SESSION_TTL = 60 * 60 * 24 * 7; // 7 days
 
-export async function createSession(
-  userId: string,
-  env: AppEnv["Bindings"],
-): Promise<string> {
+export async function createSession(userId: string, env: AppEnv["Bindings"]): Promise<string> {
   const db = createDb(env.DB);
   const sessionId = newId();
   const now = Math.floor(Date.now() / 1000);
@@ -28,10 +25,7 @@ export async function createSession(
   return sessionId;
 }
 
-export async function deleteSession(
-  sessionId: string,
-  env: AppEnv["Bindings"],
-): Promise<void> {
+export async function deleteSession(sessionId: string, env: AppEnv["Bindings"]): Promise<void> {
   const db = createDb(env.DB);
   await Promise.all([
     db.delete(coreSessions).where(eq(coreSessions.id, sessionId)),

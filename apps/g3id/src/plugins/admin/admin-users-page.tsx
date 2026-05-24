@@ -63,7 +63,11 @@ export function AdminUsersPage() {
       const { ok } = await postApi<{ error?: string }>(`/admin/users/${userId}/approve`, {});
       if (ok) updateStatus(userId, "active");
     } finally {
-      setApproving((prev) => { const n = new Set(prev); n.delete(userId); return n; });
+      setApproving((prev) => {
+        const n = new Set(prev);
+        n.delete(userId);
+        return n;
+      });
     }
   }
 
@@ -74,7 +78,11 @@ export function AdminUsersPage() {
       const { ok } = await deleteApi<{ error?: string }>(`/admin/users/${userId}`);
       if (ok) setUsers((prev) => prev.filter((u) => u.id !== userId));
     } finally {
-      setDeleting((prev) => { const n = new Set(prev); n.delete(userId); return n; });
+      setDeleting((prev) => {
+        const n = new Set(prev);
+        n.delete(userId);
+        return n;
+      });
     }
   }
 
@@ -84,7 +92,11 @@ export function AdminUsersPage() {
       const { ok } = await postApi<{ error?: string }>(`/admin/users/${userId}/reject`, {});
       if (ok) updateStatus(userId, "rejected");
     } finally {
-      setRejecting((prev) => { const n = new Set(prev); n.delete(userId); return n; });
+      setRejecting((prev) => {
+        const n = new Set(prev);
+        n.delete(userId);
+        return n;
+      });
     }
   }
 
@@ -152,7 +164,10 @@ export function AdminUsersPage() {
       {!loading && !error && (
         <div className="space-y-3">
           {filtered.map((user) => (
-            <div key={user.id} className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
+            <div
+              key={user.id}
+              className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden"
+            >
               <div className="px-5 py-4 flex items-center gap-4">
                 <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center text-sm font-semibold text-gray-300 shrink-0">
                   {user.displayName.charAt(0).toUpperCase()}

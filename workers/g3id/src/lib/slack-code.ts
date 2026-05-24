@@ -1,10 +1,10 @@
 import { and, eq } from "drizzle-orm";
 import { createDb } from "../db";
 import { coreSlackLinkCodes, coreUserIdentities, coreUsers } from "../db/schema";
+import type { AppEnv } from "../types";
 import { newId } from "./id";
 import { createSession } from "./session";
 import { getUserInfo } from "./slack-api";
-import type { AppEnv } from "../types";
 
 type HandleResult = { success: boolean; message: string };
 
@@ -37,14 +37,15 @@ export async function handleSlackCode(opts: {
   }
 
   if (attempts >= 5) {
-    return { success: false, message: "❌ Too many attempts. Please wait 15 minutes and try again." };
+    return {
+      success: false,
+      message: "❌ Too many attempts. Please wait 15 minutes and try again.",
+    };
   }
 
-  await env.RATE_LIMIT.put(
-    rateLimitKey,
-    JSON.stringify({ count: attempts + 1, firstAt }),
-    { expirationTtl: 900 },
-  );
+  await env.RATE_LIMIT.put(rateLimitKey, JSON.stringify({ count: attempts + 1, firstAt }), {
+    expirationTtl: 900,
+  });
 
   const db = createDb(env.DB);
 
@@ -59,10 +60,7 @@ export async function handleSlackCode(opts: {
   }
 
   // Mark used immediately to prevent races
-  await db
-    .update(coreSlackLinkCodes)
-    .set({ used: 1 })
-    .where(eq(coreSlackLinkCodes.id, record.id));
+  await db.update(coreSlackLinkCodes).set({ used: 1 }).where(eq(coreSlackLinkCodes.id, record.id));
 
   const updateKV = async (value: string) => {
     if (record.pollingToken) {
@@ -120,10 +118,7 @@ export async function handleSlackCode(opts: {
     .select({ userId: coreUserIdentities.userId })
     .from(coreUserIdentities)
     .where(
-      and(
-        eq(coreUserIdentities.provider, "slack"),
-        eq(coreUserIdentities.providerId, slackUserId),
-      ),
+      and(eq(coreUserIdentities.provider, "slack"), eq(coreUserIdentities.providerId, slackUserId)),
     )
     .get();
 

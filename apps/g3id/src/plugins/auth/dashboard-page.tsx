@@ -41,7 +41,10 @@ export function DashboardPage() {
   async function handleConnectSlack() {
     setSlackError(null);
     const { ok, data } = await getApi<{ code: string; token: string }>("/auth/slack/link");
-    if (!ok) { setSlackError("Failed to start linking. Try again."); return; }
+    if (!ok) {
+      setSlackError("Failed to start linking. Try again.");
+      return;
+    }
     setSlackCode(data.code);
 
     slackPollRef.current = setInterval(async () => {
@@ -84,7 +87,12 @@ export function DashboardPage() {
     }, 2000);
   }
 
-  useEffect(() => () => { if (slackPollRef.current) clearInterval(slackPollRef.current); }, []);
+  useEffect(
+    () => () => {
+      if (slackPollRef.current) clearInterval(slackPollRef.current);
+    },
+    [],
+  );
 
   async function handleSetPassword(e: React.SyntheticEvent) {
     e.preventDefault();
@@ -99,7 +107,17 @@ export function DashboardPage() {
       return;
     }
     setPasswordDone(true);
-    setMe((prev) => prev ? { ...prev, identities: [...prev.identities, { provider: "local", createdAt: Math.floor(Date.now() / 1000) }] } : prev);
+    setMe((prev) =>
+      prev
+        ? {
+            ...prev,
+            identities: [
+              ...prev.identities,
+              { provider: "local", createdAt: Math.floor(Date.now() / 1000) },
+            ],
+          }
+        : prev,
+    );
   }
 
   async function handleLogout() {
@@ -109,9 +127,18 @@ export function DashboardPage() {
 
   useEffect(() => {
     getApi<Me>("/auth/me").then(({ data, ok, status }) => {
-      if (status === 401) { navigate("/login"); return; }
-      if (status === 404) { navigate("/signup"); return; }
-      if (!ok) { setError("Failed to load your account."); return; }
+      if (status === 401) {
+        navigate("/login");
+        return;
+      }
+      if (status === 404) {
+        navigate("/signup");
+        return;
+      }
+      if (!ok) {
+        setError("Failed to load your account.");
+        return;
+      }
       setMe(data);
     });
   }, [navigate]);
@@ -154,10 +181,7 @@ export function DashboardPage() {
           <p className="text-xs text-gray-500 uppercase tracking-wide mb-3">Sign-in methods</p>
           <div className="space-y-2">
             {me.identities.map((identity) => (
-              <div
-                key={identity.provider}
-                className="flex items-center justify-between text-sm"
-              >
+              <div key={identity.provider} className="flex items-center justify-between text-sm">
                 <span className="text-white">
                   {PROVIDER_LABELS[identity.provider] ?? identity.provider}
                 </span>
@@ -192,9 +216,7 @@ export function DashboardPage() {
                 <div className="rounded-lg bg-gray-800 border border-gray-700 px-4 py-3 space-y-2">
                   <p className="text-xs text-gray-400 text-center">
                     DM this code to the G3 Slack bot, or run{" "}
-                    <span className="font-mono text-red-400">
-                      /link {slackCode}
-                    </span>
+                    <span className="font-mono text-red-400">/link {slackCode}</span>
                   </p>
                   <p className="font-mono text-3xl font-bold text-white text-center tracking-widest">
                     {slackCode}
@@ -214,7 +236,9 @@ export function DashboardPage() {
                     <FaSlack size={16} />
                     Connect Slack
                   </button>
-                  {slackError && <p className="mt-1 text-xs text-red-400 text-center">{slackError}</p>}
+                  {slackError && (
+                    <p className="mt-1 text-xs text-red-400 text-center">{slackError}</p>
+                  )}
                 </>
               )}
             </div>
@@ -238,7 +262,11 @@ export function DashboardPage() {
                   disabled={passwordLoading || newPassword.length < 8}
                   className="flex items-center gap-1.5 rounded-lg bg-gray-800 border border-gray-700 hover:border-red-400 px-3 py-2 text-sm text-gray-300 disabled:opacity-50 transition-colors"
                 >
-                  {passwordLoading ? <Loader2 size={14} className="animate-spin" /> : <KeySquare size={14} />}
+                  {passwordLoading ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <KeySquare size={14} />
+                  )}
                   Set
                 </button>
               </div>

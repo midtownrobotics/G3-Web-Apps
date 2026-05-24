@@ -62,7 +62,11 @@ async function getGithubUser(
   if (!email) {
     const emailsRes = await fetch("https://api.github.com/user/emails", { headers });
     if (emailsRes.ok) {
-      const emails = (await emailsRes.json()) as { email: string; primary: boolean; verified: boolean }[];
+      const emails = (await emailsRes.json()) as {
+        email: string;
+        primary: boolean;
+        verified: boolean;
+      }[];
       email = emails.find((e) => e.primary && e.verified)?.email ?? null;
     }
   }
@@ -100,8 +104,7 @@ githubAuthRouter.get("/github/callback", async (c) => {
   const code = c.req.query("code");
   const state = c.req.query("state");
 
-  const err = (msg: string) =>
-    c.redirect(app(`/login/error?error=${encodeURIComponent(msg)}`));
+  const err = (msg: string) => c.redirect(app(`/login/error?error=${encodeURIComponent(msg)}`));
 
   if (oauthError) return err("Sign-in was cancelled or denied.");
   if (!code || !state) return err("Missing code or state.");

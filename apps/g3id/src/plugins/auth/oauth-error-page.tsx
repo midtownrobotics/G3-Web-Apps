@@ -12,7 +12,10 @@ export function OAuthErrorPage() {
           <p className="mt-2 text-gray-400 text-sm">{error}</p>
         </div>
 
-        <Link to="/login" className="block text-sm text-red-400 hover:text-red-300 transition-colors">
+        <Link
+          to="/login"
+          className="block text-sm text-red-400 hover:text-red-300 transition-colors"
+        >
           ← Back to sign in
         </Link>
       </div>

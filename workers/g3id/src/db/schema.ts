@@ -1,5 +1,12 @@
 import { sql } from "drizzle-orm";
-import { type AnySQLiteColumn, check, integer, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
+import {
+  type AnySQLiteColumn,
+  check,
+  integer,
+  sqliteTable,
+  text,
+  unique,
+} from "drizzle-orm/sqlite-core";
 
 export const coreUsers = sqliteTable(
   "core_users",
@@ -8,9 +15,7 @@ export const coreUsers = sqliteTable(
     email: text("email").notNull().unique(),
     displayName: text("display_name").notNull(),
     status: text("status").notNull(),
-    mergedIntoUserId: text("merged_into_user_id").references(
-      (): AnySQLiteColumn => coreUsers.id
-    ),
+    mergedIntoUserId: text("merged_into_user_id").references((): AnySQLiteColumn => coreUsers.id),
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
     deletedAt: integer("deleted_at"),
@@ -18,9 +23,9 @@ export const coreUsers = sqliteTable(
   (table) => [
     check(
       "core_users_status_check",
-      sql`${table.status} IN ('pending', 'active', 'rejected', 'merged')`
+      sql`${table.status} IN ('pending', 'active', 'rejected', 'merged')`,
     ),
-  ]
+  ],
 );
 
 export const coreUserIdentities = sqliteTable(
@@ -43,10 +48,10 @@ export const coreUserIdentities = sqliteTable(
   (table) => [
     check(
       "core_user_identities_provider_check",
-      sql`${table.provider} IN ('local', 'google', 'slack', 'github', 'onshape')`
+      sql`${table.provider} IN ('local', 'google', 'slack', 'github', 'onshape')`,
     ),
     unique("core_user_identities_provider_provider_id_uniq").on(table.provider, table.providerId),
-  ]
+  ],
 );
 
 export const coreSessions = sqliteTable("core_sessions", {
@@ -70,7 +75,5 @@ export const coreSlackLinkCodes = sqliteTable(
     used: integer("used").notNull().default(0),
     createdAt: integer("created_at").notNull(),
   },
-  (table) => [
-    check("core_slack_link_codes_type_check", sql`${table.type} IN ('signin', 'link')`),
-  ],
+  (table) => [check("core_slack_link_codes_type_check", sql`${table.type} IN ('signin', 'link')`)],
 );

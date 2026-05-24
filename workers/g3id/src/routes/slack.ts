@@ -2,8 +2,8 @@ import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { createDb } from "../db";
 import { coreSlackLinkCodes } from "../db/schema";
-import { handleSlackCode } from "../lib/slack-code";
 import { sendDM, verifySlackSignature } from "../lib/slack-api";
+import { handleSlackCode } from "../lib/slack-code";
 import type { AppEnv } from "../types";
 
 export const slackRouter = new Hono<AppEnv>();
@@ -91,8 +91,8 @@ slackRouter.post("/commands/signin", async (c) => {
   }
 
   c.executionCtx.waitUntil(
-    handleSlackCode({ code, slackUserId, workspaceId, type: "signin", env: c.env }).then(
-      (result) => sendDM(slackUserId, result.message, c.env),
+    handleSlackCode({ code, slackUserId, workspaceId, type: "signin", env: c.env }).then((result) =>
+      sendDM(slackUserId, result.message, c.env),
     ),
   );
 
@@ -114,8 +114,8 @@ slackRouter.post("/commands/link", async (c) => {
   }
 
   c.executionCtx.waitUntil(
-    handleSlackCode({ code, slackUserId, workspaceId, type: "link", env: c.env }).then(
-      (result) => sendDM(slackUserId, result.message, c.env),
+    handleSlackCode({ code, slackUserId, workspaceId, type: "link", env: c.env }).then((result) =>
+      sendDM(slackUserId, result.message, c.env),
     ),
   );
 
