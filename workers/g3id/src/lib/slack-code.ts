@@ -140,7 +140,7 @@ export async function handleSlackCode(opts: {
 
     const sessionId = await createSession(user.id, env);
     await updateKV(sessionId);
-    return { success: true, message: "✅ Signed in successfully." };
+    return { success: true, message: "✅ Signed in successfully. Your G3ID login page should update shortly. Note that this can take up to a minute on slower networks." };
   }
 
   // No Slack identity found — attempt sign-up
