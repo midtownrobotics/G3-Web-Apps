@@ -4,7 +4,6 @@ import { getCookie, setCookie } from "hono/cookie";
 import { createDb } from "../../db";
 import { coreUserIdentities, coreUsers } from "../../db/schema";
 import { newId } from "../../lib/id";
-import { getReturnOrigin } from "../../lib/origin";
 import { createSession, getSession } from "../../lib/session";
 import type { AppEnv } from "../../types";
 
@@ -49,27 +48,15 @@ function sessionCookieOptions() {
   };
 }
 
-async function storeReturnOrigin(env: AppEnv["Bindings"], state: string, origin: string) {
-  await env.RATE_LIMIT.put(`oauth_origin:${state}`, origin, { expirationTtl: 600 });
-}
-
-async function popReturnOrigin(env: AppEnv["Bindings"], state: string): Promise<string | null> {
-  const origin = await env.RATE_LIMIT.get(`oauth_origin:${state}`);
-  await env.RATE_LIMIT.delete(`oauth_origin:${state}`);
-  return origin;
-}
-
 // Sign-in initiation
 googleAuthRouter.get("/google", async (c) => {
   const state = await generateState(c.env, "signin");
-  await storeReturnOrigin(c.env, state, getReturnOrigin(c.req.raw, c.env.FRONTEND_URL));
   return c.redirect(buildGoogleUrl(c.env, state));
 });
 
 // Link initiation — user must already be signed in
 googleAuthRouter.get("/google/link", async (c) => {
-  const origin = getReturnOrigin(c.req.raw, c.env.FRONTEND_URL);
-  const app = (path: string) => `${origin}${path}`;
+  const app = (path: string) => `${c.env.FRONTEND_URL}${path}`;
   const sessionId = getCookie(c, "g3_session");
   if (!sessionId) return c.redirect(app("/login"));
 
@@ -77,20 +64,15 @@ googleAuthRouter.get("/google/link", async (c) => {
   if (!userId) return c.redirect(app("/login"));
 
   const state = await generateState(c.env, `link:${userId}`);
-  await storeReturnOrigin(c.env, state, origin);
   return c.redirect(buildGoogleUrl(c.env, state));
 });
 
 // Shared callback
 googleAuthRouter.get("/google/callback", async (c) => {
+  const app = (path: string) => `${c.env.FRONTEND_URL}${path}`;
   const oauthError = c.req.query("error");
   const code = c.req.query("code");
   const state = c.req.query("state");
-
-  const returnOrigin = state
-    ? ((await popReturnOrigin(c.env, state)) ?? c.env.FRONTEND_URL)
-    : c.env.FRONTEND_URL;
-  const app = (path: string) => `${returnOrigin}${path}`;
 
   const err = (msg: string) =>
     c.redirect(app(`/login/error?error=${encodeURIComponent(msg)}`));

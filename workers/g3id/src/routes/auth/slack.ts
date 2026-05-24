@@ -5,7 +5,6 @@ import { createDb } from "../../db";
 import { coreSlackLinkCodes } from "../../db/schema";
 import { newId } from "../../lib/id";
 import { requireAuth } from "../../middleware/auth";
-import { getReturnOrigin } from "../../lib/origin";
 import type { AppEnv } from "../../types";
 
 export const slackAuthRouter = new Hono<AppEnv>();
@@ -49,8 +48,7 @@ slackAuthRouter.get("/slack/initiate", async (c) => {
 
   await c.env.SESSIONS.put(`slack_pending:${token}`, "pending", { expirationTtl: 900 });
 
-  const origin = getReturnOrigin(c.req.raw, c.env.FRONTEND_URL);
-  return c.redirect(`${origin}/login/slack?token=${token}&code=${code}`);
+  return c.redirect(`${c.env.FRONTEND_URL}/login/slack?token=${token}&code=${code}`);
 });
 
 // Link initiation — user must already be signed in, returns JSON code + token
