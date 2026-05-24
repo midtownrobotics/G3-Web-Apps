@@ -52,9 +52,17 @@ export function SlackLoginPage() {
       }
     };
 
+    poll();
     intervalRef.current = setInterval(poll, 2000);
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") poll();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [token, navigate]);
 
@@ -95,9 +103,13 @@ export function SlackLoginPage() {
               <p className="font-mono text-sm text-red-400">/signin {formattedCode}</p>
             </div>
 
-            <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
+            <div className="flex items-center justify-center gap-2 text-sm text-gray-500 mb-2">
               <Loader2 size={16} className="animate-spin" />
               Waiting for Slack confirmation…
+            </div>
+
+            <div className="flex justify-center text-sm text-gray-500 mt-0">
+              Be patient: this can take up to a minute after the code is sent on slower networks.
             </div>
           </>
         )}
