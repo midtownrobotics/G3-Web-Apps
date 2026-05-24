@@ -15,6 +15,7 @@ export const coreUsers = sqliteTable(
     email: text("email").notNull().unique(),
     displayName: text("display_name").notNull(),
     status: text("status").notNull(),
+    isAdmin: integer("is_admin").notNull().default(0),
     mergedIntoUserId: text("merged_into_user_id").references((): AnySQLiteColumn => coreUsers.id),
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
@@ -48,7 +49,7 @@ export const coreUserIdentities = sqliteTable(
   (table) => [
     check(
       "core_user_identities_provider_check",
-      sql`${table.provider} IN ('local', 'google', 'slack', 'github', 'onshape')`,
+      sql`${table.provider} IN ('local', 'google', 'slack', 'github', 'onshape', 'steam')`,
     ),
     unique("core_user_identities_provider_provider_id_uniq").on(table.provider, table.providerId),
   ],

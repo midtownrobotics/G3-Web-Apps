@@ -1,7 +1,7 @@
-import { KeySquare, Loader2 } from "lucide-react";
+import { KeySquare, Loader2, Shield } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { FaGithub, FaGoogle, FaSlack } from "react-icons/fa";
-import { useNavigate } from "react-router-dom";
+import { FaGithub, FaGoogle, FaSlack, FaSteam } from "react-icons/fa";
+import { Link, useNavigate } from "react-router-dom";
 import { getApi, postApi } from "../../shared/api";
 
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -13,6 +13,7 @@ type Me = {
   email: string;
   displayName: string;
   status: string;
+  isAdmin: number;
   createdAt: number;
   identities: Identity[];
 };
@@ -22,6 +23,7 @@ const PROVIDER_LABELS: Record<string, string> = {
   google: "Google",
   slack: "Slack",
   github: "GitHub",
+  steam: "Steam",
   onshape: "OnShape",
 };
 
@@ -210,6 +212,15 @@ export function DashboardPage() {
               Connect GitHub
             </a>
           )}
+          {!me.identities.some((i) => i.provider === "steam") && (
+            <a
+              href={`${apiBase}/auth/steam/link`}
+              className="mt-3 w-full flex items-center justify-center gap-2 rounded-lg bg-gray-800 border border-gray-700 hover:border-red-400 px-4 py-2 text-sm text-gray-300 transition-colors"
+            >
+              <FaSteam size={16} />
+              Connect Steam
+            </a>
+          )}
           {!me.identities.some((i) => i.provider === "slack") && (
             <div className="mt-3">
               {slackCode ? (
@@ -279,13 +290,23 @@ export function DashboardPage() {
           <p className="text-xs text-gray-500">
             Member since {new Date(me.createdAt * 1000).toLocaleDateString()}
           </p>
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="text-xs text-gray-500 hover:text-red-400 transition-colors"
-          >
-            Sign out
-          </button>
+          <div className="flex items-center gap-3">
+            {me.isAdmin ? (
+              <Link
+                to="/admin/users"
+                className="text-xs text-purple-400 hover:text-purple-300 transition-colors flex items-center gap-1"
+              >
+                <Shield size={12} /> Admin
+              </Link>
+            ) : null}
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="text-xs text-gray-500 hover:text-red-400 transition-colors"
+            >
+              Sign out
+            </button>
+          </div>
         </div>
       </div>
     </main>

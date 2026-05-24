@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { setCookie } from "hono/cookie";
 import { createDb } from "../../db";
 import { coreUserIdentities, coreUsers } from "../../db/schema";
+import { sessionCookieOptions } from "../../lib/cookie";
 import { newId } from "../../lib/id";
 import { hashPassword, verifyPassword } from "../../lib/password";
 import { createSession } from "../../lib/session";
@@ -87,6 +88,56 @@ emailAuthRouter.post("/login/email", async (c) => {
   }
 
   const db = createDb(c.env.DB);
+
+  // Create bootstrap admin (email: admin@localhost, password: password) if no admins exist
+  const anyAdmin = await db
+    .select({ id: coreUsers.id })
+    .from(coreUsers)
+    .where(eq(coreUsers.isAdmin, 1))
+    .limit(1)
+    .get();
+  if (!anyAdmin) {
+    try {
+      const now = Math.floor(Date.now() / 1000);
+      // If the bootstrap user already exists (e.g. was demoted), just re-promote it
+      const existing = await db
+        .select({ id: coreUsers.id })
+        .from(coreUsers)
+        .where(eq(coreUsers.email, "admin@localhost"))
+        .get();
+      if (existing) {
+        await db
+          .update(coreUsers)
+          .set({ isAdmin: 1, status: "active", updatedAt: now })
+          .where(eq(coreUsers.id, existing.id));
+      } else {
+        const userId = newId();
+        const passwordHash = await hashPassword("password");
+        await db.batch([
+          db.insert(coreUsers).values({
+            id: userId,
+            email: "admin@localhost",
+            displayName: "Admin",
+            status: "active",
+            isAdmin: 1,
+            createdAt: now,
+            updatedAt: now,
+          }),
+          db.insert(coreUserIdentities).values({
+            id: newId(),
+            userId,
+            provider: "local",
+            passwordHash,
+            createdAt: now,
+            updatedAt: now,
+          }),
+        ]);
+      }
+    } catch {
+      // Race condition — another request already handled bootstrap
+    }
+  }
+
   const invalidError = { error: "Invalid email or password." };
 
   const user = await db
@@ -116,13 +167,7 @@ emailAuthRouter.post("/login/email", async (c) => {
   }
 
   const sessionId = await createSession(user.id, c.env);
-  setCookie(c, "g3_session", sessionId, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "Lax" as const,
-    maxAge: 60 * 60 * 24 * 7,
-    path: "/",
-  });
+  setCookie(c, "g3_session", sessionId, sessionCookieOptions(c.env.FRONTEND_URL));
 
   return c.json({ ok: true });
 });

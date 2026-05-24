@@ -6,6 +6,7 @@ import { emailAuthRouter } from "./routes/auth/email";
 import { githubAuthRouter } from "./routes/auth/github";
 import { googleAuthRouter } from "./routes/auth/google";
 import { slackAuthRouter } from "./routes/auth/slack";
+import { steamAuthRouter } from "./routes/auth/steam";
 import { slackRouter } from "./routes/slack";
 import type { AppEnv } from "./types";
 
@@ -38,6 +39,7 @@ app.route("/auth", emailAuthRouter);
 app.route("/auth", githubAuthRouter);
 app.route("/auth", googleAuthRouter);
 app.route("/auth", slackAuthRouter);
+app.route("/auth", steamAuthRouter);
 app.route("/admin", adminRouter);
 app.route("/slack", slackRouter);
 

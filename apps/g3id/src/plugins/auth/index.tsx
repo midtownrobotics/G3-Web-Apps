@@ -19,6 +19,7 @@ export const authPlugin: Plugin = {
     { path: "/signup/email", element: <EmailSignupPage /> },
     { path: "/signup/pending", element: <PendingPage /> },
     { path: "/dashboard", element: <DashboardPage /> },
+    { path: "/", element: <DashboardPage /> },
   ],
   navItems: [
     { label: "Dash", to: "/dashboard", order: 0 },

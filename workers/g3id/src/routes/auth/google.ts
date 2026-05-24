@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
 import { createDb } from "../../db";
 import { coreUserIdentities, coreUsers } from "../../db/schema";
+import { sessionCookieOptions } from "../../lib/cookie";
 import { newId } from "../../lib/id";
 import { createSession, getSession } from "../../lib/session";
 import type { AppEnv } from "../../types";
@@ -33,16 +34,6 @@ async function generateState(env: AppEnv["Bindings"], value: string): Promise<st
 function decodeJwtPayload(token: string): Record<string, unknown> {
   const base64 = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
   return JSON.parse(atob(base64));
-}
-
-function sessionCookieOptions() {
-  return {
-    httpOnly: true,
-    secure: true,
-    sameSite: "Lax" as const,
-    maxAge: 60 * 60 * 24 * 7,
-    path: "/",
-  };
 }
 
 // Sign-in initiation
@@ -176,7 +167,7 @@ googleAuthRouter.get("/google/callback", async (c) => {
     }
 
     const sessionId = await createSession(user.id, c.env);
-    setCookie(c, "g3_session", sessionId, sessionCookieOptions());
+    setCookie(c, "g3_session", sessionId, sessionCookieOptions(c.env.FRONTEND_URL));
     return c.redirect(app("/dashboard"));
   }
 

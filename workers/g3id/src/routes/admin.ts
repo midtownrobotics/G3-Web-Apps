@@ -2,9 +2,12 @@ import { desc, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { createDb } from "../db";
 import { coreSessions, coreSlackLinkCodes, coreUserIdentities, coreUsers } from "../db/schema";
+import { requireAdmin } from "../middleware/auth";
 import type { AppEnv } from "../types";
 
 export const adminRouter = new Hono<AppEnv>();
+
+adminRouter.use("*", requireAdmin);
 
 adminRouter.get("/users", async (c) => {
   const db = createDb(c.env.DB);
@@ -174,4 +177,47 @@ adminRouter.delete("/users/:id", async (c) => {
   await db.delete(coreUsers).where(eq(coreUsers.id, id));
 
   return c.json({ message: "User deleted." });
+});
+
+adminRouter.post("/users/:id/promote", async (c) => {
+  const id = c.req.param("id");
+  const db = createDb(c.env.DB);
+
+  const user = await db
+    .select({ id: coreUsers.id })
+    .from(coreUsers)
+    .where(eq(coreUsers.id, id))
+    .get();
+
+  if (!user) return c.json({ error: "User not found." }, 404);
+
+  await db
+    .update(coreUsers)
+    .set({ isAdmin: 1, updatedAt: Math.floor(Date.now() / 1000) })
+    .where(eq(coreUsers.id, id));
+
+  return c.json({ message: "User promoted to admin." });
+});
+
+adminRouter.post("/users/:id/demote", async (c) => {
+  const id = c.req.param("id");
+  const actorId = c.get("userId");
+  if (id === actorId) return c.json({ error: "Cannot demote yourself." }, 400);
+
+  const db = createDb(c.env.DB);
+
+  const user = await db
+    .select({ id: coreUsers.id })
+    .from(coreUsers)
+    .where(eq(coreUsers.id, id))
+    .get();
+
+  if (!user) return c.json({ error: "User not found." }, 404);
+
+  await db
+    .update(coreUsers)
+    .set({ isAdmin: 0, updatedAt: Math.floor(Date.now() / 1000) })
+    .where(eq(coreUsers.id, id));
+
+  return c.json({ message: "User demoted." });
 });
