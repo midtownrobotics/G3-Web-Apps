@@ -3,8 +3,8 @@ import { Hono } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
 import { createDb } from "../../db";
 import { coreUserIdentities, coreUsers } from "../../db/schema";
-import { newId } from "../../lib/id";
 import { sessionCookieOptions } from "../../lib/cookie";
+import { newId } from "../../lib/id";
 import { createSession, getSession } from "../../lib/session";
 import type { AppEnv } from "../../types";
 
@@ -23,10 +23,7 @@ function buildGoogleUrl(env: AppEnv["Bindings"], state: string): string {
   return `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
 }
 
-async function generateState(
-  env: AppEnv["Bindings"],
-  value: string,
-): Promise<string> {
+async function generateState(env: AppEnv["Bindings"], value: string): Promise<string> {
   const state = Array.from(crypto.getRandomValues(new Uint8Array(16)))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
@@ -65,8 +62,7 @@ googleAuthRouter.get("/google/callback", async (c) => {
   const code = c.req.query("code");
   const state = c.req.query("state");
 
-  const err = (msg: string) =>
-    c.redirect(app(`/login/error?error=${encodeURIComponent(msg)}`));
+  const err = (msg: string) => c.redirect(app(`/login/error?error=${encodeURIComponent(msg)}`));
 
   if (oauthError) return err("Sign-in was cancelled or denied.");
   if (!code || !state) return err("Missing code or state.");

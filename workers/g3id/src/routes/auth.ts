@@ -3,9 +3,9 @@ import { Hono } from "hono";
 import { deleteCookie, getCookie } from "hono/cookie";
 import { createDb } from "../db";
 import { coreUserIdentities, coreUsers } from "../db/schema";
-import { requireAuth } from "../middleware/auth";
-import { deleteSession } from "../lib/session";
 import { deleteCookieOptions } from "../lib/cookie";
+import { deleteSession } from "../lib/session";
+import { requireAuth } from "../middleware/auth";
 import type { AppEnv } from "../types";
 
 export const authRouter = new Hono<AppEnv>();
@@ -20,6 +20,7 @@ authRouter.get("/me", requireAuth, async (c) => {
       email: coreUsers.email,
       displayName: coreUsers.displayName,
       status: coreUsers.status,
+      isAdmin: coreUsers.isAdmin,
       createdAt: coreUsers.createdAt,
     })
     .from(coreUsers)

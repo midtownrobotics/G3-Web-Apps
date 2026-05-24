@@ -1,10 +1,13 @@
 import { desc, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { createDb } from "../db";
-import { coreSlackLinkCodes, coreUserIdentities, coreSessions, coreUsers } from "../db/schema";
+import { coreSessions, coreSlackLinkCodes, coreUserIdentities, coreUsers } from "../db/schema";
+import { requireAdmin } from "../middleware/auth";
 import type { AppEnv } from "../types";
 
 export const adminRouter = new Hono<AppEnv>();
+
+adminRouter.use("*", requireAdmin);
 
 adminRouter.get("/users", async (c) => {
   const db = createDb(c.env.DB);
@@ -32,7 +35,7 @@ adminRouter.get("/users", async (c) => {
     users.map((user) => ({
       ...user,
       identities: identitiesByUser.get(user.id) ?? [],
-    }))
+    })),
   );
 });
 
@@ -96,8 +99,16 @@ adminRouter.post("/users/:id/merge", async (c) => {
   const db = createDb(c.env.DB);
 
   const [source, target] = await Promise.all([
-    db.select({ id: coreUsers.id, status: coreUsers.status }).from(coreUsers).where(eq(coreUsers.id, id)).get(),
-    db.select({ id: coreUsers.id, status: coreUsers.status }).from(coreUsers).where(eq(coreUsers.id, targetUserId)).get(),
+    db
+      .select({ id: coreUsers.id, status: coreUsers.status })
+      .from(coreUsers)
+      .where(eq(coreUsers.id, id))
+      .get(),
+    db
+      .select({ id: coreUsers.id, status: coreUsers.status })
+      .from(coreUsers)
+      .where(eq(coreUsers.id, targetUserId))
+      .get(),
   ]);
 
   if (!source) return c.json({ error: "User not found." }, 404);
@@ -107,8 +118,16 @@ adminRouter.post("/users/:id/merge", async (c) => {
   if (target.status === "merged") return c.json({ error: "Cannot merge into a merged user." }, 400);
 
   const [sourceIdentities, targetIdentities] = await Promise.all([
-    db.select({ provider: coreUserIdentities.provider }).from(coreUserIdentities).where(eq(coreUserIdentities.userId, id)).all(),
-    db.select({ provider: coreUserIdentities.provider }).from(coreUserIdentities).where(eq(coreUserIdentities.userId, targetUserId)).all(),
+    db
+      .select({ provider: coreUserIdentities.provider })
+      .from(coreUserIdentities)
+      .where(eq(coreUserIdentities.userId, id))
+      .all(),
+    db
+      .select({ provider: coreUserIdentities.provider })
+      .from(coreUserIdentities)
+      .where(eq(coreUserIdentities.userId, targetUserId))
+      .all(),
   ]);
 
   const targetProviders = new Set(targetIdentities.map((i) => i.provider));
@@ -116,19 +135,18 @@ adminRouter.post("/users/:id/merge", async (c) => {
   if (conflict) {
     return c.json(
       { error: `Target user already has a ${conflict.provider} account. Cannot merge.` },
-      409
+      409,
     );
   }
 
   const now = Math.floor(Date.now() / 1000);
 
   await db.batch([
-    db.update(coreUserIdentities)
+    db
+      .update(coreUserIdentities)
       .set({ userId: targetUserId, updatedAt: now })
       .where(eq(coreUserIdentities.userId, id)),
-    db.update(coreSessions)
-      .set({ userId: targetUserId })
-      .where(eq(coreSessions.userId, id)),
+    db.update(coreSessions).set({ userId: targetUserId }).where(eq(coreSessions.userId, id)),
   ]);
 
   // Source user's identities and sessions are now on the target — delete the shell
@@ -159,4 +177,47 @@ adminRouter.delete("/users/:id", async (c) => {
   await db.delete(coreUsers).where(eq(coreUsers.id, id));
 
   return c.json({ message: "User deleted." });
+});
+
+adminRouter.post("/users/:id/promote", async (c) => {
+  const id = c.req.param("id");
+  const db = createDb(c.env.DB);
+
+  const user = await db
+    .select({ id: coreUsers.id })
+    .from(coreUsers)
+    .where(eq(coreUsers.id, id))
+    .get();
+
+  if (!user) return c.json({ error: "User not found." }, 404);
+
+  await db
+    .update(coreUsers)
+    .set({ isAdmin: 1, updatedAt: Math.floor(Date.now() / 1000) })
+    .where(eq(coreUsers.id, id));
+
+  return c.json({ message: "User promoted to admin." });
+});
+
+adminRouter.post("/users/:id/demote", async (c) => {
+  const id = c.req.param("id");
+  const actorId = c.get("userId");
+  if (id === actorId) return c.json({ error: "Cannot demote yourself." }, 400);
+
+  const db = createDb(c.env.DB);
+
+  const user = await db
+    .select({ id: coreUsers.id })
+    .from(coreUsers)
+    .where(eq(coreUsers.id, id))
+    .get();
+
+  if (!user) return c.json({ error: "User not found." }, 404);
+
+  await db
+    .update(coreUsers)
+    .set({ isAdmin: 0, updatedAt: Math.floor(Date.now() / 1000) })
+    .where(eq(coreUsers.id, id));
+
+  return c.json({ message: "User demoted." });
 });

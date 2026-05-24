@@ -3,9 +3,9 @@ import { Hono } from "hono";
 import { setCookie } from "hono/cookie";
 import { createDb } from "../../db";
 import { coreSlackLinkCodes } from "../../db/schema";
+import { sessionCookieOptions } from "../../lib/cookie";
 import { newId } from "../../lib/id";
 import { requireAuth } from "../../middleware/auth";
-import { sessionCookieOptions } from "../../lib/cookie";
 import type { AppEnv } from "../../types";
 
 export const slackAuthRouter = new Hono<AppEnv>();
@@ -26,16 +26,18 @@ slackAuthRouter.get("/slack/initiate", async (c) => {
   const token = generateToken();
   const now = Math.floor(Date.now() / 1000);
 
-  await createDb(c.env.DB).insert(coreSlackLinkCodes).values({
-    id: newId(),
-    userId: null,
-    code,
-    type: "signin",
-    pollingToken: token,
-    expiresAt: now + 900,
-    used: 0,
-    createdAt: now,
-  });
+  await createDb(c.env.DB)
+    .insert(coreSlackLinkCodes)
+    .values({
+      id: newId(),
+      userId: null,
+      code,
+      type: "signin",
+      pollingToken: token,
+      expiresAt: now + 900,
+      used: 0,
+      createdAt: now,
+    });
 
   await c.env.SESSIONS.put(`slack_pending:${token}`, "pending", { expirationTtl: 900 });
 
@@ -49,16 +51,18 @@ slackAuthRouter.get("/slack/link", requireAuth, async (c) => {
   const token = generateToken();
   const now = Math.floor(Date.now() / 1000);
 
-  await createDb(c.env.DB).insert(coreSlackLinkCodes).values({
-    id: newId(),
-    userId,
-    code,
-    type: "link",
-    pollingToken: token,
-    expiresAt: now + 900,
-    used: 0,
-    createdAt: now,
-  });
+  await createDb(c.env.DB)
+    .insert(coreSlackLinkCodes)
+    .values({
+      id: newId(),
+      userId,
+      code,
+      type: "link",
+      pollingToken: token,
+      expiresAt: now + 900,
+      used: 0,
+      createdAt: now,
+    });
 
   await c.env.SESSIONS.put(`slack_pending:${token}`, "pending", { expirationTtl: 900 });
 

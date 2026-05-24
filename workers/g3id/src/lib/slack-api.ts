@@ -44,7 +44,7 @@ export async function verifySlackSignature(
 
   // Reject requests older than 5 minutes to prevent replay attacks
   const now = Math.floor(Date.now() / 1000);
-  if (Math.abs(now - parseInt(timestamp, 10)) > 300) return false;
+  if (Math.abs(now - Number.parseInt(timestamp, 10)) > 300) return false;
 
   const sigBase = `v0:${timestamp}:${rawBody}`;
   const key = await crypto.subtle.importKey(

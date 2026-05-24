@@ -13,12 +13,16 @@ function toHex(bytes: Uint8Array): string {
 function fromHex(hex: string): Uint8Array {
   const bytes = new Uint8Array(hex.length / 2);
   for (let i = 0; i < hex.length; i += 2) {
-    bytes[i / 2] = parseInt(hex.slice(i, i + 2), 16);
+    bytes[i / 2] = Number.parseInt(hex.slice(i, i + 2), 16);
   }
   return bytes;
 }
 
-async function deriveKey(password: string, salt: Uint8Array, iterations: number): Promise<Uint8Array> {
+async function deriveKey(
+  password: string,
+  salt: Uint8Array,
+  iterations: number,
+): Promise<Uint8Array> {
   const key = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(password),
@@ -43,7 +47,7 @@ export async function hashPassword(password: string): Promise<string> {
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {
   const parts = stored.split(":");
   if (parts.length !== 5 || parts[0] !== ALGORITHM) return false;
-  const iterations = parseInt(parts[2], 10);
+  const iterations = Number.parseInt(parts[2], 10);
   if (!Number.isFinite(iterations) || iterations <= 0) return false;
   const salt = fromHex(parts[3]);
   const expected = parts[4];

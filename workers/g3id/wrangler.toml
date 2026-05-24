@@ -16,29 +16,13 @@ id = "c27ba19a75fb4eb6b93f9d2d47de6c0f"
 binding = "RATE_LIMIT"
 id = "45e7485d5f0e4f2abf76bd6400e64897"
 
-[env.dev]
-name = "g3id-dev"
-
-[[env.dev.d1_databases]]
-binding = "DB"
-database_name = "g3-auth-dev"
-database_id = "ff3c0d13-858d-41e5-a22e-eb3ddac8d40d"
-migrations_dir = "src/db/migrations"
-
-[[env.dev.kv_namespaces]]
-binding = "SESSIONS"
-id = "c27ba19a75fb4eb6b93f9d2d47de6c0f"
-
-[[env.dev.kv_namespaces]]
-binding = "RATE_LIMIT"
-id = "45e7485d5f0e4f2abf76bd6400e64897"
-
-[env.dev.vars]
-GOOGLE_CLIENT_ID = "your-client-id"
+[vars]
+GOOGLE_CLIENT_ID = "26070176131-lom1rtgi2tmahrd12md7452oieha1vbl.apps.googleusercontent.com"
 GOOGLE_REDIRECT_URI = "http://localhost:8787/auth/google/callback"
-GITHUB_CLIENT_ID = "your-client-id"
+GITHUB_CLIENT_ID = "Ov23liIzEnTs03zGJPKJ"
 GITHUB_REDIRECT_URI = "http://localhost:8787/auth/github/callback"
 SLACK_TEAM_ID = "T04LF3F0D"
+STEAM_REDIRECT_URI = "http://localhost:8787/auth/steam/callback"
 FRONTEND_URL = "http://localhost:5173"
 
 [env.production]
@@ -64,6 +48,7 @@ GOOGLE_REDIRECT_URI = "https://api.g3id.g3robotics.com/auth/google/callback"
 GITHUB_CLIENT_ID = "Ov23liIzEnTs03zGJPKJ"
 GITHUB_REDIRECT_URI = "https://api.g3id.g3robotics.com/auth/github/callback"
 SLACK_TEAM_ID = "T04LF3F0D"
+STEAM_REDIRECT_URI = "https://api.g3id.g3robotics.com/auth/steam/callback"
 FRONTEND_URL = "https://g3id.g3robotics.com"
 
 [observability]

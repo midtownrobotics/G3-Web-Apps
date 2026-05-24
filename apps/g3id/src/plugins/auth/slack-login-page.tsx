@@ -89,8 +89,8 @@ export function SlackLoginPage() {
 
             <div className="space-y-1">
               <p className="text-sm text-gray-300">
-                DM this code to the{" "}
-                <span className="text-white font-medium">G3 Slack bot</span>, or run:
+                DM this code to the <span className="text-white font-medium">G3 Slack bot</span>, or
+                run:
               </p>
               <p className="font-mono text-sm text-red-400">/signin {formattedCode}</p>
             </div>
@@ -105,9 +105,7 @@ export function SlackLoginPage() {
         {isTerminal && (
           <div className="space-y-4">
             <p className="text-sm text-red-400">
-              {pollStatus.status === "expired"
-                ? "This code has expired."
-                : pollStatus.message}
+              {pollStatus.status === "expired" ? "This code has expired." : pollStatus.message}
             </p>
             <button
               type="button"

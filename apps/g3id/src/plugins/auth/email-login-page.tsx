@@ -15,10 +15,10 @@ export function EmailLoginPage() {
     setLoading(true);
     setError(null);
     try {
-      const { ok, data } = await postApi<{ ok?: boolean; error?: string }>(
-        "/auth/login/email",
-        { email, password },
-      );
+      const { ok, data } = await postApi<{ ok?: boolean; error?: string }>("/auth/login/email", {
+        email,
+        password,
+      });
       if (!ok) {
         setError(data.error ?? "Something went wrong.");
         return;

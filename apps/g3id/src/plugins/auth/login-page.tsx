@@ -1,10 +1,13 @@
 import { KeySquare } from "lucide-react";
 import { FaGithub, FaGoogle, FaSlack, FaSteam } from "react-icons/fa";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
 
 export function LoginPage() {
+  const [searchParams] = useSearchParams();
+  const error = searchParams.get("error");
+
   return (
     <main className="flex-1 flex items-center justify-center px-4">
       <div className="w-full max-w-sm space-y-6">
@@ -14,6 +17,7 @@ export function LoginPage() {
           </h1>
           <p className="mt-2 text-gray-400 text-sm">Choose a sign-in method</p>
         </div>
+        {error && <p className="text-sm text-red-400 text-center">{error}</p>}
 
         <div className="space-y-3">
           <a
@@ -43,15 +47,15 @@ export function LoginPage() {
             </span>
             Sign in with GitHub
           </a>
-          <button
-            type="button"
+          <a
+            href={`${apiBase}/auth/steam`}
             className="w-full flex items-center justify-center gap-3 rounded-lg bg-gray-900 border border-gray-700 hover:border-red-400 px-4 py-2.5 text-sm text-white transition-colors"
           >
             <span className="text-base">
               <FaSteam size={20} />
             </span>
             Sign in with Steam
-          </button>
+          </a>
           <Link
             to="/login/email"
             className="w-full flex items-center justify-center gap-3 rounded-lg bg-gray-900 border border-gray-700 hover:border-red-400 px-4 py-2.5 text-sm text-white transition-colors"

@@ -1,5 +1,6 @@
-import { Loader2 } from "lucide-react";
+import { Loader2, Shield, ShieldOff } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { deleteApi, getApi, postApi } from "../../shared/api";
 
 type Identity = { provider: string; createdAt: number };
@@ -9,6 +10,7 @@ type User = {
   email: string;
   displayName: string;
   status: string;
+  isAdmin: number;
   createdAt: number;
   identities: Identity[];
 };
@@ -24,6 +26,7 @@ const PROVIDER_LABELS: Record<string, string> = {
   google: "Google",
   slack: "Slack",
   github: "GitHub",
+  steam: "Steam",
   onshape: "OnShape",
 };
 
@@ -31,6 +34,8 @@ const FILTERS = ["pending", "active", "rejected", "all"] as const;
 type Filter = (typeof FILTERS)[number];
 
 export function AdminUsersPage() {
+  const navigate = useNavigate();
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [filter, setFilter] = useState<Filter>("pending");
   const [loading, setLoading] = useState(true);
@@ -39,11 +44,27 @@ export function AdminUsersPage() {
   const [approving, setApproving] = useState<Set<string>>(new Set());
   const [rejecting, setRejecting] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState<Set<string>>(new Set());
+  const [promoting, setPromoting] = useState<Set<string>>(new Set());
   const [mergingUserId, setMergingUserId] = useState<string | null>(null);
   const [mergeTargetId, setMergeTargetId] = useState("");
   const [mergeLoading, setMergeLoading] = useState(false);
 
   useEffect(() => {
+    getApi<{ id: string; isAdmin: number }>("/auth/me").then(({ ok, status, data }) => {
+      if (status === 401) {
+        navigate("/login");
+        return;
+      }
+      if (!ok || !data.isAdmin) {
+        navigate("/dashboard");
+        return;
+      }
+      setCurrentUserId(data.id);
+    });
+  }, [navigate]);
+
+  useEffect(() => {
+    if (!currentUserId) return;
     getApi<User[]>("/admin/users")
       .then(({ data, ok }) => {
         if (!ok) throw new Error("Failed to load users.");
@@ -51,19 +72,37 @@ export function AdminUsersPage() {
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Something went wrong."))
       .finally(() => setLoading(false));
-  }, []);
+  }, [currentUserId]);
 
-  function updateStatus(userId: string, status: string, extra?: Partial<User>) {
-    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, status, ...extra } : u)));
+  function updateUser(userId: string, patch: Partial<User>) {
+    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, ...patch } : u)));
   }
 
   async function handleApprove(userId: string) {
     setApproving((prev) => new Set(prev).add(userId));
     try {
       const { ok } = await postApi<{ error?: string }>(`/admin/users/${userId}/approve`, {});
-      if (ok) updateStatus(userId, "active");
+      if (ok) updateUser(userId, { status: "active" });
     } finally {
-      setApproving((prev) => { const n = new Set(prev); n.delete(userId); return n; });
+      setApproving((prev) => {
+        const n = new Set(prev);
+        n.delete(userId);
+        return n;
+      });
+    }
+  }
+
+  async function handleReject(userId: string) {
+    setRejecting((prev) => new Set(prev).add(userId));
+    try {
+      const { ok } = await postApi<{ error?: string }>(`/admin/users/${userId}/reject`, {});
+      if (ok) updateUser(userId, { status: "rejected" });
+    } finally {
+      setRejecting((prev) => {
+        const n = new Set(prev);
+        n.delete(userId);
+        return n;
+      });
     }
   }
 
@@ -74,17 +113,39 @@ export function AdminUsersPage() {
       const { ok } = await deleteApi<{ error?: string }>(`/admin/users/${userId}`);
       if (ok) setUsers((prev) => prev.filter((u) => u.id !== userId));
     } finally {
-      setDeleting((prev) => { const n = new Set(prev); n.delete(userId); return n; });
+      setDeleting((prev) => {
+        const n = new Set(prev);
+        n.delete(userId);
+        return n;
+      });
     }
   }
 
-  async function handleReject(userId: string) {
-    setRejecting((prev) => new Set(prev).add(userId));
+  async function handlePromote(userId: string) {
+    setPromoting((prev) => new Set(prev).add(userId));
     try {
-      const { ok } = await postApi<{ error?: string }>(`/admin/users/${userId}/reject`, {});
-      if (ok) updateStatus(userId, "rejected");
+      const { ok } = await postApi<{ error?: string }>(`/admin/users/${userId}/promote`, {});
+      if (ok) updateUser(userId, { isAdmin: 1 });
     } finally {
-      setRejecting((prev) => { const n = new Set(prev); n.delete(userId); return n; });
+      setPromoting((prev) => {
+        const n = new Set(prev);
+        n.delete(userId);
+        return n;
+      });
+    }
+  }
+
+  async function handleDemote(userId: string) {
+    setPromoting((prev) => new Set(prev).add(userId));
+    try {
+      const { ok } = await postApi<{ error?: string }>(`/admin/users/${userId}/demote`, {});
+      if (ok) updateUser(userId, { isAdmin: 0 });
+    } finally {
+      setPromoting((prev) => {
+        const n = new Set(prev);
+        n.delete(userId);
+        return n;
+      });
     }
   }
 
@@ -103,11 +164,6 @@ export function AdminUsersPage() {
     } finally {
       setMergeLoading(false);
     }
-  }
-
-  function openMerge(userId: string) {
-    setMergingUserId(userId);
-    setMergeTargetId("");
   }
 
   const filtered = filter === "all" ? users : users.filter((u) => u.status === filter);
@@ -152,14 +208,24 @@ export function AdminUsersPage() {
       {!loading && !error && (
         <div className="space-y-3">
           {filtered.map((user) => (
-            <div key={user.id} className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
+            <div
+              key={user.id}
+              className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden"
+            >
               <div className="px-5 py-4 flex items-center gap-4">
                 <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center text-sm font-semibold text-gray-300 shrink-0">
                   {user.displayName.charAt(0).toUpperCase()}
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <p className="text-white font-medium truncate">{user.displayName}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-white font-medium truncate">{user.displayName}</p>
+                    {user.isAdmin ? (
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 shrink-0">
+                        Admin
+                      </span>
+                    ) : null}
+                  </div>
                   <p className="text-gray-500 text-sm truncate">{user.email}</p>
                 </div>
 
@@ -198,24 +264,49 @@ export function AdminUsersPage() {
                     </>
                   )}
 
-                  {(user.status === "active" || user.status === "rejected") && (
+                  {user.status === "active" && user.id !== currentUserId && (
                     <button
                       type="button"
-                      disabled={deleting.has(user.id)}
-                      onClick={() => handleDelete(user.id)}
-                      className="px-3 py-1 rounded-lg text-xs font-medium bg-gray-800 hover:bg-red-900 hover:text-red-300 disabled:opacity-50 disabled:cursor-not-allowed text-gray-400 transition-colors flex items-center gap-1.5"
+                      disabled={promoting.has(user.id)}
+                      onClick={() =>
+                        user.isAdmin ? handleDemote(user.id) : handlePromote(user.id)
+                      }
+                      className="px-3 py-1 rounded-lg text-xs font-medium bg-gray-800 hover:bg-purple-900 hover:text-purple-300 disabled:opacity-50 disabled:cursor-not-allowed text-gray-400 transition-colors flex items-center gap-1.5"
                     >
-                      {deleting.has(user.id) && <Loader2 size={12} className="animate-spin" />}
-                      Delete
+                      {promoting.has(user.id) ? (
+                        <Loader2 size={12} className="animate-spin" />
+                      ) : user.isAdmin ? (
+                        <ShieldOff size={12} />
+                      ) : (
+                        <Shield size={12} />
+                      )}
+                      {user.isAdmin ? "Demote" : "Promote"}
                     </button>
                   )}
+
+                  {(user.status === "active" || user.status === "rejected") &&
+                    user.id !== currentUserId && (
+                      <button
+                        type="button"
+                        disabled={deleting.has(user.id)}
+                        onClick={() => handleDelete(user.id)}
+                        className="px-3 py-1 rounded-lg text-xs font-medium bg-gray-800 hover:bg-red-900 hover:text-red-300 disabled:opacity-50 disabled:cursor-not-allowed text-gray-400 transition-colors flex items-center gap-1.5"
+                      >
+                        {deleting.has(user.id) && <Loader2 size={12} className="animate-spin" />}
+                        Delete
+                      </button>
+                    )}
 
                   {user.status !== "active" && (
                     <button
                       type="button"
-                      onClick={() =>
-                        mergingUserId === user.id ? setMergingUserId(null) : openMerge(user.id)
-                      }
+                      onClick={() => {
+                        if (mergingUserId === user.id) setMergingUserId(null);
+                        else {
+                          setMergingUserId(user.id);
+                          setMergeTargetId("");
+                        }
+                      }}
                       className="px-3 py-1 rounded-lg text-xs font-medium bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors"
                     >
                       {mergingUserId === user.id ? "Cancel" : "Merge"}

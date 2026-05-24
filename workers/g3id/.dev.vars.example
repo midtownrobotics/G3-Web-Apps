@@ -12,4 +12,8 @@ SLACK_BOT_TOKEN=
 SLACK_SIGNING_SECRET=
 SLACK_TEAM_ID=
 
+STEAM_API_KEY=
+# Dev: through Vite proxy. Production secret should be https://api.g3id.g3robotics.com/auth/steam/callback
+STEAM_REDIRECT_URI=http://localhost:5173/api/auth/steam/callback
+
 FRONTEND_URL=http://localhost:5173
