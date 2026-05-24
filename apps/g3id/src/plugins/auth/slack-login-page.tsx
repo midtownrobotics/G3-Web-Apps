@@ -105,7 +105,7 @@ export function SlackLoginPage() {
 
             <div className="flex items-center justify-center gap-2 text-sm text-gray-500 mb-2">
               <Loader2 size={16} className="animate-spin" />
-              Waiting for Slack confirmation…<br />
+              Waiting for Slack confirmation…
             </div>
 
             <div className="flex justify-center text-sm text-gray-500 mt-0">
