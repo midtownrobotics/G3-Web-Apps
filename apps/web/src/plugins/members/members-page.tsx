@@ -7,7 +7,6 @@ import {
   FaInstagram,
   FaSearch,
   FaSlack,
-  FaStore,
   FaToolbox,
   FaTrophy,
   FaUserShield,
