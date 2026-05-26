@@ -115,9 +115,7 @@ export function MembersPage() {
                 >
                   <app.icon className="text-white text-3xl" />
                 </div>
-                <span
-                  className="text-xs text-center leading-tight transition-colors text-gray-400 group-hover:text-white"
-                >
+                <span className="text-xs text-center leading-tight transition-colors text-gray-400 group-hover:text-white">
                   {app.label}
                 </span>
               </a>
