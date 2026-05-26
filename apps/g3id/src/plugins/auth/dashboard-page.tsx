@@ -67,12 +67,12 @@ export function DashboardPage() {
           setMe((prev) =>
             prev
               ? {
-                ...prev,
-                identities: [
-                  ...prev.identities,
-                  { provider: "slack", createdAt: Math.floor(Date.now() / 1000) },
-                ],
-              }
+                  ...prev,
+                  identities: [
+                    ...prev.identities,
+                    { provider: "slack", createdAt: Math.floor(Date.now() / 1000) },
+                  ],
+                }
               : prev,
           );
         } else {
@@ -112,12 +112,12 @@ export function DashboardPage() {
     setMe((prev) =>
       prev
         ? {
-          ...prev,
-          identities: [
-            ...prev.identities,
-            { provider: "local", createdAt: Math.floor(Date.now() / 1000) },
-          ],
-        }
+            ...prev,
+            identities: [
+              ...prev.identities,
+              { provider: "local", createdAt: Math.floor(Date.now() / 1000) },
+            ],
+          }
         : prev,
     );
   }
@@ -167,7 +167,9 @@ export function DashboardPage() {
 
       <div className="bg-gray-900 border border-gray-800 rounded-lg divide-y divide-gray-800 mt-4">
         <div className="px-5 py-4 flex items-center gap-4">
-          <a href="https://web.g3robotics.com/members" className="text-red-400 underline">Click here to visit the G3 members page</a>
+          <a href="https://web.g3robotics.com/members" className="text-red-400 underline">
+            Click here to visit the G3 members page
+          </a>
         </div>
       </div>
 
