@@ -21,9 +21,11 @@ app.use(
   "*",
   cors({
     origin: (origin) => {
-      const allowed = ["http://localhost:5173", "https://g3id.g3robotics.com"];
-      if (allowed.includes(origin)) return origin;
-      if (origin?.endsWith(".pages.dev")) return origin;
+      if (!origin) return null;
+      if (origin === "https://g3robotics.com") return origin;
+      if (origin.endsWith(".g3robotics.com")) return origin;
+      if (origin.startsWith("http://localhost:")) return origin;
+      if (origin.endsWith(".pages.dev")) return origin;
       return null;
     },
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],

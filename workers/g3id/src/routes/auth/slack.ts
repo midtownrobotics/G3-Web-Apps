@@ -5,6 +5,7 @@ import { createDb } from "../../db";
 import { coreSlackLinkCodes } from "../../db/schema";
 import { sessionCookieOptions } from "../../lib/cookie";
 import { newId } from "../../lib/id";
+import { sanitizeRedirect } from "../../lib/redirect";
 import { requireAuth } from "../../middleware/auth";
 import type { AppEnv } from "../../types";
 
@@ -22,6 +23,7 @@ function generateToken(): string {
 
 // Sign-in initiation — generates code, redirects to /login/slack
 slackAuthRouter.get("/slack/initiate", async (c) => {
+  const redirect = sanitizeRedirect(c.req.query("redirect"));
   const code = generateCode();
   const token = generateToken();
   const now = Math.floor(Date.now() / 1000);
@@ -41,7 +43,10 @@ slackAuthRouter.get("/slack/initiate", async (c) => {
 
   await c.env.SESSIONS.put(`slack_pending:${token}`, "pending", { expirationTtl: 900 });
 
-  return c.redirect(`${c.env.FRONTEND_URL}/login/slack?token=${token}&code=${code}`);
+  const redirectParam = redirect ? `&redirect=${encodeURIComponent(redirect)}` : "";
+  return c.redirect(
+    `${c.env.FRONTEND_URL}/login/slack?token=${token}&code=${code}${redirectParam}`,
+  );
 });
 
 // Link initiation — user must already be signed in, returns JSON code + token

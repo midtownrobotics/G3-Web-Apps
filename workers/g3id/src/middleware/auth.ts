@@ -1,27 +1,39 @@
 import { eq } from "drizzle-orm";
-import { getCookie } from "hono/cookie";
 import { createMiddleware } from "hono/factory";
 import { createDb } from "../db";
 import { coreUsers } from "../db/schema";
 import { getSession } from "../lib/session";
 import type { AppEnv } from "../types";
 
+function getSessionIds(cookieHeader: string): string[] {
+  return cookieHeader
+    .split(";")
+    .map((p) => p.trim())
+    .filter((p) => p.startsWith("g3_session="))
+    .map((p) => p.slice("g3_session=".length))
+    .filter(Boolean);
+}
+
+async function resolveUserId(
+  cookieHeader: string,
+  env: AppEnv["Bindings"],
+): Promise<string | null> {
+  for (const id of getSessionIds(cookieHeader)) {
+    const userId = await getSession(id, env);
+    if (userId) return userId;
+  }
+  return null;
+}
+
 export const requireAuth = createMiddleware<AppEnv>(async (c, next) => {
-  const sessionId = getCookie(c, "g3_session");
-  if (!sessionId) return c.json({ error: "Unauthorized." }, 401);
-
-  const userId = await getSession(sessionId, c.env);
+  const userId = await resolveUserId(c.req.header("Cookie") ?? "", c.env);
   if (!userId) return c.json({ error: "Unauthorized." }, 401);
-
   c.set("userId", userId);
   await next();
 });
 
 export const requireAdmin = createMiddleware<AppEnv>(async (c, next) => {
-  const sessionId = getCookie(c, "g3_session");
-  if (!sessionId) return c.json({ error: "Unauthorized." }, 401);
-
-  const userId = await getSession(sessionId, c.env);
+  const userId = await resolveUserId(c.req.header("Cookie") ?? "", c.env);
   if (!userId) return c.json({ error: "Unauthorized." }, 401);
 
   const db = createDb(c.env.DB);
@@ -40,10 +52,7 @@ export const requireAdmin = createMiddleware<AppEnv>(async (c, next) => {
 });
 
 export const requireActive = createMiddleware<AppEnv>(async (c, next) => {
-  const sessionId = getCookie(c, "g3_session");
-  if (!sessionId) return c.json({ error: "Unauthorized." }, 401);
-
-  const userId = await getSession(sessionId, c.env);
+  const userId = await resolveUserId(c.req.header("Cookie") ?? "", c.env);
   if (!userId) return c.json({ error: "Unauthorized." }, 401);
 
   const db = createDb(c.env.DB);

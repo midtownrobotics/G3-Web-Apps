@@ -4,6 +4,7 @@ import { getCookie, setCookie } from "hono/cookie";
 import { createDb } from "../../db";
 import { coreUserIdentities, coreUsers } from "../../db/schema";
 import { sessionCookieOptions } from "../../lib/cookie";
+import { sanitizeRedirect } from "../../lib/redirect";
 import { createSession, getSession } from "../../lib/session";
 import type { AppEnv } from "../../types";
 
@@ -35,7 +36,9 @@ function buildSteamUrl(redirectUri: string, state: string): string {
 
 // Sign-in initiation
 steamAuthRouter.get("/steam", async (c) => {
-  const state = await generateState(c.env, "signin");
+  const redirect = sanitizeRedirect(c.req.query("redirect"));
+  const stateValue = redirect ? `signin:${redirect}` : "signin";
+  const state = await generateState(c.env, stateValue);
   return c.redirect(buildSteamUrl(c.env.STEAM_REDIRECT_URI, state));
 });
 
@@ -66,6 +69,7 @@ steamAuthRouter.get("/steam/callback", async (c) => {
 
   const isLink = stateValue.startsWith("link:");
   const linkUserId = isLink ? stateValue.slice(5) : null;
+  const redirectTo = !isLink && stateValue.startsWith("signin:") ? stateValue.slice(7) : null;
 
   const claimedId = c.req.query("openid.claimed_id");
   if (!claimedId) return err("Invalid OpenID response.");
@@ -166,5 +170,5 @@ steamAuthRouter.get("/steam/callback", async (c) => {
 
   const sessionId = await createSession(user.id, c.env);
   setCookie(c, "g3_session", sessionId, sessionCookieOptions(c.env.FRONTEND_URL));
-  return c.redirect(app("/dashboard"));
+  return c.redirect(redirectTo ?? app("/dashboard"));
 });

@@ -5,6 +5,7 @@ import { createDb } from "../../db";
 import { coreUserIdentities, coreUsers } from "../../db/schema";
 import { sessionCookieOptions } from "../../lib/cookie";
 import { newId } from "../../lib/id";
+import { sanitizeRedirect } from "../../lib/redirect";
 import { createSession, getSession } from "../../lib/session";
 import type { AppEnv } from "../../types";
 
@@ -38,7 +39,9 @@ function decodeJwtPayload(token: string): Record<string, unknown> {
 
 // Sign-in initiation
 googleAuthRouter.get("/google", async (c) => {
-  const state = await generateState(c.env, "signin");
+  const redirect = sanitizeRedirect(c.req.query("redirect"));
+  const stateValue = redirect ? `signin:${redirect}` : "signin";
+  const state = await generateState(c.env, stateValue);
   return c.redirect(buildGoogleUrl(c.env, state));
 });
 
@@ -73,6 +76,7 @@ googleAuthRouter.get("/google/callback", async (c) => {
 
   const isLink = stateValue.startsWith("link:");
   const linkUserId = isLink ? stateValue.slice(5) : null;
+  const redirectTo = !isLink && stateValue.startsWith("signin:") ? stateValue.slice(7) : null;
 
   // Exchange code for tokens
   const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
@@ -168,7 +172,7 @@ googleAuthRouter.get("/google/callback", async (c) => {
 
     const sessionId = await createSession(user.id, c.env);
     setCookie(c, "g3_session", sessionId, sessionCookieOptions(c.env.FRONTEND_URL));
-    return c.redirect(app("/dashboard"));
+    return c.redirect(redirectTo ?? app("/dashboard"));
   }
 
   // No Google identity — check if email already belongs to an existing account.

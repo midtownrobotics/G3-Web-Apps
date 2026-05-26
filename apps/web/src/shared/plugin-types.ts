@@ -9,6 +9,7 @@ export interface PluginNavItem {
   label: string;
   to: string;
   order: number;
+  requiresAuth?: boolean;
 }
 
 export interface Plugin {
