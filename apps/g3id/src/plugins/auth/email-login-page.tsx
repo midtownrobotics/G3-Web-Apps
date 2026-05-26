@@ -1,10 +1,12 @@
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { postApi } from "../../shared/api";
 
 export function EmailLoginPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const redirect = searchParams.get("redirect");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -23,7 +25,11 @@ export function EmailLoginPage() {
         setError(data.error ?? "Something went wrong.");
         return;
       }
-      navigate("/dashboard");
+      if (redirect) {
+        window.location.href = redirect;
+      } else {
+        navigate("/dashboard");
+      }
     } catch {
       setError("Could not reach the server. Try again.");
     } finally {

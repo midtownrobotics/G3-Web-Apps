@@ -7,6 +7,12 @@ const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
 export function LoginPage() {
   const [searchParams] = useSearchParams();
   const error = searchParams.get("error");
+  const redirect = searchParams.get("redirect") ?? "";
+
+  const rp = redirect ? `?redirect=${encodeURIComponent(redirect)}` : "";
+  const emailTo = redirect
+    ? `/login/email?redirect=${encodeURIComponent(redirect)}`
+    : "/login/email";
 
   return (
     <main className="flex-1 flex items-center justify-center px-4">
@@ -21,7 +27,7 @@ export function LoginPage() {
 
         <div className="space-y-3">
           <a
-            href={`${apiBase}/auth/slack/initiate`}
+            href={`${apiBase}/auth/slack/initiate${rp}`}
             className="w-full flex items-center justify-center gap-3 rounded-lg bg-gray-900 border border-gray-700 hover:border-red-400 px-4 py-2.5 text-sm text-white transition-colors"
           >
             <span className="text-base">
@@ -30,7 +36,7 @@ export function LoginPage() {
             Sign in with Slack
           </a>
           <a
-            href={`${apiBase}/auth/google`}
+            href={`${apiBase}/auth/google${rp}`}
             className="w-full flex items-center justify-center gap-3 rounded-lg bg-gray-900 border border-gray-700 hover:border-red-400 px-4 py-2.5 text-sm text-white transition-colors"
           >
             <span className="text-base">
@@ -39,7 +45,7 @@ export function LoginPage() {
             Sign in with Google
           </a>
           <a
-            href={`${apiBase}/auth/github`}
+            href={`${apiBase}/auth/github${rp}`}
             className="w-full flex items-center justify-center gap-3 rounded-lg bg-gray-900 border border-gray-700 hover:border-red-400 px-4 py-2.5 text-sm text-white transition-colors"
           >
             <span className="text-base">
@@ -48,7 +54,7 @@ export function LoginPage() {
             Sign in with GitHub
           </a>
           <a
-            href={`${apiBase}/auth/steam`}
+            href={`${apiBase}/auth/steam${rp}`}
             className="w-full flex items-center justify-center gap-3 rounded-lg bg-gray-900 border border-gray-700 hover:border-red-400 px-4 py-2.5 text-sm text-white transition-colors"
           >
             <span className="text-base">
@@ -57,7 +63,7 @@ export function LoginPage() {
             Sign in with Steam
           </a>
           <Link
-            to="/login/email"
+            to={emailTo}
             className="w-full flex items-center justify-center gap-3 rounded-lg bg-gray-900 border border-gray-700 hover:border-red-400 px-4 py-2.5 text-sm text-white transition-colors"
           >
             <span className="text-base">

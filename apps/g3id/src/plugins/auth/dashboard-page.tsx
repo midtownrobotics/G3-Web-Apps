@@ -163,9 +163,17 @@ export function DashboardPage() {
 
   return (
     <main className="flex-1 px-6 py-8 max-w-lg mx-auto w-full">
-      <h1 className="text-2xl font-bold text-white mb-6">Dashboard</h1>
+      <h1 className="text-2xl font-bold text-white mb-4">Dashboard</h1>
 
-      <div className="bg-gray-900 border border-gray-800 rounded-lg divide-y divide-gray-800">
+      <div className="bg-gray-900 border border-gray-800 rounded-lg divide-y divide-gray-800 mt-4">
+        <div className="px-5 py-4 flex items-center gap-4">
+          <a href="https://web.g3robotics.com/members" className="text-red-400 underline">
+            Click here to visit the G3 members page
+          </a>
+        </div>
+      </div>
+
+      <div className="bg-gray-900 border border-gray-800 rounded-lg divide-y divide-gray-800 mt-4">
         <div className="px-5 py-4 flex items-center gap-4">
           <div className="w-12 h-12 rounded-full bg-gray-800 flex items-center justify-center text-lg font-semibold text-gray-300 shrink-0">
             {me.displayName.charAt(0).toUpperCase()}

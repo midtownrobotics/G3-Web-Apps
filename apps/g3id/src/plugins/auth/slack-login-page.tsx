@@ -16,6 +16,7 @@ export function SlackLoginPage() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token") ?? "";
   const code = searchParams.get("code") ?? "";
+  const redirect = searchParams.get("redirect");
   const [pollStatus, setPollStatus] = useState<PollStatus>({ status: "pending" });
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -39,7 +40,11 @@ export function SlackLoginPage() {
         if (intervalRef.current) clearInterval(intervalRef.current);
 
         if (data.status === "success") {
-          navigate("/dashboard");
+          if (redirect) {
+            window.location.href = redirect;
+          } else {
+            navigate("/dashboard");
+          }
           return;
         }
         if (data.status === "signup_pending") {
@@ -64,7 +69,7 @@ export function SlackLoginPage() {
       if (intervalRef.current) clearInterval(intervalRef.current);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [token, navigate]);
+  }, [token, navigate, redirect]);
 
   async function handleCancel() {
     if (intervalRef.current) clearInterval(intervalRef.current);
