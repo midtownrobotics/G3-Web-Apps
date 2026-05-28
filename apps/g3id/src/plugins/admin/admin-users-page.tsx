@@ -1,7 +1,7 @@
 import { Loader2, Shield, ShieldOff } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { deleteApi, getApi, postApi } from "../../shared/api";
+import { api } from "../../lib/api";
 
 type Identity = { provider: string; createdAt: number };
 
@@ -50,12 +50,13 @@ export function AdminUsersPage() {
   const [mergeLoading, setMergeLoading] = useState(false);
 
   useEffect(() => {
-    getApi<{ id: string; isAdmin: number }>("/auth/me").then(({ ok, status, data }) => {
-      if (status === 401) {
+    api.auth.me.$get().then(async (res) => {
+      if (res.status === 401) {
         navigate("/login");
         return;
       }
-      if (!ok || !data.isAdmin) {
+      const data = (await res.json()) as { id: string; isAdmin: number };
+      if (!res.ok || !data.isAdmin) {
         navigate("/dashboard");
         return;
       }
@@ -65,9 +66,11 @@ export function AdminUsersPage() {
 
   useEffect(() => {
     if (!currentUserId) return;
-    getApi<User[]>("/admin/users")
-      .then(({ data, ok }) => {
-        if (!ok) throw new Error("Failed to load users.");
+    api.admin.users
+      .$get()
+      .then(async (res) => {
+        if (!res.ok) throw new Error("Failed to load users.");
+        const data = (await res.json()) as User[];
         setUsers(data);
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Something went wrong."))
@@ -81,8 +84,8 @@ export function AdminUsersPage() {
   async function handleApprove(userId: string) {
     setApproving((prev) => new Set(prev).add(userId));
     try {
-      const { ok } = await postApi<{ error?: string }>(`/admin/users/${userId}/approve`, {});
-      if (ok) updateUser(userId, { status: "active" });
+      const res = await api.admin.users[":id"].approve.$post({ param: { id: userId } });
+      if (res.ok) updateUser(userId, { status: "active" });
     } finally {
       setApproving((prev) => {
         const n = new Set(prev);
@@ -95,8 +98,8 @@ export function AdminUsersPage() {
   async function handleReject(userId: string) {
     setRejecting((prev) => new Set(prev).add(userId));
     try {
-      const { ok } = await postApi<{ error?: string }>(`/admin/users/${userId}/reject`, {});
-      if (ok) updateUser(userId, { status: "rejected" });
+      const res = await api.admin.users[":id"].reject.$post({ param: { id: userId } });
+      if (res.ok) updateUser(userId, { status: "rejected" });
     } finally {
       setRejecting((prev) => {
         const n = new Set(prev);
@@ -110,8 +113,8 @@ export function AdminUsersPage() {
     if (!window.confirm("Permanently delete this user and all their data?")) return;
     setDeleting((prev) => new Set(prev).add(userId));
     try {
-      const { ok } = await deleteApi<{ error?: string }>(`/admin/users/${userId}`);
-      if (ok) setUsers((prev) => prev.filter((u) => u.id !== userId));
+      const res = await api.admin.users[":id"].$delete({ param: { id: userId } });
+      if (res.ok) setUsers((prev) => prev.filter((u) => u.id !== userId));
     } finally {
       setDeleting((prev) => {
         const n = new Set(prev);
@@ -124,8 +127,8 @@ export function AdminUsersPage() {
   async function handlePromote(userId: string) {
     setPromoting((prev) => new Set(prev).add(userId));
     try {
-      const { ok } = await postApi<{ error?: string }>(`/admin/users/${userId}/promote`, {});
-      if (ok) updateUser(userId, { isAdmin: 1 });
+      const res = await api.admin.users[":id"].promote.$post({ param: { id: userId } });
+      if (res.ok) updateUser(userId, { isAdmin: 1 });
     } finally {
       setPromoting((prev) => {
         const n = new Set(prev);
@@ -138,8 +141,8 @@ export function AdminUsersPage() {
   async function handleDemote(userId: string) {
     setPromoting((prev) => new Set(prev).add(userId));
     try {
-      const { ok } = await postApi<{ error?: string }>(`/admin/users/${userId}/demote`, {});
-      if (ok) updateUser(userId, { isAdmin: 0 });
+      const res = await api.admin.users[":id"].demote.$post({ param: { id: userId } });
+      if (res.ok) updateUser(userId, { isAdmin: 0 });
     } finally {
       setPromoting((prev) => {
         const n = new Set(prev);
@@ -153,10 +156,12 @@ export function AdminUsersPage() {
     if (!mergeTargetId) return;
     setMergeLoading(true);
     try {
-      const { ok } = await postApi<{ error?: string }>(`/admin/users/${userId}/merge`, {
-        targetUserId: mergeTargetId,
+      // biome-ignore lint/suspicious/noExplicitAny: merge route has no body validator
+      const res = await (api.admin.users[":id"].merge.$post as any)({
+        param: { id: userId },
+        json: { targetUserId: mergeTargetId },
       });
-      if (ok) {
+      if (res.ok) {
         setUsers((prev) => prev.filter((u) => u.id !== userId));
         setMergingUserId(null);
         setMergeTargetId("");

@@ -1,6 +1,7 @@
 import { Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { api } from "../../lib/api";
 
 type PollStatus =
   | { status: "pending" }
@@ -8,8 +9,6 @@ type PollStatus =
   | { status: "failed"; message: string }
   | { status: "expired" }
   | { status: "signup_pending" };
-
-const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
 
 export function SlackLoginPage() {
   const navigate = useNavigate();
@@ -30,9 +29,7 @@ export function SlackLoginPage() {
 
     const poll = async () => {
       try {
-        const res = await fetch(`${apiBase}/auth/slack/status?token=${token}`, {
-          credentials: "include",
-        });
+        const res = await api.auth.slack.status.$get({ query: { token } });
         if (!res.ok) return;
         const data = (await res.json()) as PollStatus;
         if (data.status === "pending") return;
@@ -74,7 +71,7 @@ export function SlackLoginPage() {
   async function handleCancel() {
     if (intervalRef.current) clearInterval(intervalRef.current);
     if (token) {
-      await fetch(`${apiBase}/auth/slack/cancel?token=${token}`, { method: "DELETE" });
+      await api.auth.slack.cancel.$delete({ query: { token } });
     }
     navigate("/login");
   }

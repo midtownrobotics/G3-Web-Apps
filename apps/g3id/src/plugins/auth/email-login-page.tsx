@@ -1,7 +1,7 @@
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { postApi } from "../../shared/api";
+import { api } from "../../lib/api";
 
 export function EmailLoginPage() {
   const navigate = useNavigate();
@@ -17,11 +17,9 @@ export function EmailLoginPage() {
     setLoading(true);
     setError(null);
     try {
-      const { ok, data } = await postApi<{ ok?: boolean; error?: string }>("/auth/login/email", {
-        email,
-        password,
-      });
-      if (!ok) {
+      const res = await api.auth.login.email.$post({ json: { email, password } });
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok) {
         setError(data.error ?? "Something went wrong.");
         return;
       }

@@ -2,9 +2,7 @@ import { KeySquare, Loader2, Shield } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { FaGithub, FaGoogle, FaSlack, FaSteam } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
-import { getApi, postApi } from "../../shared/api";
-
-const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
+import { api } from "../../lib/api";
 
 type Identity = { provider: string; createdAt: number };
 
@@ -42,18 +40,17 @@ export function DashboardPage() {
 
   async function handleConnectSlack() {
     setSlackError(null);
-    const { ok, data } = await getApi<{ code: string; token: string }>("/auth/slack/link");
-    if (!ok) {
+    const res = await api.auth.slack.link.$get();
+    if (!res.ok) {
       setSlackError("Failed to start linking. Try again.");
       return;
     }
+    const data = (await res.json()) as { code: string; token: string };
     setSlackCode(data.code);
 
     slackPollRef.current = setInterval(async () => {
       try {
-        const res = await fetch(`${apiBase}/auth/slack/status?token=${data.token}`, {
-          credentials: "include",
-        });
+        const res = await api.auth.slack.status.$get({ query: { token: data.token } });
         if (!res.ok) return;
         const status = (await res.json()) as {
           status: string;
@@ -100,12 +97,11 @@ export function DashboardPage() {
     e.preventDefault();
     setPasswordLoading(true);
     setPasswordError(null);
-    const { ok, data } = await postApi<{ ok?: boolean; error?: string }>("/auth/password", {
-      password: newPassword,
-    });
+    const res = await api.auth.password.$post({ json: { password: newPassword } });
+    const data = (await res.json()) as { ok?: boolean; error?: string };
     setPasswordLoading(false);
-    if (!ok) {
-      setPasswordError((data as { error?: string }).error ?? "Something went wrong.");
+    if (!res.ok) {
+      setPasswordError(data.error ?? "Something went wrong.");
       return;
     }
     setPasswordDone(true);
@@ -123,24 +119,25 @@ export function DashboardPage() {
   }
 
   async function handleLogout() {
-    await postApi("/auth/logout", {});
+    await api.auth.logout.$post();
     navigate("/login");
   }
 
   useEffect(() => {
-    getApi<Me>("/auth/me").then(({ data, ok, status }) => {
-      if (status === 401) {
+    api.auth.me.$get().then(async (res) => {
+      if (res.status === 401) {
         navigate("/login");
         return;
       }
-      if (status === 404) {
+      if (res.status === 404) {
         navigate("/signup");
         return;
       }
-      if (!ok) {
+      if (!res.ok) {
         setError("Failed to load your account.");
         return;
       }
+      const data = (await res.json()) as Me;
       setMe(data);
     });
   }, [navigate]);
@@ -204,7 +201,7 @@ export function DashboardPage() {
 
           {!me.identities.some((i) => i.provider === "google") && (
             <a
-              href={`${apiBase}/auth/google/link`}
+              href={`${import.meta.env.VITE_API_BASE_URL}/auth/google/link`}
               className="mt-3 w-full flex items-center justify-center gap-2 rounded-lg bg-gray-800 border border-gray-700 hover:border-red-400 px-4 py-2 text-sm text-gray-300 transition-colors"
             >
               <FaGoogle size={16} />
@@ -213,7 +210,7 @@ export function DashboardPage() {
           )}
           {!me.identities.some((i) => i.provider === "github") && (
             <a
-              href={`${apiBase}/auth/github/link`}
+              href={`${import.meta.env.VITE_API_BASE_URL}/auth/github/link`}
               className="mt-3 w-full flex items-center justify-center gap-2 rounded-lg bg-gray-800 border border-gray-700 hover:border-red-400 px-4 py-2 text-sm text-gray-300 transition-colors"
             >
               <FaGithub size={16} />
@@ -222,7 +219,7 @@ export function DashboardPage() {
           )}
           {!me.identities.some((i) => i.provider === "steam") && (
             <a
-              href={`${apiBase}/auth/steam/link`}
+              href={`${import.meta.env.VITE_API_BASE_URL}/auth/steam/link`}
               className="mt-3 w-full flex items-center justify-center gap-2 rounded-lg bg-gray-800 border border-gray-700 hover:border-red-400 px-4 py-2 text-sm text-gray-300 transition-colors"
             >
               <FaSteam size={16} />

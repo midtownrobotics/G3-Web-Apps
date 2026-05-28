@@ -10,8 +10,6 @@ import { sanitizeRedirect } from "../../lib/redirect";
 import { createSession } from "../../lib/session";
 import type { AppEnv } from "../../types";
 
-export const githubAuthRouter = new Hono<AppEnv>();
-
 function buildGithubUrl(env: AppEnv["Bindings"], state: string): string {
   const params = new URLSearchParams({
     client_id: env.GITHUB_CLIENT_ID,
@@ -71,173 +69,174 @@ async function getGithubUser(
   };
 }
 
-// Sign-in initiation
-githubAuthRouter.get("/github", async (c) => {
-  const redirect = sanitizeRedirect(c.req.query("redirect"));
-  const stateValue = redirect ? `signin:${redirect}` : "signin";
-  const state = await generateState(c.env, stateValue);
-  return c.redirect(buildGithubUrl(c.env, state));
-});
+export const githubAuthRouter = new Hono<AppEnv>()
+  // Sign-in initiation
+  .get("/github", async (c) => {
+    const redirect = sanitizeRedirect(c.req.query("redirect"));
+    const stateValue = redirect ? `signin:${redirect}` : "signin";
+    const state = await generateState(c.env, stateValue);
+    return c.redirect(buildGithubUrl(c.env, state));
+  })
+  // Link initiation — user must already be signed in
+  .get("/github/link", async (c) => {
+    const app = (path: string) => `${c.env.FRONTEND_URL}${path}`;
+    const userId = await resolveUserId(c.req.header("Cookie") ?? "", c.env);
+    if (!userId) return c.redirect(app("/login"));
 
-// Link initiation — user must already be signed in
-githubAuthRouter.get("/github/link", async (c) => {
-  const app = (path: string) => `${c.env.FRONTEND_URL}${path}`;
-  const userId = await resolveUserId(c.req.header("Cookie") ?? "", c.env);
-  if (!userId) return c.redirect(app("/login"));
+    const state = await generateState(c.env, `link:${userId}`);
+    return c.redirect(buildGithubUrl(c.env, state));
+  })
+  // Shared callback
+  .get("/github/callback", async (c) => {
+    const app = (path: string) => `${c.env.FRONTEND_URL}${path}`;
+    const oauthError = c.req.query("error");
+    const code = c.req.query("code");
+    const state = c.req.query("state");
 
-  const state = await generateState(c.env, `link:${userId}`);
-  return c.redirect(buildGithubUrl(c.env, state));
-});
+    const err = (msg: string) => c.redirect(app(`/login/error?error=${encodeURIComponent(msg)}`));
 
-// Shared callback
-githubAuthRouter.get("/github/callback", async (c) => {
-  const app = (path: string) => `${c.env.FRONTEND_URL}${path}`;
-  const oauthError = c.req.query("error");
-  const code = c.req.query("code");
-  const state = c.req.query("state");
+    if (oauthError) return err("Sign-in was cancelled or denied.");
+    if (!code || !state) return err("Missing code or state.");
 
-  const err = (msg: string) => c.redirect(app(`/login/error?error=${encodeURIComponent(msg)}`));
+    const stateValue = await c.env.RATE_LIMIT.get(`oauth_state:${state}`);
+    await c.env.RATE_LIMIT.delete(`oauth_state:${state}`);
+    if (!stateValue) return err("This sign-in link has expired. Please try again.");
 
-  if (oauthError) return err("Sign-in was cancelled or denied.");
-  if (!code || !state) return err("Missing code or state.");
+    const isLink = stateValue.startsWith("link:");
+    const linkUserId = isLink ? stateValue.slice(5) : null;
+    const redirectTo = !isLink && stateValue.startsWith("signin:") ? stateValue.slice(7) : null;
 
-  const stateValue = await c.env.RATE_LIMIT.get(`oauth_state:${state}`);
-  await c.env.RATE_LIMIT.delete(`oauth_state:${state}`);
-  if (!stateValue) return err("This sign-in link has expired. Please try again.");
+    // Exchange code for access token
+    const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Accept: "application/json",
+      },
+      body: new URLSearchParams({
+        client_id: c.env.GITHUB_CLIENT_ID,
+        client_secret: c.env.GITHUB_CLIENT_SECRET,
+        code,
+        redirect_uri: c.env.GITHUB_REDIRECT_URI,
+      }),
+    });
 
-  const isLink = stateValue.startsWith("link:");
-  const linkUserId = isLink ? stateValue.slice(5) : null;
-  const redirectTo = !isLink && stateValue.startsWith("signin:") ? stateValue.slice(7) : null;
+    if (!tokenRes.ok) return err("Failed to complete sign-in with GitHub. Please try again.");
 
-  // Exchange code for access token
-  const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      Accept: "application/json",
-    },
-    body: new URLSearchParams({
-      client_id: c.env.GITHUB_CLIENT_ID,
-      client_secret: c.env.GITHUB_CLIENT_SECRET,
-      code,
-      redirect_uri: c.env.GITHUB_REDIRECT_URI,
-    }),
-  });
+    const { access_token: accessToken } = (await tokenRes.json()) as { access_token: string };
+    if (!accessToken) return err("Failed to complete sign-in with GitHub. Please try again.");
 
-  if (!tokenRes.ok) return err("Failed to complete sign-in with GitHub. Please try again.");
-
-  const { access_token: accessToken } = (await tokenRes.json()) as { access_token: string };
-  if (!accessToken) return err("Failed to complete sign-in with GitHub. Please try again.");
-
-  let githubUser: { id: string; email: string | null; name: string };
-  try {
-    githubUser = await getGithubUser(accessToken);
-  } catch {
-    return err("Failed to fetch your GitHub profile. Please try again.");
-  }
-
-  if (!githubUser.email) {
-    return err(
-      "Your GitHub account has no verified public email. Add a public email in your GitHub settings and try again.",
-    );
-  }
-
-  const sub = githubUser.id;
-  const email = githubUser.email.toLowerCase();
-  const name = githubUser.name;
-
-  const db = createDb(c.env.DB);
-  const now = Math.floor(Date.now() / 1000);
-
-  const identityValues = {
-    id: newId(),
-    provider: "github" as const,
-    providerId: sub,
-    accessToken,
-    createdAt: now,
-    updatedAt: now,
-  };
-
-  // --- Link flow ---
-  if (isLink && linkUserId) {
-    const linkUser = await db
-      .select({ id: coreUsers.id, status: coreUsers.status })
-      .from(coreUsers)
-      .where(eq(coreUsers.id, linkUserId))
-      .get();
-
-    if (!linkUser || linkUser.status !== "active") {
-      return err("Your account is not active.");
+    let githubUser: { id: string; email: string | null; name: string };
+    try {
+      githubUser = await getGithubUser(accessToken);
+    } catch {
+      return err("Failed to fetch your GitHub profile. Please try again.");
     }
 
-    const existingIdentity = await db
+    if (!githubUser.email) {
+      return err(
+        "Your GitHub account has no verified public email. Add a public email in your GitHub settings and try again.",
+      );
+    }
+
+    const sub = githubUser.id;
+    const email = githubUser.email.toLowerCase();
+    const name = githubUser.name;
+
+    const db = createDb(c.env.DB);
+    const now = Math.floor(Date.now() / 1000);
+
+    const identityValues = {
+      id: newId(),
+      provider: "github" as const,
+      providerId: sub,
+      accessToken,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    // --- Link flow ---
+    if (isLink && linkUserId) {
+      const linkUser = await db
+        .select({ id: coreUsers.id, status: coreUsers.status })
+        .from(coreUsers)
+        .where(eq(coreUsers.id, linkUserId))
+        .get();
+
+      if (!linkUser || linkUser.status !== "active") {
+        return err("Your account is not active.");
+      }
+
+      const existingIdentity = await db
+        .select({ userId: coreUserIdentities.userId })
+        .from(coreUserIdentities)
+        .where(
+          and(eq(coreUserIdentities.provider, "github"), eq(coreUserIdentities.providerId, sub)),
+        )
+        .get();
+
+      if (existingIdentity) {
+        if (existingIdentity.userId === linkUserId) return c.redirect(app("/dashboard"));
+        return err("This GitHub account is already linked to a different account.");
+      }
+
+      await db.insert(coreUserIdentities).values({ ...identityValues, userId: linkUserId });
+      return c.redirect(app("/dashboard"));
+    }
+
+    // --- Sign-in flow ---
+    const identity = await db
       .select({ userId: coreUserIdentities.userId })
       .from(coreUserIdentities)
       .where(and(eq(coreUserIdentities.provider, "github"), eq(coreUserIdentities.providerId, sub)))
       .get();
 
-    if (existingIdentity) {
-      if (existingIdentity.userId === linkUserId) return c.redirect(app("/dashboard"));
-      return err("This GitHub account is already linked to a different account.");
+    if (identity) {
+      const user = await db
+        .select({ id: coreUsers.id, status: coreUsers.status })
+        .from(coreUsers)
+        .where(eq(coreUsers.id, identity.userId))
+        .get();
+
+      if (!user || user.status !== "active") {
+        const message =
+          user?.status === "pending"
+            ? "Your account is awaiting admin approval."
+            : "Your account is not active.";
+        return err(message);
+      }
+
+      const sessionId = await createSession(user.id, c.env);
+      setCookie(c, "g3_session", sessionId, sessionCookieOptions(c.env.FRONTEND_URL));
+      return c.redirect(redirectTo ?? app("/dashboard"));
     }
 
-    await db.insert(coreUserIdentities).values({ ...identityValues, userId: linkUserId });
-    return c.redirect(app("/dashboard"));
-  }
-
-  // --- Sign-in flow ---
-  const identity = await db
-    .select({ userId: coreUserIdentities.userId })
-    .from(coreUserIdentities)
-    .where(and(eq(coreUserIdentities.provider, "github"), eq(coreUserIdentities.providerId, sub)))
-    .get();
-
-  if (identity) {
-    const user = await db
-      .select({ id: coreUsers.id, status: coreUsers.status })
+    // No GitHub identity — block email collision
+    const emailTaken = await db
+      .select({ id: coreUsers.id })
       .from(coreUsers)
-      .where(eq(coreUsers.id, identity.userId))
+      .where(eq(coreUsers.email, email))
       .get();
 
-    if (!user || user.status !== "active") {
-      const message =
-        user?.status === "pending"
-          ? "Your account is awaiting admin approval."
-          : "Your account is not active.";
-      return err(message);
+    if (emailTaken) {
+      return err(
+        "An account with this email already exists. Sign in with your existing method and add GitHub as a sign-in option from your account settings.",
+      );
     }
 
-    const sessionId = await createSession(user.id, c.env);
-    setCookie(c, "g3_session", sessionId, sessionCookieOptions(c.env.FRONTEND_URL));
-    return c.redirect(redirectTo ?? app("/dashboard"));
-  }
+    // Brand new user — create pending account
+    const userId = newId();
+    await db.batch([
+      db.insert(coreUsers).values({
+        id: userId,
+        email,
+        displayName: name,
+        status: "pending",
+        createdAt: now,
+        updatedAt: now,
+      }),
+      db.insert(coreUserIdentities).values({ ...identityValues, userId }),
+    ]);
 
-  // No GitHub identity — block email collision
-  const emailTaken = await db
-    .select({ id: coreUsers.id })
-    .from(coreUsers)
-    .where(eq(coreUsers.email, email))
-    .get();
-
-  if (emailTaken) {
-    return err(
-      "An account with this email already exists. Sign in with your existing method and add GitHub as a sign-in option from your account settings.",
-    );
-  }
-
-  // Brand new user — create pending account
-  const userId = newId();
-  await db.batch([
-    db.insert(coreUsers).values({
-      id: userId,
-      email,
-      displayName: name,
-      status: "pending",
-      createdAt: now,
-      updatedAt: now,
-    }),
-    db.insert(coreUserIdentities).values({ ...identityValues, userId }),
-  ]);
-
-  return c.redirect(app("/signup/pending"));
-});
+    return c.redirect(app("/signup/pending"));
+  });

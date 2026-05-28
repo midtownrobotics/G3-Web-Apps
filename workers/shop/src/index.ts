@@ -3,14 +3,14 @@ import { cors } from "hono/cors";
 import { requireAuth } from "./middleware/auth";
 import type { AppEnv } from "./types";
 
-const app = new Hono<AppEnv>();
+const base = new Hono<AppEnv>();
 
-app.onError((err, c) => {
+base.onError((err, c) => {
   console.error(err);
   return c.json({ error: "Internal server error." }, 500);
 });
 
-app.use(
+base.use(
   "*",
   cors({
     origin: (origin) => {
@@ -26,15 +26,16 @@ app.use(
   }),
 );
 
-app.get("/health", (c) => c.json({ status: "ok", service: "shop" }));
+const app = base
+  .get("/health", (c) => c.json({ status: "ok", service: "shop" }))
+  .get("/me", requireAuth, (c) =>
+    c.json({
+      userId: c.get("userId"),
+      isAdmin: c.get("userIsAdmin"),
+      email: c.get("userEmail"),
+      displayName: c.get("userDisplayName"),
+    }),
+  );
 
-app.get("/me", requireAuth, (c) =>
-  c.json({
-    userId: c.get("userId"),
-    isAdmin: c.get("userIsAdmin"),
-    email: c.get("userEmail"),
-    displayName: c.get("userDisplayName"),
-  }),
-);
-
+export type ShopApp = typeof app;
 export default app;
