@@ -9,7 +9,13 @@ export function RedirectInfo() {
 
   return (
     <div className="bg-gray-500 text-white px-6 py-1 text-center">
-      <span>After login, you will be redirected to <a className="text-blue-300 underline" href={redirect}>{domain}</a>.</span>
+      <span>
+        After login, you will be redirected to{" "}
+        <a className="text-blue-300 underline" href={redirect}>
+          {domain}
+        </a>
+        .
+      </span>
     </div>
   );
 }

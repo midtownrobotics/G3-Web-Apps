@@ -17,7 +17,12 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
     timerRef.current = setTimeout(() => setOpen(false), 200);
   }
 
-  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+  useEffect(
+    () => () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    },
+    [],
+  );
 
   return (
     <>

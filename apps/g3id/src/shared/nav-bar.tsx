@@ -17,7 +17,12 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
     timerRef.current = setTimeout(() => setOpen(false), 200);
   }
 
-  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+  useEffect(
+    () => () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    },
+    [],
+  );
 
   return (
     <>
@@ -34,7 +39,10 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
               {item.label}
             </Link>
           ))}
-          <a className="text-sm text-gray-300 hover:text-red-400 transition-colors" href="https://web.g3robotics.com/members">
+          <a
+            className="text-sm text-gray-300 hover:text-red-400 transition-colors"
+            href="https://web.g3robotics.com/members"
+          >
             All Apps
           </a>
         </div>
@@ -73,7 +81,10 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
               {item.label}
             </Link>
           ))}
-          <a className="text-2xl font-bold text-gray-100 hover:text-red-400 transition-colors" href="https://web.g3robotics.com/members">
+          <a
+            className="text-2xl font-bold text-gray-100 hover:text-red-400 transition-colors"
+            href="https://web.g3robotics.com/members"
+          >
             All Apps
           </a>
         </div>
