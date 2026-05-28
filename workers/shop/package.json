@@ -1,17 +1,16 @@
 {
-  "name": "@g3/worker-g3id",
+  "name": "@g3/worker-shop",
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "wrangler dev --port 8788 --inspector-port 9230",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
-    "db:migrate:local": "wrangler d1 migrations apply DB --local",
-    "db:migrate:prod": "wrangler d1 migrations apply DB --env production"
+    "db:migrate:local": "wrangler d1 migrations apply SHOP_DB --local",
+    "db:migrate:prod": "wrangler d1 migrations apply SHOP_DB --env production"
   },
   "dependencies": {
     "@g3/auth": "workspace:*",
-    "@paralleldrive/cuid2": "^2.2.2",
     "drizzle-orm": "^0.44.0",
     "hono": "^4.7.0"
   },
