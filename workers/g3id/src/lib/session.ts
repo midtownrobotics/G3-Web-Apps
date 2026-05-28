@@ -32,22 +32,3 @@ export async function deleteSession(sessionId: string, env: AppEnv["Bindings"]):
     env.SESSIONS.delete(`session:${sessionId}`),
   ]);
 }
-
-export async function getSession(
-  sessionId: string,
-  env: AppEnv["Bindings"],
-): Promise<string | null> {
-  const cached = await env.SESSIONS.get(`session:${sessionId}`);
-  if (cached) return cached;
-
-  const db = createDb(env.DB);
-  const now = Math.floor(Date.now() / 1000);
-  const session = await db
-    .select({ userId: coreSessions.userId, expiresAt: coreSessions.expiresAt })
-    .from(coreSessions)
-    .where(eq(coreSessions.id, sessionId))
-    .get();
-
-  if (!session || session.expiresAt < now) return null;
-  return session.userId;
-}

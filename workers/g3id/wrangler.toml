@@ -4,8 +4,8 @@ compatibility_date = "2026-05-17"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "g3-auth-dev"
-database_id = "ff3c0d13-858d-41e5-a22e-eb3ddac8d40d"
+database_name = "g3-auth-local"
+database_id = "00000000-0000-0000-0000-000000000000"
 migrations_dir = "src/db/migrations"
 
 [[kv_namespaces]]
