@@ -24,8 +24,7 @@ name = "shop-production"
 
 [[env.production.services]]
 binding = "G3ID"
-service = "g3id"
-environment = "production"
+service = "g3id-production"
 
 [[env.production.kv_namespaces]]
 binding = "SESSIONS"
