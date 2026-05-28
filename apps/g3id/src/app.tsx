@@ -1,6 +1,7 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { plugins } from "./plugins.config";
 import { NavBar } from "./shared/nav-bar";
+import { RedirectInfo } from "./shared/redirect-info";
 
 export function App() {
   const allRoutes = plugins.flatMap((p) => p.routes);
@@ -10,6 +11,7 @@ export function App() {
     <BrowserRouter>
       <div className="flex flex-col min-h-screen bg-gray-950">
         <NavBar items={navItems} />
+        <RedirectInfo />
         <div className="flex flex-col flex-1">
           <Routes>
             {allRoutes.map((r) => (
