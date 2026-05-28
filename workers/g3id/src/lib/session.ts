@@ -4,8 +4,6 @@ import { coreSessions } from "../db/schema";
 import type { AppEnv } from "../types";
 import { newId } from "./id";
 
-export { getSession } from "@g3/auth";
-
 const SESSION_TTL = 60 * 60 * 24 * 7; // 7 days
 
 export async function createSession(userId: string, env: AppEnv["Bindings"]): Promise<string> {

@@ -62,7 +62,7 @@ Create `workers/g3id/src/routes/auth/{provider}.ts` and export a Hono router. Th
 
 ### `GET /auth/{provider}/link`
 - Initiation endpoint for already-authenticated users (adding the provider to an existing account).
-- Read the `g3_session` cookie and resolve it to a user ID via `getSession`. If there is no valid session, redirect to `/login`.
+- Resolve the request's cookie header to a user ID via `resolveUserId` from `@g3/auth`. If there is no valid session, redirect to `/login`.
 - Generate state the same way as above, but store `"link:{userId}"` as the KV value instead of `"signin"`.
 - Redirect to the same authorization URL.
 

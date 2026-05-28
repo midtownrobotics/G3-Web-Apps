@@ -1,11 +1,12 @@
+import { resolveUserId } from "@g3/auth";
 import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
-import { getCookie, setCookie } from "hono/cookie";
+import { setCookie } from "hono/cookie";
 import { createDb } from "../../db";
 import { coreUserIdentities, coreUsers } from "../../db/schema";
 import { sessionCookieOptions } from "../../lib/cookie";
 import { sanitizeRedirect } from "../../lib/redirect";
-import { createSession, getSession } from "../../lib/session";
+import { createSession } from "../../lib/session";
 import type { AppEnv } from "../../types";
 
 export const steamAuthRouter = new Hono<AppEnv>();
@@ -45,10 +46,7 @@ steamAuthRouter.get("/steam", async (c) => {
 // Link initiation — user must already be signed in
 steamAuthRouter.get("/steam/link", async (c) => {
   const app = (path: string) => `${c.env.FRONTEND_URL}${path}`;
-  const sessionId = getCookie(c, "g3_session");
-  if (!sessionId) return c.redirect(app("/login"));
-
-  const userId = await getSession(sessionId, c.env);
+  const userId = await resolveUserId(c.req.header("Cookie") ?? "", c.env);
   if (!userId) return c.redirect(app("/login"));
 
   const state = await generateState(c.env, `link:${userId}`);
