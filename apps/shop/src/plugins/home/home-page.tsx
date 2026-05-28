@@ -5,7 +5,7 @@ export function HomePage() {
   const [name, setName] = useState<string>();
 
   useEffect(() => {
-    api.me().then(me => setName(me.data.displayName))
+    api.me().then((me) => setName(me.data.displayName));
   }, []);
 
   return (

@@ -29,7 +29,12 @@ app.use(
 app.get("/health", (c) => c.json({ status: "ok", service: "shop" }));
 
 app.get("/me", requireAuth, (c) =>
-  c.json({ userId: c.get("userId"), isAdmin: c.get("userIsAdmin"), email: c.get("userEmail"), displayName: c.get("userDisplayName") }),
+  c.json({
+    userId: c.get("userId"),
+    isAdmin: c.get("userIsAdmin"),
+    email: c.get("userEmail"),
+    displayName: c.get("userDisplayName"),
+  }),
 );
 
 export default app;

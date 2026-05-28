@@ -8,7 +8,12 @@ export const requireAuth = createMiddleware<AppEnv>(async (c, next) => {
     }),
   );
   if (!res.ok) return c.json({ error: "Unauthorized." }, 401);
-  const { id, isAdmin, email, displayName } = (await res.json()) as { id: string; isAdmin: boolean, email: string, displayName: string };
+  const { id, isAdmin, email, displayName } = (await res.json()) as {
+    id: string;
+    isAdmin: boolean;
+    email: string;
+    displayName: string;
+  };
   c.set("userId", id);
   c.set("userIsAdmin", isAdmin);
   c.set("userEmail", email);

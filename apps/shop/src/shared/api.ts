@@ -36,10 +36,10 @@ async function del<T>(path: string) {
 
 // --- Types ---
 
-export type Me = { userId: string; isAdmin: boolean, displayName: string, email: string };
+export type Me = { userId: string; isAdmin: boolean; displayName: string; email: string };
 
 // --- Endpoints ---
 
 export const api = {
-  me: () => get<Me>("/me")
+  me: () => get<Me>("/me"),
 };
