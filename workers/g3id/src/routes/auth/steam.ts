@@ -9,8 +9,6 @@ import { sanitizeRedirect } from "../../lib/redirect";
 import { createSession } from "../../lib/session";
 import type { AppEnv } from "../../types";
 
-export const steamAuthRouter = new Hono<AppEnv>();
-
 const STEAM_OPENID_URL = "https://steamcommunity.com/openid/login";
 const STEAM_ID_REGEX = /https:\/\/steamcommunity\.com\/openid\/id\/(\d+)/;
 
@@ -35,82 +33,107 @@ function buildSteamUrl(redirectUri: string, state: string): string {
   return `${STEAM_OPENID_URL}?${params}`;
 }
 
-// Sign-in initiation
-steamAuthRouter.get("/steam", async (c) => {
-  const redirect = sanitizeRedirect(c.req.query("redirect"));
-  const stateValue = redirect ? `signin:${redirect}` : "signin";
-  const state = await generateState(c.env, stateValue);
-  return c.redirect(buildSteamUrl(c.env.STEAM_REDIRECT_URI, state));
-});
+export const steamAuthRouter = new Hono<AppEnv>()
+  // Sign-in initiation
+  .get("/steam", async (c) => {
+    const redirect = sanitizeRedirect(c.req.query("redirect"));
+    const stateValue = redirect ? `signin:${redirect}` : "signin";
+    const state = await generateState(c.env, stateValue);
+    return c.redirect(buildSteamUrl(c.env.STEAM_REDIRECT_URI, state));
+  })
+  // Link initiation — user must already be signed in
+  .get("/steam/link", async (c) => {
+    const app = (path: string) => `${c.env.FRONTEND_URL}${path}`;
+    const userId = await resolveUserId(c.req.header("Cookie") ?? "", c.env);
+    if (!userId) return c.redirect(app("/login"));
 
-// Link initiation — user must already be signed in
-steamAuthRouter.get("/steam/link", async (c) => {
-  const app = (path: string) => `${c.env.FRONTEND_URL}${path}`;
-  const userId = await resolveUserId(c.req.header("Cookie") ?? "", c.env);
-  if (!userId) return c.redirect(app("/login"));
+    const state = await generateState(c.env, `link:${userId}`);
+    return c.redirect(buildSteamUrl(c.env.STEAM_REDIRECT_URI, state));
+  })
+  // Shared callback
+  .get("/steam/callback", async (c) => {
+    const app = (path: string) => `${c.env.FRONTEND_URL}${path}`;
+    const err = (msg: string) => c.redirect(app(`/login/error?error=${encodeURIComponent(msg)}`));
 
-  const state = await generateState(c.env, `link:${userId}`);
-  return c.redirect(buildSteamUrl(c.env.STEAM_REDIRECT_URI, state));
-});
+    const state = c.req.query("state");
+    if (!state) return err("Missing state parameter.");
 
-// Shared callback
-steamAuthRouter.get("/steam/callback", async (c) => {
-  const app = (path: string) => `${c.env.FRONTEND_URL}${path}`;
-  const err = (msg: string) => c.redirect(app(`/login/error?error=${encodeURIComponent(msg)}`));
+    const stateValue = await c.env.RATE_LIMIT.get(`oauth_state:${state}`);
+    await c.env.RATE_LIMIT.delete(`oauth_state:${state}`);
+    if (!stateValue) return err("This sign-in link has expired. Please try again.");
 
-  const state = c.req.query("state");
-  if (!state) return err("Missing state parameter.");
+    const isLink = stateValue.startsWith("link:");
+    const linkUserId = isLink ? stateValue.slice(5) : null;
+    const redirectTo = !isLink && stateValue.startsWith("signin:") ? stateValue.slice(7) : null;
 
-  const stateValue = await c.env.RATE_LIMIT.get(`oauth_state:${state}`);
-  await c.env.RATE_LIMIT.delete(`oauth_state:${state}`);
-  if (!stateValue) return err("This sign-in link has expired. Please try again.");
+    const claimedId = c.req.query("openid.claimed_id");
+    if (!claimedId) return err("Invalid OpenID response.");
 
-  const isLink = stateValue.startsWith("link:");
-  const linkUserId = isLink ? stateValue.slice(5) : null;
-  const redirectTo = !isLink && stateValue.startsWith("signin:") ? stateValue.slice(7) : null;
+    const match = STEAM_ID_REGEX.exec(claimedId);
+    if (!match) return err("Invalid Steam identity.");
+    const steamId = match[1];
 
-  const claimedId = c.req.query("openid.claimed_id");
-  if (!claimedId) return err("Invalid OpenID response.");
-
-  const match = STEAM_ID_REGEX.exec(claimedId);
-  if (!match) return err("Invalid Steam identity.");
-  const steamId = match[1];
-
-  // Verify with Steam — always POST to the hardcoded endpoint, never trust openid.op_endpoint
-  const verifyParams = new URLSearchParams({ "openid.mode": "check_authentication" });
-  for (const [key, value] of Object.entries(c.req.query())) {
-    if (key !== "state" && key !== "openid.mode") {
-      verifyParams.set(key, value as string);
-    }
-  }
-
-  const verifyRes = await fetch(STEAM_OPENID_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: verifyParams.toString(),
-  });
-
-  if (!verifyRes.ok) return err("Failed to verify Steam sign-in. Please try again.");
-  const verifyText = await verifyRes.text();
-  if (!verifyText.includes("is_valid:true")) {
-    return err("Steam sign-in could not be verified. Please try again.");
-  }
-
-  const db = createDb(c.env.DB);
-
-  // --- Link flow ---
-  if (isLink && linkUserId) {
-    const linkUser = await db
-      .select({ id: coreUsers.id, status: coreUsers.status })
-      .from(coreUsers)
-      .where(eq(coreUsers.id, linkUserId))
-      .get();
-
-    if (!linkUser || linkUser.status !== "active") {
-      return err("Your account is not active.");
+    // Verify with Steam — always POST to the hardcoded endpoint, never trust openid.op_endpoint
+    const verifyParams = new URLSearchParams({ "openid.mode": "check_authentication" });
+    for (const [key, value] of Object.entries(c.req.query())) {
+      if (key !== "state" && key !== "openid.mode") {
+        verifyParams.set(key, value as string);
+      }
     }
 
-    const existingIdentity = await db
+    const verifyRes = await fetch(STEAM_OPENID_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: verifyParams.toString(),
+    });
+
+    if (!verifyRes.ok) return err("Failed to verify Steam sign-in. Please try again.");
+    const verifyText = await verifyRes.text();
+    if (!verifyText.includes("is_valid:true")) {
+      return err("Steam sign-in could not be verified. Please try again.");
+    }
+
+    const db = createDb(c.env.DB);
+
+    // --- Link flow ---
+    if (isLink && linkUserId) {
+      const linkUser = await db
+        .select({ id: coreUsers.id, status: coreUsers.status })
+        .from(coreUsers)
+        .where(eq(coreUsers.id, linkUserId))
+        .get();
+
+      if (!linkUser || linkUser.status !== "active") {
+        return err("Your account is not active.");
+      }
+
+      const existingIdentity = await db
+        .select({ userId: coreUserIdentities.userId })
+        .from(coreUserIdentities)
+        .where(
+          and(eq(coreUserIdentities.provider, "steam"), eq(coreUserIdentities.providerId, steamId)),
+        )
+        .get();
+
+      if (existingIdentity) {
+        if (existingIdentity.userId === linkUserId) return c.redirect(app("/dashboard"));
+        return err("This Steam account is already linked to a different account.");
+      }
+
+      const now = Math.floor(Date.now() / 1000);
+      await db.insert(coreUserIdentities).values({
+        id: crypto.randomUUID(),
+        userId: linkUserId,
+        provider: "steam",
+        providerId: steamId,
+        createdAt: now,
+        updatedAt: now,
+      });
+      return c.redirect(app("/dashboard"));
+    }
+
+    // --- Sign-in flow ---
+    const identity = await db
       .select({ userId: coreUserIdentities.userId })
       .from(coreUserIdentities)
       .where(
@@ -118,55 +141,29 @@ steamAuthRouter.get("/steam/callback", async (c) => {
       )
       .get();
 
-    if (existingIdentity) {
-      if (existingIdentity.userId === linkUserId) return c.redirect(app("/dashboard"));
-      return err("This Steam account is already linked to a different account.");
+    if (!identity) {
+      return c.redirect(
+        app(
+          `/login?error=${encodeURIComponent("You need to link Steam from your account settings first.")}`,
+        ),
+      );
     }
 
-    const now = Math.floor(Date.now() / 1000);
-    await db.insert(coreUserIdentities).values({
-      id: crypto.randomUUID(),
-      userId: linkUserId,
-      provider: "steam",
-      providerId: steamId,
-      createdAt: now,
-      updatedAt: now,
-    });
-    return c.redirect(app("/dashboard"));
-  }
+    const user = await db
+      .select({ id: coreUsers.id, status: coreUsers.status })
+      .from(coreUsers)
+      .where(eq(coreUsers.id, identity.userId))
+      .get();
 
-  // --- Sign-in flow ---
-  const identity = await db
-    .select({ userId: coreUserIdentities.userId })
-    .from(coreUserIdentities)
-    .where(
-      and(eq(coreUserIdentities.provider, "steam"), eq(coreUserIdentities.providerId, steamId)),
-    )
-    .get();
+    if (!user || user.status !== "active") {
+      const message =
+        user?.status === "pending"
+          ? "Your account is awaiting admin approval."
+          : "Your account is not active.";
+      return err(message);
+    }
 
-  if (!identity) {
-    return c.redirect(
-      app(
-        `/login?error=${encodeURIComponent("You need to link Steam from your account settings first.")}`,
-      ),
-    );
-  }
-
-  const user = await db
-    .select({ id: coreUsers.id, status: coreUsers.status })
-    .from(coreUsers)
-    .where(eq(coreUsers.id, identity.userId))
-    .get();
-
-  if (!user || user.status !== "active") {
-    const message =
-      user?.status === "pending"
-        ? "Your account is awaiting admin approval."
-        : "Your account is not active.";
-    return err(message);
-  }
-
-  const sessionId = await createSession(user.id, c.env);
-  setCookie(c, "g3_session", sessionId, sessionCookieOptions(c.env.FRONTEND_URL));
-  return c.redirect(redirectTo ?? app("/dashboard"));
-});
+    const sessionId = await createSession(user.id, c.env);
+    setCookie(c, "g3_session", sessionId, sessionCookieOptions(c.env.FRONTEND_URL));
+    return c.redirect(redirectTo ?? app("/dashboard"));
+  });

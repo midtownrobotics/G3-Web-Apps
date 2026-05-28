@@ -10,14 +10,14 @@ import { steamAuthRouter } from "./routes/auth/steam";
 import { slackRouter } from "./routes/slack";
 import type { AppEnv } from "./types";
 
-const app = new Hono<AppEnv>();
+const base = new Hono<AppEnv>();
 
-app.onError((err, c) => {
+base.onError((err, c) => {
   console.error(err);
   return c.json({ error: "Internal server error." }, 500);
 });
 
-app.use(
+base.use(
   "*",
   cors({
     origin: (origin) => {
@@ -34,15 +34,16 @@ app.use(
   }),
 );
 
-app.get("/health", (c) => c.json({ status: "ok", service: "g3id" }));
+const app = base
+  .get("/health", (c) => c.json({ status: "ok", service: "g3id" }))
+  .route("/auth", authRouter)
+  .route("/auth", emailAuthRouter)
+  .route("/auth", githubAuthRouter)
+  .route("/auth", googleAuthRouter)
+  .route("/auth", slackAuthRouter)
+  .route("/auth", steamAuthRouter)
+  .route("/admin", adminRouter)
+  .route("/slack", slackRouter);
 
-app.route("/auth", authRouter);
-app.route("/auth", emailAuthRouter);
-app.route("/auth", githubAuthRouter);
-app.route("/auth", googleAuthRouter);
-app.route("/auth", slackAuthRouter);
-app.route("/auth", steamAuthRouter);
-app.route("/admin", adminRouter);
-app.route("/slack", slackRouter);
-
+export type G3IDApp = typeof app;
 export default app;

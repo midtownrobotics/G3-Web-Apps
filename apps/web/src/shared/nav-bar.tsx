@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { BsFillPersonFill } from "react-icons/bs";
 import { Link } from "react-router-dom";
+import { g3id } from "../lib/api";
 import type { PluginNavItem } from "./plugin-types";
 
-const G3ID_API = "https://api.g3id.g3robotics.com";
 const G3ID_LOGIN = `https://g3id.g3robotics.com/login?redirect=${encodeURIComponent(typeof window !== "undefined" ? window.location.href : "")}`;
 
 type Me = { displayName: string } | null;
@@ -12,9 +12,10 @@ function useMe(): Me | undefined {
   const [me, setMe] = useState<Me | undefined>(undefined);
 
   useEffect(() => {
-    fetch(`${G3ID_API}/auth/me`, { credentials: "include" })
+    g3id.auth.me
+      .$get()
       .then((res) => (res.ok ? res.json() : null))
-      .then((data) => setMe(data as Me))
+      .then((data) => setMe(data))
       .catch(() => setMe(null));
   }, []);
 
