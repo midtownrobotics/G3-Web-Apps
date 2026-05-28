@@ -86,6 +86,9 @@ importers:
         specifier: ^6.28.0
         version: 6.30.3(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
     devDependencies:
+      '@cloudflare/workers-types':
+        specifier: ^4.20250516.0
+        version: 4.20260517.1
       '@g3/worker-shop':
         specifier: workspace:*
         version: link:../../workers/shop
