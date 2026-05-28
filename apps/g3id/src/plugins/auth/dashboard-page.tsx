@@ -160,7 +160,7 @@ export function DashboardPage() {
 
   return (
     <main className="flex-1 px-6 py-8 max-w-lg mx-auto w-full">
-      <h1 className="text-2xl font-bold text-white mb-4">Dashboard</h1>
+      <h1 className="text-3xl font-bold text-white mb-4 text-center">Dashboard</h1>
 
       <div className="bg-gray-900 border border-gray-800 rounded-lg divide-y divide-gray-800 mt-4">
         <div className="px-5 py-4 flex items-center gap-4">

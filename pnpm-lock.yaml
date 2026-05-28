@@ -38,6 +38,9 @@ importers:
       '@cloudflare/workers-types':
         specifier: ^4.20250516.0
         version: 4.20260517.1
+      '@g3/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       '@g3/worker-g3id':
         specifier: workspace:*
         version: link:../../workers/g3id
@@ -89,6 +92,9 @@ importers:
       '@cloudflare/workers-types':
         specifier: ^4.20250516.0
         version: 4.20260517.1
+      '@g3/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       '@g3/worker-shop':
         specifier: workspace:*
         version: link:../../workers/shop
@@ -135,6 +141,9 @@ importers:
       '@cloudflare/workers-types':
         specifier: ^4.20250516.0
         version: 4.20260517.1
+      '@g3/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       '@g3/worker-g3id':
         specifier: workspace:*
         version: link:../../workers/g3id
