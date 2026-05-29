@@ -9,7 +9,7 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: "autoUpdate",
-      injectRegister: "auto",
+      includeAssets: ["favicon.png", "apple-touch-icon.png"],
       manifest: {
         name: "G3 Pit",
         short_name: "G3 Pit",
@@ -17,20 +17,30 @@ export default defineConfig({
         theme_color: "#111827",
         background_color: "#030712",
         display: "standalone",
+        scope: "/",
         start_url: "/",
+        lang: "en",
         icons: [
           {
-            src: "/favicon.png",
+            src: "pwa-192x192.png",
             sizes: "192x192",
             type: "image/png",
           },
           {
-            src: "/favicon.png",
+            src: "pwa-512x512.png",
+            sizes: "512x512",
+            type: "image/png",
+          },
+          {
+            src: "pwa-512x512.png",
             sizes: "512x512",
             type: "image/png",
             purpose: "any maskable",
           },
         ],
+      },
+      devOptions: {
+        enabled: false,
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
