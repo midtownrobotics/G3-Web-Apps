@@ -1,20 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { api } from "../../shared/api";
-
-type ChecklistList = {
-  id: number;
-  name: string;
-  description: string | null;
-  itemCount: number;
-};
-
-type ChecklistItem = {
-  id: number;
-  index: number;
-  name: string;
-  description: string | null;
-};
+import { fetchList } from "../../shared/getters/lists";
+import { fetchItems } from "../../shared/getters/items";
+import type { ChecklistList, ChecklistItem } from "../../shared/getters/types";
 
 export function ChecklistRunnerPage() {
   const { id } = useParams<{ id: string }>();
@@ -28,18 +16,14 @@ export function ChecklistRunnerPage() {
 
   useEffect(() => {
     if (!id) return;
-    Promise.all([
-      api.lists[":id"].$get({ param: { id } }),
-      api.lists[":id"].items.$get({ param: { id } }),
-    ]).then(async ([listRes, itemsRes]) => {
-      if (!listRes.ok) { setNotFound(true); setLoading(false); return; }
-      setList((await listRes.json()) as ChecklistList);
-      if (itemsRes.ok) {
-        const data = (await itemsRes.json()) as ChecklistItem[];
-        setItems(data.sort((a, b) => a.index - b.index));
-      }
-      setLoading(false);
-    });
+    Promise.all([fetchList(id), fetchItems(id)])
+      .then(([listData, itemsData]) => {
+        if (!listData) { setNotFound(true); return; }
+        setList(listData);
+        setItems(itemsData.sort((a, b) => a.index - b.index));
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, [id]);
 
   function toggle(itemId: number) {
@@ -79,17 +63,12 @@ export function ChecklistRunnerPage() {
     <main className="min-h-screen bg-gray-950 text-white">
       <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
 
-        {/* Header */}
         <div className="flex items-center justify-between">
           <button type="button" onClick={() => navigate("/checklists")} className="text-sm text-gray-500 hover:text-gray-300 transition-colors">
             ← Back
           </button>
           {checked.size > 0 && (
-            <button
-              type="button"
-              onClick={() => setChecked(new Set())}
-              className="text-sm text-gray-500 hover:text-red-400 transition-colors"
-            >
+            <button type="button" onClick={() => setChecked(new Set())} className="text-sm text-gray-500 hover:text-red-400 transition-colors">
               Reset
             </button>
           )}
@@ -100,7 +79,6 @@ export function ChecklistRunnerPage() {
           {list.description && <p className="text-sm text-gray-500 mt-1">{list.description}</p>}
         </div>
 
-        {/* Progress */}
         {totalCount > 0 && (
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
@@ -118,7 +96,6 @@ export function ChecklistRunnerPage() {
           </div>
         )}
 
-        {/* Items */}
         {items.length === 0 ? (
           <p className="text-gray-600 text-sm text-center py-8">
             No items.{" "}
@@ -136,16 +113,11 @@ export function ChecklistRunnerPage() {
                   type="button"
                   onClick={() => toggle(item.id)}
                   className={`w-full flex items-start gap-4 p-4 rounded-xl border text-left transition-all ${
-                    isChecked
-                      ? "bg-gray-900 border-gray-800 opacity-60"
-                      : "bg-gray-900 border-gray-700 hover:border-gray-500"
+                    isChecked ? "bg-gray-900 border-gray-800 opacity-60" : "bg-gray-900 border-gray-700 hover:border-gray-500"
                   }`}
                 >
-                  {/* Checkbox */}
                   <div className={`mt-0.5 w-6 h-6 rounded-md border-2 shrink-0 flex items-center justify-center transition-colors ${
-                    isChecked
-                      ? "bg-red-600 border-red-600"
-                      : "border-gray-600"
+                    isChecked ? "bg-red-600 border-red-600" : "border-gray-600"
                   }`}>
                     {isChecked && (
                       <svg viewBox="0 0 12 10" className="w-3.5 h-3 fill-none stroke-white stroke-2" strokeLinecap="round" strokeLinejoin="round">
@@ -153,8 +125,6 @@ export function ChecklistRunnerPage() {
                       </svg>
                     )}
                   </div>
-
-                  {/* Text */}
                   <div className="min-w-0">
                     <p className={`text-base font-medium transition-colors ${isChecked ? "line-through text-gray-500" : "text-white"}`}>
                       {item.name}

@@ -2,15 +2,8 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getErrorMessage } from "../../shared/api-error";
 import { api } from "../../shared/api";
-
-type ChecklistList = {
-  id: number;
-  name: string;
-  description: string | null;
-  createdAt: number;
-  itemCount: number;
-};
-
+import { fetchLists } from "../../shared/getters/lists";
+import type { ChecklistList } from "../../shared/getters/types";
 
 export function ChecklistsPage() {
   const navigate = useNavigate();
@@ -26,8 +19,7 @@ export function ChecklistsPage() {
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
 
   async function load() {
-    const res = await api.lists.$get();
-    if (res.ok) setLists((await res.json()) as ChecklistList[]);
+    try { setLists(await fetchLists()); } catch {}
     setLoading(false);
   }
 

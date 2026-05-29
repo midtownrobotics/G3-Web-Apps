@@ -1,13 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api } from "../../shared/api";
-
-type ChecklistList = {
-  id: number;
-  name: string;
-  description: string | null;
-  itemCount: number;
-};
+import { fetchLists } from "../../shared/getters/lists";
+import type { ChecklistList } from "../../shared/getters/types";
 
 export function ChecklistRunnerListPage() {
   const navigate = useNavigate();
@@ -15,9 +9,9 @@ export function ChecklistRunnerListPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.lists.$get()
-      .then((res) => res.ok ? res.json() : [])
-      .then((data) => setLists(data as ChecklistList[]))
+    fetchLists()
+      .then(setLists)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 

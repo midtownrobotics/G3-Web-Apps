@@ -36,15 +36,17 @@ export default defineConfig({
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
         runtimeCaching: [
           {
-            // Cache API responses with NetworkFirst — serves offline from cache if network fails
-            urlPattern: /^https?:\/\/.*\/api\/.*/i,
+            // Dev: same-origin /api/* via Vite proxy
+            // Prod: https://api.pit.g3robotics.com/*
+            urlPattern: ({ url }) =>
+              url.pathname.startsWith("/api/") || url.hostname === "api.pit.g3robotics.com",
             handler: "NetworkFirst",
             options: {
               cacheName: "api-cache",
               networkTimeoutSeconds: 10,
               expiration: {
                 maxEntries: 200,
-                maxAgeSeconds: 60 * 60 * 24 * 7, // 1 week
+                maxAgeSeconds: 60 * 60 * 24 * 7,
               },
               cacheableResponse: {
                 statuses: [0, 200],

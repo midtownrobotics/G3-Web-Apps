@@ -2,23 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getErrorMessage } from "../../shared/api-error";
 import { api } from "../../shared/api";
-
-type ChecklistList = {
-  id: number;
-  name: string;
-  description: string | null;
-  createdAt: number;
-  itemCount: number;
-};
-
-type ChecklistItem = {
-  id: number;
-  listId: number;
-  index: number;
-  name: string;
-  description: string | null;
-  createdAt: number;
-};
+import { fetchList } from "../../shared/getters/lists";
+import { fetchItems } from "../../shared/getters/items";
+import type { ChecklistList, ChecklistItem } from "../../shared/getters/types";
 
 type ItemEditState = { id: number; field: "name" | "description"; value: string } | null;
 
@@ -48,13 +34,12 @@ export function ChecklistDetailPage() {
 
   async function load() {
     if (!id) return;
-    const [listRes, itemsRes] = await Promise.all([
-      api.lists[":id"].$get({ param: { id } }),
-      api.lists[":id"].items.$get({ param: { id } }),
-    ]);
-    if (!listRes.ok) { setNotFound(true); setLoading(false); return; }
-    setList((await listRes.json()) as ChecklistList);
-    if (itemsRes.ok) setItems((await itemsRes.json()) as ChecklistItem[]);
+    try {
+      const [listData, itemsData] = await Promise.all([fetchList(id), fetchItems(id)]);
+      if (!listData) { setNotFound(true); setLoading(false); return; }
+      setList(listData);
+      setItems(itemsData);
+    } catch {}
     setLoading(false);
   }
 
