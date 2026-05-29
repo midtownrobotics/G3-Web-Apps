@@ -1,0 +1,40 @@
+name = "pit"
+main = "src/index.ts"
+compatibility_date = "2026-05-17"
+
+[[services]]
+binding = "G3ID"
+service = "g3id"
+
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = "c27ba19a75fb4eb6b93f9d2d47de6c0f"
+
+[[d1_databases]]
+binding = "PIT_DB"
+database_name = "g3-pit-local"
+database_id = "00000000-0000-0000-0000-000000000002"
+migrations_dir = "src/db/migrations"
+
+[vars]
+FRONTEND_URL = "http://localhost:5175"
+
+[env.production]
+name = "pit-production"
+
+[[env.production.services]]
+binding = "G3ID"
+service = "g3id-production"
+
+[[env.production.kv_namespaces]]
+binding = "SESSIONS"
+id = "db4457ce43c9468eb9ec5a049afa65b1"
+
+[[env.production.d1_databases]]
+binding = "PIT_DB"
+database_name = "g3-pit-prod"
+database_id = "f10a16be-9193-4888-ac18-099ccebe63c2"
+migrations_dir = "src/db/migrations"
+
+[env.production.vars]
+FRONTEND_URL = "https://pit.g3robotics.com"
