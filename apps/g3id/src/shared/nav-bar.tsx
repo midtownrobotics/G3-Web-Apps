@@ -40,7 +40,7 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
             </Link>
           ))}
           <a
-            className="text-sm text-gray-300 hover:text-red-400 transition-colors"
+            className="text-sm font-bold text-gray-100 hover:text-red-400 transition-colors"
             href="https://web.g3robotics.com/members"
           >
             All Apps
