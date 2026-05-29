@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { fetchList } from "../../shared/getters/lists";
 import { fetchItems } from "../../shared/getters/items";
-import type { ChecklistList, ChecklistItem } from "../../shared/getters/types";
+import { fetchList } from "../../shared/getters/lists";
+import type { ChecklistItem, ChecklistList } from "../../shared/getters/types";
 
 export function ChecklistRunnerPage() {
   const { id } = useParams<{ id: string }>();
@@ -18,7 +18,10 @@ export function ChecklistRunnerPage() {
     if (!id) return;
     Promise.all([fetchList(id), fetchItems(id)])
       .then(([listData, itemsData]) => {
-        if (!listData) { setNotFound(true); return; }
+        if (!listData) {
+          setNotFound(true);
+          return;
+        }
         setList(listData);
         setItems(itemsData.sort((a, b) => a.index - b.index));
       })
@@ -47,7 +50,11 @@ export function ChecklistRunnerPage() {
     return (
       <main className="min-h-screen bg-gray-950 flex flex-col items-center justify-center gap-4">
         <p className="text-gray-400">Checklist not found.</p>
-        <button type="button" onClick={() => navigate("/checklists")} className="text-red-400 hover:text-red-300 text-sm underline">
+        <button
+          type="button"
+          onClick={() => navigate("/checklists")}
+          className="text-red-400 hover:text-red-300 text-sm underline"
+        >
           Back
         </button>
       </main>
@@ -62,13 +69,20 @@ export function ChecklistRunnerPage() {
   return (
     <main className="min-h-screen bg-gray-950 text-white">
       <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
-
         <div className="flex items-center justify-between">
-          <button type="button" onClick={() => navigate("/checklists")} className="text-sm text-gray-500 hover:text-gray-300 transition-colors">
+          <button
+            type="button"
+            onClick={() => navigate("/checklists")}
+            className="text-sm text-gray-500 hover:text-gray-300 transition-colors"
+          >
             ← Back
           </button>
           {checked.size > 0 && (
-            <button type="button" onClick={() => setChecked(new Set())} className="text-sm text-gray-500 hover:text-red-400 transition-colors">
+            <button
+              type="button"
+              onClick={() => setChecked(new Set())}
+              className="text-sm text-gray-500 hover:text-red-400 transition-colors"
+            >
               Reset
             </button>
           )}
@@ -99,7 +113,11 @@ export function ChecklistRunnerPage() {
         {items.length === 0 ? (
           <p className="text-gray-600 text-sm text-center py-8">
             No items.{" "}
-            <button type="button" onClick={() => navigate(`/editor/${list.id}`)} className="text-red-400 hover:text-red-300 underline">
+            <button
+              type="button"
+              onClick={() => navigate(`/editor/${list.id}`)}
+              className="text-red-400 hover:text-red-300 underline"
+            >
               Add some in the Editor.
             </button>
           </p>
@@ -113,24 +131,38 @@ export function ChecklistRunnerPage() {
                   type="button"
                   onClick={() => toggle(item.id)}
                   className={`w-full flex items-start gap-4 p-4 rounded-xl border text-left transition-all ${
-                    isChecked ? "bg-gray-900 border-gray-800 opacity-60" : "bg-gray-900 border-gray-700 hover:border-gray-500"
+                    isChecked
+                      ? "bg-gray-900 border-gray-800 opacity-60"
+                      : "bg-gray-900 border-gray-700 hover:border-gray-500"
                   }`}
                 >
-                  <div className={`mt-0.5 w-6 h-6 rounded-md border-2 shrink-0 flex items-center justify-center transition-colors ${
-                    isChecked ? "bg-red-600 border-red-600" : "border-gray-600"
-                  }`}>
+                  <div
+                    className={`mt-0.5 w-6 h-6 rounded-md border-2 shrink-0 flex items-center justify-center transition-colors ${
+                      isChecked ? "bg-red-600 border-red-600" : "border-gray-600"
+                    }`}
+                  >
                     {isChecked && (
-                      <svg viewBox="0 0 12 10" className="w-3.5 h-3 fill-none stroke-white stroke-2" strokeLinecap="round" strokeLinejoin="round">
+                      <svg
+                        viewBox="0 0 12 10"
+                        className="w-3.5 h-3 fill-none stroke-white stroke-2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
                         <polyline points="1,5 4,8 11,1" />
                       </svg>
                     )}
                   </div>
                   <div className="min-w-0">
-                    <p className={`text-base font-medium transition-colors ${isChecked ? "line-through text-gray-500" : "text-white"}`}>
+                    <p
+                      className={`text-base font-medium transition-colors ${isChecked ? "line-through text-gray-500" : "text-white"}`}
+                    >
                       {item.name}
                     </p>
                     {item.description && (
-                      <p className={`text-sm mt-0.5 ${isChecked ? "text-gray-600" : "text-gray-500"}`}>
+                      <p
+                        className={`text-sm mt-0.5 ${isChecked ? "text-gray-600" : "text-gray-500"}`}
+                      >
                         {item.description}
                       </p>
                     )}

@@ -2,8 +2,8 @@ import { useEffect } from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { plugins } from "./plugins.config";
 import { NavBar } from "./shared/nav-bar";
-import { prefetchAll } from "./shared/prefetch";
 import { OfflineBanner } from "./shared/offline-banner";
+import { prefetchAll } from "./shared/prefetch";
 
 export function App() {
   const allRoutes = plugins.flatMap((p) => p.routes);

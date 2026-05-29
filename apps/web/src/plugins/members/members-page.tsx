@@ -1,11 +1,9 @@
 import type { IconType } from "react-icons";
 import {
-  FaCalendarCheck,
   FaChartLine,
   FaGithub,
   FaHardHat,
   FaInstagram,
-  FaSearch,
   FaSlack,
   FaToolbox,
   FaTrophy,
@@ -27,12 +25,12 @@ const APPS: App[] = [
     icon: FaUserShield,
     bg: "bg-red-600",
   },
-  {
-    label: "Attendance",
-    href: "https://attendance.g3robotics.com",
-    icon: FaCalendarCheck,
-    bg: "bg-sky-600",
-  },
+  // {
+  //   label: "Attendance",
+  //   href: "https://attendance.g3robotics.com",
+  //   icon: FaCalendarCheck,
+  //   bg: "bg-sky-600",
+  // },
   {
     label: "Shop",
     href: "https://shop.g3robotics.com",
@@ -45,11 +43,18 @@ const APPS: App[] = [
     icon: FaHardHat,
     bg: "bg-yellow-600",
   },
+  // {
+  //   label: "Scouting",
+  //   href: "https://scouting.g3robotics.com",
+  //   icon: FaSearch,
+  //   bg: "bg-violet-600",
+  // },
   {
-    label: "Scouting",
-    href: "https://scouting.g3robotics.com",
-    icon: FaSearch,
-    bg: "bg-violet-600",
+    label: "Slack",
+    href: "https://g3robotics.slack.com",
+    icon: FaSlack,
+    bg: "bg-purple-600",
+    external: true,
   },
   {
     label: "The Blue Alliance",
@@ -73,13 +78,6 @@ const APPS: App[] = [
     external: true,
   },
   {
-    label: "Slack",
-    href: "https://g3robotics.slack.com",
-    icon: FaSlack,
-    bg: "bg-purple-600",
-    external: true,
-  },
-  {
     label: "Instagram",
     href: "https://www.instagram.com/g3robotics1648/",
     icon: FaInstagram,
@@ -96,7 +94,7 @@ export function MembersPage() {
           <p className="text-red-400 text-sm font-semibold uppercase tracking-widest mb-1">
             Team 1648
           </p>
-          <h1 className="text-3xl font-bold text-white">Members</h1>
+          <h1 className="text-3xl font-bold text-white">Member Apps</h1>
         </div>
 
         <div className="grid grid-cols-4 sm:grid-cols-5 gap-x-4 gap-y-8">

@@ -85,7 +85,7 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
             className="text-2xl font-bold text-gray-100 hover:text-red-400 transition-colors"
             href="https://web.g3robotics.com/members"
           >
-          All Apps
+            All Apps
           </a>
         </div>
       )}

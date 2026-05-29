@@ -1,9 +1,9 @@
+import { useIsOnline } from "@g3/ui";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../../shared/use-auth";
 import type { Plugin } from "../../shared/plugin-types";
+import { useAuth } from "../../shared/use-auth";
 import { ChecklistDetailPage } from "./checklist-detail-page";
 import { ChecklistsPage } from "./checklists-page";
-import { useIsOnline } from "@g3/ui";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -14,8 +14,8 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
     return (
       <main className="min-h-screen bg-gray-950 flex items-center justify-center">
         <p className="text-gray-400">You must be online to use the editor.</p>
-      </main>    
-    )
+      </main>
+    );
   }
 
   if (loading) {
@@ -54,8 +54,22 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 export const checklistsPlugin: Plugin = {
   name: "checklists",
   routes: [
-    { path: "/editor", element: <RequireAuth><ChecklistsPage /></RequireAuth> },
-    { path: "/editor/:id", element: <RequireAuth><ChecklistDetailPage /></RequireAuth> },
+    {
+      path: "/editor",
+      element: (
+        <RequireAuth>
+          <ChecklistsPage />
+        </RequireAuth>
+      ),
+    },
+    {
+      path: "/editor/:id",
+      element: (
+        <RequireAuth>
+          <ChecklistDetailPage />
+        </RequireAuth>
+      ),
+    },
   ],
   navItems: [{ label: "Editor", to: "/editor", order: 2 }],
 };
