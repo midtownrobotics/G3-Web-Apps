@@ -12,7 +12,7 @@ id = "c27ba19a75fb4eb6b93f9d2d47de6c0f"
 
 [[d1_databases]]
 binding = "SHOP_DB"
-database_name = "shop-local"
+database_name = "g3-shop-local"
 database_id = "00000000-0000-0000-0000-000000000001"
 migrations_dir = "src/db/migrations"
 
@@ -32,7 +32,7 @@ id = "db4457ce43c9468eb9ec5a049afa65b1"
 
 [[env.production.d1_databases]]
 binding = "SHOP_DB"
-database_name = "shop-prod"
+database_name = "g3-shop-prod"
 database_id = "4e69e7bc-85ce-4f32-859a-40ef6a21ab2a"
 migrations_dir = "src/db/migrations"
 
