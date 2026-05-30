@@ -1,3 +1,14 @@
+export type BatteryState = "Charging" | "In Robot" | "Idle" | "Broken";
+
+export type Battery = {
+  id: number;
+  name: string;
+  state: BatteryState;
+  stateSince: number; // ms timestamp
+  voltage: number | null;
+  createdAt: number;
+};
+
 export type ChecklistList = {
   id: number;
   name: string;

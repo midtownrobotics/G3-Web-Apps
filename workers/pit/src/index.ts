@@ -3,7 +3,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { validator } from "hono/validator";
 import { createDb } from "./db";
-import { checklistIssues, checklistItems, checklistLists } from "./db/schema";
+import { batteries, checklistIssues, checklistItems, checklistLists } from "./db/schema";
 import { requireAuth } from "./middleware/auth";
 import type { AppEnv } from "./types";
 
@@ -77,6 +77,21 @@ const itemBodyValidator = validator("json", (value, c) => {
   };
 });
 
+const batteryStateValidator = validator("json", (value, c) => {
+  const v = value as { state?: unknown };
+  const valid = ["Charging", "In Robot", "Idle", "Broken"] as const;
+  if (!valid.includes(v.state as (typeof valid)[number]))
+    return c.json({ error: "state must be Charging, In Robot, Idle, or Broken." }, 400);
+  return { state: v.state as (typeof valid)[number] };
+});
+
+const batteryVoltageValidator = validator("json", (value, c) => {
+  const v = value as { voltage?: unknown };
+  if (v.voltage !== null && typeof v.voltage !== "number")
+    return c.json({ error: "voltage must be a number or null." }, 400);
+  return { voltage: (v.voltage ?? null) as number | null };
+});
+
 const checkedValidator = validator("json", (value, c) => {
   const v = value as { checked?: unknown };
   if (typeof v.checked !== "boolean") return c.json({ error: "checked must be a boolean." }, 400);
@@ -123,7 +138,7 @@ const app = base
   )
 
   // Lists — reads
-  .get("/lists", async (c) => {
+  .get("/lists", requireAuth, async (c) => {
     const db = createDb(c.env.PIT_DB);
     const rows = await db
       .select(listSelect)
@@ -133,7 +148,7 @@ const app = base
     return c.json(rows);
   })
 
-  .get("/lists/:id", async (c) => {
+  .get("/lists/:id", requireAuth, async (c) => {
     const id = parseId(c.req.param("id"));
     if (!id) return c.json({ error: "Invalid id." }, 400);
 
@@ -149,7 +164,7 @@ const app = base
   })
 
   // Items — reads
-  .get("/lists/:id/items", async (c) => {
+  .get("/lists/:id/items", requireAuth, async (c) => {
     const listId = parseId(c.req.param("id"));
     if (!listId) return c.json({ error: "Invalid id." }, 400);
 
@@ -166,7 +181,7 @@ const app = base
   })
 
   // Issues — reads (all)
-  .get("/issues", async (c) => {
+  .get("/issues", requireAuth, async (c) => {
     const db = createDb(c.env.PIT_DB);
     const issues = await db
       .select({
@@ -186,7 +201,7 @@ const app = base
   })
 
   // Issues — reads (per list)
-  .get("/lists/:id/issues", async (c) => {
+  .get("/lists/:id/issues", requireAuth, async (c) => {
     const listId = parseId(c.req.param("id"));
     if (!listId) return c.json({ error: "Invalid id." }, 400);
 
@@ -371,7 +386,7 @@ const app = base
   )
 
   // Checked state — no auth required (runner is public)
-  .patch("/lists/:id/items/:itemId/checked", checkedValidator, async (c) => {
+  .patch("/lists/:id/items/:itemId/checked", requireAuth, checkedValidator, async (c) => {
     const listId = parseId(c.req.param("id"));
     const itemId = parseId(c.req.param("itemId"));
     if (!listId || !itemId) return c.json({ error: "Invalid id." }, 400);
@@ -386,7 +401,7 @@ const app = base
     return c.json(updated);
   })
 
-  .post("/lists/:id/reset", async (c) => {
+  .post("/lists/:id/reset", requireAuth, async (c) => {
     const listId = parseId(c.req.param("id"));
     if (!listId) return c.json({ error: "Invalid id." }, 400);
 
@@ -402,7 +417,7 @@ const app = base
   })
 
   // Issues — no auth required (runner is public)
-  .post("/lists/:id/items/:itemId/issues", issueTextValidator, async (c) => {
+  .post("/lists/:id/items/:itemId/issues", requireAuth, issueTextValidator, async (c) => {
     const listId = parseId(c.req.param("id"));
     const itemId = parseId(c.req.param("itemId"));
     if (!listId || !itemId) return c.json({ error: "Invalid id." }, 400);
@@ -421,7 +436,7 @@ const app = base
     return c.json(created, 201);
   })
 
-  .delete("/lists/:id/items/:itemId/issues/:issueId", async (c) => {
+  .delete("/lists/:id/items/:itemId/issues/:issueId", requireAuth, async (c) => {
     const listId = parseId(c.req.param("id"));
     const itemId = parseId(c.req.param("itemId"));
     const issueId = parseId(c.req.param("issueId"));
@@ -438,8 +453,66 @@ const app = base
     return c.json({ success: true });
   })
 
+  // Batteries
+  .get("/batteries", requireAuth, async (c) => {
+    const db = createDb(c.env.PIT_DB);
+    const rows = await db.select().from(batteries).orderBy(batteries.createdAt);
+    return c.json(rows);
+  })
+
+  .post("/batteries", requireAuth, listNameValidator, async (c) => {
+    const { name } = c.req.valid("json");
+    const db = createDb(c.env.PIT_DB);
+    const now = Math.floor(Date.now() / 1000);
+    const result = await db
+      .insert(batteries)
+      .values({ name, state: "Idle", stateSince: Date.now(), createdAt: now });
+    const [created] = await db
+      .select()
+      .from(batteries)
+      .where(eq(batteries.id, Number(result.meta.last_row_id)));
+    return c.json(created, 201);
+  })
+
+  .delete("/batteries/:id", requireAuth, async (c) => {
+    const id = parseId(c.req.param("id"));
+    if (!id) return c.json({ error: "Invalid id." }, 400);
+    const db = createDb(c.env.PIT_DB);
+    const [existing] = await db.select().from(batteries).where(eq(batteries.id, id));
+    if (!existing) return c.json({ error: "Battery not found." }, 404);
+    await db.delete(batteries).where(eq(batteries.id, id));
+    return c.json({ success: true });
+  })
+
+  .patch("/batteries/:id/state", requireAuth, batteryStateValidator, async (c) => {
+    const id = parseId(c.req.param("id"));
+    if (!id) return c.json({ error: "Invalid id." }, 400);
+    const { state } = c.req.valid("json");
+    const db = createDb(c.env.PIT_DB);
+    const [existing] = await db.select().from(batteries).where(eq(batteries.id, id));
+    if (!existing) return c.json({ error: "Battery not found." }, 404);
+    await db
+      .update(batteries)
+      .set({ state, stateSince: Date.now(), voltage: null })
+      .where(eq(batteries.id, id));
+    const [updated] = await db.select().from(batteries).where(eq(batteries.id, id));
+    return c.json(updated);
+  })
+
+  .patch("/batteries/:id/voltage", requireAuth, batteryVoltageValidator, async (c) => {
+    const id = parseId(c.req.param("id"));
+    if (!id) return c.json({ error: "Invalid id." }, 400);
+    const { voltage } = c.req.valid("json");
+    const db = createDb(c.env.PIT_DB);
+    const [existing] = await db.select().from(batteries).where(eq(batteries.id, id));
+    if (!existing) return c.json({ error: "Battery not found." }, 404);
+    await db.update(batteries).set({ voltage }).where(eq(batteries.id, id));
+    const [updated] = await db.select().from(batteries).where(eq(batteries.id, id));
+    return c.json(updated);
+  })
+
   // Global reset — unchecks all items across all lists, preserves issues
-  .post("/reset", async (c) => {
+  .post("/reset", requireAuth, async (c) => {
     const db = createDb(c.env.PIT_DB);
     await db.update(checklistItems).set({ checked: false });
     return c.json({ success: true });

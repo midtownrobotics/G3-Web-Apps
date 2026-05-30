@@ -1,4 +1,4 @@
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 export const checklistLists = sqliteTable("checklist_lists", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -19,6 +19,17 @@ export const checklistItems = sqliteTable("checklist_items", {
   name: text("name").notNull(),
   description: text("description"),
   checked: integer("checked", { mode: "boolean" }).notNull().default(false),
+  createdAt: integer("created_at").notNull(),
+});
+
+export const batteries = sqliteTable("batteries", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  state: text("state", { enum: ["Charging", "In Robot", "Idle", "Broken"] })
+    .notNull()
+    .default("Idle"),
+  stateSince: integer("state_since").notNull(), // milliseconds from Date.now()
+  voltage: real("voltage"),
   createdAt: integer("created_at").notNull(),
 });
 
