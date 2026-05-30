@@ -242,7 +242,7 @@ export function AdminUsersPage() {
               className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden"
             >
               {/* Main row */}
-              <div className="px-4 py-3 flex items-center gap-3">
+              <div className="px-4 py-3 flex items-center gap-3 flex-wrap">
                 {/* Avatar */}
                 <div className="w-9 h-9 rounded-full bg-gray-800 flex items-center justify-center text-sm font-semibold text-gray-300 shrink-0">
                   {user.displayName.charAt(0).toUpperCase()}
@@ -279,8 +279,8 @@ export function AdminUsersPage() {
                   </div>
                 </div>
 
-                {/* Action buttons */}
-                <div className="flex items-center gap-1.5 shrink-0">
+                {/* Action buttons — full width on mobile (wraps to new line), inline on md+ */}
+                <div className="flex items-center gap-1.5 w-full md:w-auto pl-12 md:pl-0">
                   {user.status === "pending" && (
                     <>
                       <button
