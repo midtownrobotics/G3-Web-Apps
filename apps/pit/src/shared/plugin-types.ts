@@ -10,6 +10,7 @@ export interface PluginNavItem {
   to: string;
   order: number;
   requiresAuth?: boolean;
+  requiresAdmin?: boolean;
 }
 
 export interface Plugin {

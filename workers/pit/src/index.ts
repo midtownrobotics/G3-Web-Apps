@@ -3,8 +3,8 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { validator } from "hono/validator";
 import { createDb } from "./db";
-import { batteries, checklistIssues, checklistItems, checklistLists } from "./db/schema";
-import { requireAuth } from "./middleware/auth";
+import { batteries, checklistIssues, checklistItems, checklistLists, settings } from "./db/schema";
+import { requireAdmin, requireAuth } from "./middleware/auth";
 import type { AppEnv } from "./types";
 
 const base = new Hono<AppEnv>();
@@ -105,6 +105,12 @@ const issueTextValidator = validator("json", (value, c) => {
   return { text: v.text.trim() };
 });
 
+const listEventKeyValidator = validator("json", (value, c) => {
+  const v = value as { eventKey?: unknown };
+  if (typeof v.eventKey !== "string") return c.json({ error: "eventKey must be a string." }, 400);
+  return { eventKey: v.eventKey.trim() };
+});
+
 const reorderValidator = validator("json", (value, c) => {
   const v = value as { ids?: unknown };
   if (
@@ -114,6 +120,16 @@ const reorderValidator = validator("json", (value, c) => {
     return c.json({ error: "ids must be an array of positive integers." }, 400);
   return { ids: v.ids as number[] };
 });
+
+// Reads a setting from the DB, falling back to a default (e.g. an env var).
+async function getSetting(
+  db: ReturnType<typeof createDb>,
+  key: string,
+  fallback: string,
+): Promise<string> {
+  const [row] = await db.select().from(settings).where(eq(settings.key, key));
+  return row?.value ?? fallback;
+}
 
 // Shared select shape for list queries — counts only checkable items (type = 'item')
 const listSelect = {
@@ -517,6 +533,74 @@ const app = base
     const db = createDb(c.env.PIT_DB);
     await db.update(checklistItems).set({ checked: false });
     return c.json({ success: true });
+  })
+
+  // Pit monitor — proxies external APIs so the frontend avoids CORS
+  .get("/monitor/data", requireAuth, async (c) => {
+    const db = createDb(c.env.PIT_DB);
+    const team = c.env.TEAM_NUMBER;
+    const eventKey = await getSetting(db, "eventKey", c.env.EVENT_KEY);
+    const tbaKey = c.env.TBA_AUTH_KEY;
+    const nexusKey = c.env.NEXUS_API_KEY;
+    const year = new Date().getFullYear();
+
+    const [nexusResult, tbaResult, sbResult] = await Promise.allSettled([
+      eventKey && nexusKey
+        ? fetch(`https://frc.nexus/api/v1/event/${eventKey}`, {
+            headers: { "Nexus-Api-Key": nexusKey },
+          }).then((r) => (r.ok ? r.json() : null))
+        : Promise.resolve(null),
+      eventKey && tbaKey
+        ? fetch(`https://www.thebluealliance.com/api/v3/team/frc${team}/event/${eventKey}/status`, {
+            headers: { "X-TBA-Auth-Key": tbaKey },
+          }).then((r) => (r.ok ? r.json() : null))
+        : Promise.resolve(null),
+      team
+        ? fetch(`https://api.statbotics.io/v3/team_year/${team}/${year}`).then((r) =>
+            r.ok ? r.json() : null,
+          )
+        : Promise.resolve(null),
+    ]);
+
+    const nexus = nexusResult.status === "fulfilled" ? nexusResult.value : null;
+    const tba = tbaResult.status === "fulfilled" ? tbaResult.value : null;
+    const sb = sbResult.status === "fulfilled" ? sbResult.value : null;
+
+    // biome-ignore lint/suspicious/noExplicitAny: external API shapes
+    const tbaAny = tba as any;
+    // biome-ignore lint/suspicious/noExplicitAny: external API shapes
+    const sbAny = sb as any;
+
+    const record = tbaAny?.qual?.ranking?.record;
+    const ranking = sbAny
+      ? {
+          rank: sbAny.district_rank ?? null,
+          wins: record?.wins ?? sbAny.record?.wins ?? 0,
+          losses: record?.losses ?? sbAny.record?.losses ?? 0,
+          ties: record?.ties ?? sbAny.record?.ties ?? 0,
+          rp: sbAny.district_points ?? 0,
+          epa: sbAny.epa?.breakdown?.total_points ?? 0,
+        }
+      : null;
+
+    return c.json({ teamNumber: team, nexus, ranking });
+  })
+
+  // Admin — settings (admin only)
+  .get("/admin/settings", requireAdmin, async (c) => {
+    const db = createDb(c.env.PIT_DB);
+    const eventKey = await getSetting(db, "eventKey", c.env.EVENT_KEY);
+    return c.json({ eventKey, teamNumber: c.env.TEAM_NUMBER });
+  })
+
+  .patch("/admin/settings/event-key", requireAdmin, listEventKeyValidator, async (c) => {
+    const { eventKey } = c.req.valid("json");
+    const db = createDb(c.env.PIT_DB);
+    await db
+      .insert(settings)
+      .values({ key: "eventKey", value: eventKey })
+      .onConflictDoUpdate({ target: settings.key, set: { value: eventKey } });
+    return c.json({ eventKey });
   });
 
 export type PitApp = typeof app;

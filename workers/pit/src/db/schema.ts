@@ -1,5 +1,10 @@
 import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
+export const settings = sqliteTable("settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+});
+
 export const checklistLists = sqliteTable("checklist_lists", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull(),
