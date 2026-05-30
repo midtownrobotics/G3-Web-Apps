@@ -79,9 +79,9 @@ const itemBodyValidator = validator("json", (value, c) => {
 
 const batteryStateValidator = validator("json", (value, c) => {
   const v = value as { state?: unknown };
-  const valid = ["Charging", "In Robot", "Idle", "Broken"] as const;
+  const valid = ["Charging", "In Robot", "Idle", "Broken", "Next Up"] as const;
   if (!valid.includes(v.state as (typeof valid)[number]))
-    return c.json({ error: "state must be Charging, In Robot, Idle, or Broken." }, 400);
+    return c.json({ error: "state must be Charging, In Robot, Idle, or Broken, or Next Up." }, 400);
   return { state: v.state as (typeof valid)[number] };
 });
 
@@ -491,9 +491,10 @@ const app = base
     const db = createDb(c.env.PIT_DB);
     const [existing] = await db.select().from(batteries).where(eq(batteries.id, id));
     if (!existing) return c.json({ error: "Battery not found." }, 404);
+    const tracksVoltage = state === "In Robot" || state === "Next Up";
     await db
       .update(batteries)
-      .set({ state, stateSince: Date.now(), voltage: null })
+      .set({ state, stateSince: Date.now(), ...(!tracksVoltage ? { voltage: null } : {}) })
       .where(eq(batteries.id, id));
     const [updated] = await db.select().from(batteries).where(eq(batteries.id, id));
     return c.json(updated);

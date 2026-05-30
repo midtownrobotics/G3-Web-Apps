@@ -25,7 +25,7 @@ export const checklistItems = sqliteTable("checklist_items", {
 export const batteries = sqliteTable("batteries", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull(),
-  state: text("state", { enum: ["Charging", "In Robot", "Idle", "Broken"] })
+  state: text("state", { enum: ["Charging", "In Robot", "Idle", "Broken", "Next Up"] })
     .notNull()
     .default("Idle"),
   stateSince: integer("state_since").notNull(), // milliseconds from Date.now()

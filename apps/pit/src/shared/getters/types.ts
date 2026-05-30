@@ -1,4 +1,4 @@
-export type BatteryState = "Charging" | "In Robot" | "Idle" | "Broken";
+export type BatteryState = "Charging" | "In Robot" | "Idle" | "Broken" | "Next Up";
 
 export type Battery = {
   id: number;
