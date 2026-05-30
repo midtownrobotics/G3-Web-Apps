@@ -19,6 +19,7 @@ export const coreUsers = sqliteTable(
     mergedIntoUserId: text("merged_into_user_id").references((): AnySQLiteColumn => coreUsers.id),
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
+    lastLoginAt: integer("last_login_at"),
     deletedAt: integer("deleted_at"),
   },
   (table) => [

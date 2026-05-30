@@ -1,5 +1,6 @@
 import { Loader2, Shield, ShieldOff } from "lucide-react";
 import { useEffect, useState } from "react";
+import { FaGithub, FaGoogle, FaKey, FaSlack, FaSteam } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../lib/api";
 
@@ -12,8 +13,18 @@ type User = {
   status: string;
   isAdmin: number;
   createdAt: number;
+  lastLoginAt: number | null;
   identities: Identity[];
 };
+
+function relativeTime(ts: number): string {
+  const diff = Math.floor(Date.now() / 1000) - ts;
+  if (diff < 60) return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 86400 * 30) return `${Math.floor(diff / 86400)}d ago`;
+  return new Date(ts * 1000).toLocaleDateString();
+}
 
 const STATUS_STYLES: Record<string, string> = {
   pending: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
@@ -21,14 +32,27 @@ const STATUS_STYLES: Record<string, string> = {
   rejected: "bg-red-500/20 text-red-300 border-red-500/30",
 };
 
-const PROVIDER_LABELS: Record<string, string> = {
-  local: "Password",
-  google: "Google",
-  slack: "Slack",
-  github: "GitHub",
-  steam: "Steam",
-  onshape: "OnShape",
-};
+function ProviderIcon({ provider }: { provider: string }) {
+  const cls = "w-4 h-4";
+  switch (provider) {
+    case "google":
+      return <FaGoogle className={`${cls} text-blue-400`} title="Google" />;
+    case "slack":
+      return <FaSlack className={`${cls} text-purple-400`} title="Slack" />;
+    case "github":
+      return <FaGithub className={`${cls} text-gray-300`} title="GitHub" />;
+    case "steam":
+      return <FaSteam className={`${cls} text-cyan-400`} title="Steam" />;
+    case "local":
+      return <FaKey className={`${cls} text-yellow-400`} title="Password" />;
+    default:
+      return <span className="text-xs text-gray-500">{provider}</span>;
+  }
+}
+
+function firstName(displayName: string) {
+  return displayName.split(" ")[0];
+}
 
 const FILTERS = ["pending", "active", "rejected", "all"] as const;
 type Filter = (typeof FILTERS)[number];
@@ -70,8 +94,7 @@ export function AdminUsersPage() {
       .$get()
       .then(async (res) => {
         if (!res.ok) throw new Error("Failed to load users.");
-        const data = (await res.json()) as User[];
-        setUsers(data);
+        setUsers((await res.json()) as User[]);
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Something went wrong."))
       .finally(() => setLoading(false));
@@ -176,9 +199,10 @@ export function AdminUsersPage() {
     f === "all" ? users.length : users.filter((u) => u.status === f).length;
 
   return (
-    <main className="flex-1 px-6 py-8 max-w-4xl mx-auto w-full">
+    <main className="flex-1 px-4 py-8 max-w-2xl mx-auto w-full">
       <h1 className="text-2xl font-bold text-white mb-6">Users</h1>
 
+      {/* Filter tabs */}
       <div className="flex gap-2 mb-6">
         {FILTERS.map((f) => (
           <button
@@ -211,59 +235,70 @@ export function AdminUsersPage() {
       )}
 
       {!loading && !error && (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {filtered.map((user) => (
             <div
               key={user.id}
               className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden"
             >
-              <div className="px-5 py-4 flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center text-sm font-semibold text-gray-300 shrink-0">
+              {/* Main row */}
+              <div className="px-4 py-3 flex items-center gap-3">
+                {/* Avatar */}
+                <div className="w-9 h-9 rounded-full bg-gray-800 flex items-center justify-center text-sm font-semibold text-gray-300 shrink-0">
                   {user.displayName.charAt(0).toUpperCase()}
                 </div>
 
+                {/* Name + identity icons */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-white font-medium truncate">{user.displayName}</p>
-                    {user.isAdmin ? (
-                      <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 shrink-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-white font-semibold">{firstName(user.displayName)}</span>
+                    {user.isAdmin && (
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
                         Admin
                       </span>
-                    ) : null}
-                  </div>
-                  <p className="text-gray-500 text-sm truncate">{user.email}</p>
-                </div>
-
-                <div className="flex items-center gap-2 shrink-0">
-                  {user.identities.map((identity) => (
+                    )}
                     <span
-                      key={identity.provider}
-                      className="px-2 py-0.5 rounded text-xs bg-gray-800 text-gray-400 border border-gray-700"
+                      className={`text-xs px-2 py-0.5 rounded-full border capitalize ${STATUS_STYLES[user.status] ?? "bg-gray-800 text-gray-400"}`}
                     >
-                      {PROVIDER_LABELS[identity.provider] ?? identity.provider}
+                      {user.status}
                     </span>
-                  ))}
+                  </div>
+                  {/* Identity icons + last login */}
+                  <div className="flex items-center gap-2 mt-1">
+                    {user.identities.map((identity) => (
+                      <ProviderIcon key={identity.provider} provider={identity.provider} />
+                    ))}
+                    <span className="text-xs text-gray-600">·</span>
+                    <span className="text-xs text-gray-500">
+                      {user.lastLoginAt ? relativeTime(user.lastLoginAt) : "never"}
+                    </span>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
+                {/* Action buttons */}
+                <div className="flex items-center gap-1.5 shrink-0">
                   {user.status === "pending" && (
                     <>
                       <button
                         type="button"
                         disabled={approving.has(user.id) || rejecting.has(user.id)}
                         onClick={() => handleApprove(user.id)}
-                        className="px-3 py-1 rounded-lg text-xs font-medium bg-green-600 hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-colors flex items-center gap-1.5"
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-600 hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-colors flex items-center gap-1"
                       >
-                        {approving.has(user.id) && <Loader2 size={12} className="animate-spin" />}
+                        {approving.has(user.id) ? (
+                          <Loader2 size={11} className="animate-spin" />
+                        ) : null}
                         Approve
                       </button>
                       <button
                         type="button"
                         disabled={approving.has(user.id) || rejecting.has(user.id)}
                         onClick={() => handleReject(user.id)}
-                        className="px-3 py-1 rounded-lg text-xs font-medium bg-red-700 hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-colors flex items-center gap-1.5"
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-700 hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-colors flex items-center gap-1"
                       >
-                        {rejecting.has(user.id) && <Loader2 size={12} className="animate-spin" />}
+                        {rejecting.has(user.id) ? (
+                          <Loader2 size={11} className="animate-spin" />
+                        ) : null}
                         Reject
                       </button>
                     </>
@@ -276,14 +311,14 @@ export function AdminUsersPage() {
                       onClick={() =>
                         user.isAdmin ? handleDemote(user.id) : handlePromote(user.id)
                       }
-                      className="px-3 py-1 rounded-lg text-xs font-medium bg-gray-800 hover:bg-purple-900 hover:text-purple-300 disabled:opacity-50 disabled:cursor-not-allowed text-gray-400 transition-colors flex items-center gap-1.5"
+                      className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-800 hover:bg-purple-900 hover:text-purple-300 disabled:opacity-50 disabled:cursor-not-allowed text-gray-400 transition-colors flex items-center gap-1"
                     >
                       {promoting.has(user.id) ? (
-                        <Loader2 size={12} className="animate-spin" />
+                        <Loader2 size={11} className="animate-spin" />
                       ) : user.isAdmin ? (
-                        <ShieldOff size={12} />
+                        <ShieldOff size={11} />
                       ) : (
-                        <Shield size={12} />
+                        <Shield size={11} />
                       )}
                       {user.isAdmin ? "Demote" : "Promote"}
                     </button>
@@ -295,9 +330,11 @@ export function AdminUsersPage() {
                         type="button"
                         disabled={deleting.has(user.id)}
                         onClick={() => handleDelete(user.id)}
-                        className="px-3 py-1 rounded-lg text-xs font-medium bg-gray-800 hover:bg-red-900 hover:text-red-300 disabled:opacity-50 disabled:cursor-not-allowed text-gray-400 transition-colors flex items-center gap-1.5"
+                        className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-800 hover:bg-red-900 hover:text-red-300 disabled:opacity-50 disabled:cursor-not-allowed text-gray-400 transition-colors flex items-center gap-1"
                       >
-                        {deleting.has(user.id) && <Loader2 size={12} className="animate-spin" />}
+                        {deleting.has(user.id) ? (
+                          <Loader2 size={11} className="animate-spin" />
+                        ) : null}
                         Delete
                       </button>
                     )}
@@ -312,26 +349,17 @@ export function AdminUsersPage() {
                           setMergeTargetId("");
                         }
                       }}
-                      className="px-3 py-1 rounded-lg text-xs font-medium bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors"
+                      className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors"
                     >
                       {mergingUserId === user.id ? "Cancel" : "Merge"}
                     </button>
                   )}
                 </div>
-
-                <span
-                  className={`px-2.5 py-0.5 rounded-full text-xs font-medium border capitalize shrink-0 ${STATUS_STYLES[user.status] ?? "bg-gray-800 text-gray-400"}`}
-                >
-                  {user.status}
-                </span>
-
-                <p className="text-xs text-gray-600 shrink-0 w-24 text-right">
-                  {new Date(user.createdAt * 1000).toLocaleDateString()}
-                </p>
               </div>
 
+              {/* Merge panel */}
               {mergingUserId === user.id && (
-                <div className="px-5 py-3 border-t border-gray-800 flex items-center gap-3">
+                <div className="px-4 py-3 border-t border-gray-800 flex items-center gap-3">
                   <p className="text-xs text-gray-400 shrink-0">Merge into:</p>
                   <select
                     value={mergeTargetId}
@@ -355,9 +383,9 @@ export function AdminUsersPage() {
                     type="button"
                     disabled={!mergeTargetId || mergeLoading}
                     onClick={() => handleMerge(user.id)}
-                    className="px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500 hover:bg-red-400 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-colors flex items-center gap-1.5 shrink-0"
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500 hover:bg-red-400 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-colors flex items-center gap-1.5 shrink-0"
                   >
-                    {mergeLoading && <Loader2 size={12} className="animate-spin" />}
+                    {mergeLoading && <Loader2 size={11} className="animate-spin" />}
                     Confirm merge
                   </button>
                 </div>

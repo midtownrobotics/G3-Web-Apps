@@ -3,6 +3,14 @@
   "private": true,
   "version": "0.0.0",
   "exports": {
-    "./index.css": "./src/index.css"
+    "./index.css": "./src/index.css",
+    ".": "./src/index.ts"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.0.0",
+    "react": "^18.0.0"
   }
 }

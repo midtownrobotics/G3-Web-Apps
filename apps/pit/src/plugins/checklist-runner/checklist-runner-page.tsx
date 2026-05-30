@@ -1,20 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { api } from "../../shared/api";
-
-type ChecklistList = {
-  id: number;
-  name: string;
-  description: string | null;
-  itemCount: number;
-};
-
-type ChecklistItem = {
-  id: number;
-  index: number;
-  name: string;
-  description: string | null;
-};
+import { fetchItems } from "../../shared/getters/items";
+import { fetchList } from "../../shared/getters/lists";
+import type { ChecklistItem, ChecklistList } from "../../shared/getters/types";
 
 export function ChecklistRunnerPage() {
   const { id } = useParams<{ id: string }>();
@@ -28,18 +16,17 @@ export function ChecklistRunnerPage() {
 
   useEffect(() => {
     if (!id) return;
-    Promise.all([
-      api.lists[":id"].$get({ param: { id } }),
-      api.lists[":id"].items.$get({ param: { id } }),
-    ]).then(async ([listRes, itemsRes]) => {
-      if (!listRes.ok) { setNotFound(true); setLoading(false); return; }
-      setList((await listRes.json()) as ChecklistList);
-      if (itemsRes.ok) {
-        const data = (await itemsRes.json()) as ChecklistItem[];
-        setItems(data.sort((a, b) => a.index - b.index));
-      }
-      setLoading(false);
-    });
+    Promise.all([fetchList(id), fetchItems(id)])
+      .then(([listData, itemsData]) => {
+        if (!listData) {
+          setNotFound(true);
+          return;
+        }
+        setList(listData);
+        setItems(itemsData.sort((a, b) => a.index - b.index));
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, [id]);
 
   function toggle(itemId: number) {
@@ -63,7 +50,11 @@ export function ChecklistRunnerPage() {
     return (
       <main className="min-h-screen bg-gray-950 flex flex-col items-center justify-center gap-4">
         <p className="text-gray-400">Checklist not found.</p>
-        <button type="button" onClick={() => navigate("/checklists")} className="text-red-400 hover:text-red-300 text-sm underline">
+        <button
+          type="button"
+          onClick={() => navigate("/checklists")}
+          className="text-red-400 hover:text-red-300 text-sm underline"
+        >
           Back
         </button>
       </main>
@@ -78,10 +69,12 @@ export function ChecklistRunnerPage() {
   return (
     <main className="min-h-screen bg-gray-950 text-white">
       <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
-
-        {/* Header */}
         <div className="flex items-center justify-between">
-          <button type="button" onClick={() => navigate("/checklists")} className="text-sm text-gray-500 hover:text-gray-300 transition-colors">
+          <button
+            type="button"
+            onClick={() => navigate("/checklists")}
+            className="text-sm text-gray-500 hover:text-gray-300 transition-colors"
+          >
             ← Back
           </button>
           {checked.size > 0 && (
@@ -100,7 +93,6 @@ export function ChecklistRunnerPage() {
           {list.description && <p className="text-sm text-gray-500 mt-1">{list.description}</p>}
         </div>
 
-        {/* Progress */}
         {totalCount > 0 && (
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
@@ -118,11 +110,14 @@ export function ChecklistRunnerPage() {
           </div>
         )}
 
-        {/* Items */}
         {items.length === 0 ? (
           <p className="text-gray-600 text-sm text-center py-8">
             No items.{" "}
-            <button type="button" onClick={() => navigate(`/editor/${list.id}`)} className="text-red-400 hover:text-red-300 underline">
+            <button
+              type="button"
+              onClick={() => navigate(`/editor/${list.id}`)}
+              className="text-red-400 hover:text-red-300 underline"
+            >
               Add some in the Editor.
             </button>
           </p>
@@ -141,26 +136,33 @@ export function ChecklistRunnerPage() {
                       : "bg-gray-900 border-gray-700 hover:border-gray-500"
                   }`}
                 >
-                  {/* Checkbox */}
-                  <div className={`mt-0.5 w-6 h-6 rounded-md border-2 shrink-0 flex items-center justify-center transition-colors ${
-                    isChecked
-                      ? "bg-red-600 border-red-600"
-                      : "border-gray-600"
-                  }`}>
+                  <div
+                    className={`mt-0.5 w-6 h-6 rounded-md border-2 shrink-0 flex items-center justify-center transition-colors ${
+                      isChecked ? "bg-red-600 border-red-600" : "border-gray-600"
+                    }`}
+                  >
                     {isChecked && (
-                      <svg viewBox="0 0 12 10" className="w-3.5 h-3 fill-none stroke-white stroke-2" strokeLinecap="round" strokeLinejoin="round">
+                      <svg
+                        viewBox="0 0 12 10"
+                        className="w-3.5 h-3 fill-none stroke-white stroke-2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
                         <polyline points="1,5 4,8 11,1" />
                       </svg>
                     )}
                   </div>
-
-                  {/* Text */}
                   <div className="min-w-0">
-                    <p className={`text-base font-medium transition-colors ${isChecked ? "line-through text-gray-500" : "text-white"}`}>
+                    <p
+                      className={`text-base font-medium transition-colors ${isChecked ? "line-through text-gray-500" : "text-white"}`}
+                    >
                       {item.name}
                     </p>
                     {item.description && (
-                      <p className={`text-sm mt-0.5 ${isChecked ? "text-gray-600" : "text-gray-500"}`}>
+                      <p
+                        className={`text-sm mt-0.5 ${isChecked ? "text-gray-600" : "text-gray-500"}`}
+                      >
                         {item.description}
                       </p>
                     )}

@@ -1,13 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api } from "../../shared/api";
-
-type ChecklistList = {
-  id: number;
-  name: string;
-  description: string | null;
-  itemCount: number;
-};
+import { fetchLists } from "../../shared/getters/lists";
+import type { ChecklistList } from "../../shared/getters/types";
 
 export function ChecklistRunnerListPage() {
   const navigate = useNavigate();
@@ -15,9 +9,9 @@ export function ChecklistRunnerListPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.lists.$get()
-      .then((res) => res.ok ? res.json() : [])
-      .then((data) => setLists(data as ChecklistList[]))
+    fetchLists()
+      .then(setLists)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
@@ -37,7 +31,11 @@ export function ChecklistRunnerListPage() {
         {lists.length === 0 ? (
           <p className="text-gray-500 text-center py-12">
             No checklists yet.{" "}
-            <button type="button" onClick={() => navigate("/editor")} className="text-red-400 hover:text-red-300 underline">
+            <button
+              type="button"
+              onClick={() => navigate("/editor")}
+              className="text-red-400 hover:text-red-300 underline"
+            >
               Create one in the Editor.
             </button>
           </p>
@@ -63,7 +61,9 @@ export function ChecklistRunnerListPage() {
                     <span className="text-xs text-gray-500 bg-gray-800 rounded-full px-2 py-0.5">
                       {list.itemCount} {list.itemCount === 1 ? "item" : "items"}
                     </span>
-                    <span className="text-gray-500 group-hover:text-red-400 transition-colors">→</span>
+                    <span className="text-gray-500 group-hover:text-red-400 transition-colors">
+                      →
+                    </span>
                   </div>
                 </div>
               </button>

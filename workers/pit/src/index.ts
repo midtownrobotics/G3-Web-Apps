@@ -232,7 +232,9 @@ const app = base
     const index = existing.length;
 
     const now = Math.floor(Date.now() / 1000);
-    const result = await db.insert(checklistItems).values({ listId, index, name, description, createdAt: now });
+    const result = await db
+      .insert(checklistItems)
+      .values({ listId, index, name, description, createdAt: now });
     const [created] = await db
       .select()
       .from(checklistItems)
@@ -268,20 +270,25 @@ const app = base
     return c.json(updated);
   })
 
-  .patch("/lists/:id/items/:itemId/description", requireAuth, listDescriptionValidator, async (c) => {
-    const listId = parseId(c.req.param("id"));
-    const itemId = parseId(c.req.param("itemId"));
-    if (!listId || !itemId) return c.json({ error: "Invalid id." }, 400);
+  .patch(
+    "/lists/:id/items/:itemId/description",
+    requireAuth,
+    listDescriptionValidator,
+    async (c) => {
+      const listId = parseId(c.req.param("id"));
+      const itemId = parseId(c.req.param("itemId"));
+      if (!listId || !itemId) return c.json({ error: "Invalid id." }, 400);
 
-    const { description } = c.req.valid("json");
-    const db = createDb(c.env.PIT_DB);
-    const [item] = await db.select().from(checklistItems).where(eq(checklistItems.id, itemId));
-    if (!item || item.listId !== listId) return c.json({ error: "Item not found." }, 404);
+      const { description } = c.req.valid("json");
+      const db = createDb(c.env.PIT_DB);
+      const [item] = await db.select().from(checklistItems).where(eq(checklistItems.id, itemId));
+      if (!item || item.listId !== listId) return c.json({ error: "Item not found." }, 404);
 
-    await db.update(checklistItems).set({ description }).where(eq(checklistItems.id, itemId));
-    const [updated] = await db.select().from(checklistItems).where(eq(checklistItems.id, itemId));
-    return c.json(updated);
-  });
+      await db.update(checklistItems).set({ description }).where(eq(checklistItems.id, itemId));
+      const [updated] = await db.select().from(checklistItems).where(eq(checklistItems.id, itemId));
+      return c.json(updated);
+    },
+  );
 
 export type PitApp = typeof app;
 export default app;

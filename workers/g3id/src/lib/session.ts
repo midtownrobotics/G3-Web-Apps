@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { createDb } from "../db";
-import { coreSessions } from "../db/schema";
+import { coreSessions, coreUsers } from "../db/schema";
 import type { AppEnv } from "../types";
 import { newId } from "./id";
 
@@ -11,16 +11,16 @@ export async function createSession(userId: string, env: AppEnv["Bindings"]): Pr
   const sessionId = newId();
   const now = Math.floor(Date.now() / 1000);
 
-  await db.insert(coreSessions).values({
-    id: sessionId,
-    userId,
-    expiresAt: now + SESSION_TTL,
-    createdAt: now,
-  });
-
-  await env.SESSIONS.put(`session:${sessionId}`, userId, {
-    expirationTtl: SESSION_TTL,
-  });
+  await Promise.all([
+    db.insert(coreSessions).values({
+      id: sessionId,
+      userId,
+      expiresAt: now + SESSION_TTL,
+      createdAt: now,
+    }),
+    db.update(coreUsers).set({ lastLoginAt: now }).where(eq(coreUsers.id, userId)),
+    env.SESSIONS.put(`session:${sessionId}`, userId, { expirationTtl: SESSION_TTL }),
+  ]);
 
   return sessionId;
 }
