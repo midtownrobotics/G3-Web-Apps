@@ -2,8 +2,8 @@ import { and, desc, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { createDb } from "../db";
 import { coreSessions, coreSlackLinkCodes, coreUserIdentities, coreUsers } from "../db/schema";
-import { requireAdmin } from "../middleware/auth";
 import { sendDM } from "../lib/slack-api";
+import { requireAdmin } from "../middleware/auth";
 import type { AppEnv } from "../types";
 
 export const adminRouter = new Hono<AppEnv>()

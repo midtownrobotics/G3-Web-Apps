@@ -1,7 +1,7 @@
 import { Loader2, Shield, ShieldOff } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { FaGithub, FaGoogle, FaKey, FaSlack, FaSteam } from "react-icons/fa";
+import { useNavigate } from "react-router-dom";
 import { api } from "../../lib/api";
 
 type Identity = { provider: string; createdAt: number };
@@ -35,12 +35,18 @@ const STATUS_STYLES: Record<string, string> = {
 function ProviderIcon({ provider }: { provider: string }) {
   const cls = "w-4 h-4";
   switch (provider) {
-    case "google": return <FaGoogle className={`${cls} text-blue-400`} title="Google" />;
-    case "slack": return <FaSlack className={`${cls} text-purple-400`} title="Slack" />;
-    case "github": return <FaGithub className={`${cls} text-gray-300`} title="GitHub" />;
-    case "steam": return <FaSteam className={`${cls} text-cyan-400`} title="Steam" />;
-    case "local": return <FaKey className={`${cls} text-yellow-400`} title="Password" />;
-    default: return <span className="text-xs text-gray-500">{provider}</span>;
+    case "google":
+      return <FaGoogle className={`${cls} text-blue-400`} title="Google" />;
+    case "slack":
+      return <FaSlack className={`${cls} text-purple-400`} title="Slack" />;
+    case "github":
+      return <FaGithub className={`${cls} text-gray-300`} title="GitHub" />;
+    case "steam":
+      return <FaSteam className={`${cls} text-cyan-400`} title="Steam" />;
+    case "local":
+      return <FaKey className={`${cls} text-yellow-400`} title="Password" />;
+    default:
+      return <span className="text-xs text-gray-500">{provider}</span>;
   }
 }
 
@@ -69,9 +75,15 @@ export function AdminUsersPage() {
 
   useEffect(() => {
     api.auth.me.$get().then(async (res) => {
-      if (res.status === 401) { navigate("/login"); return; }
+      if (res.status === 401) {
+        navigate("/login");
+        return;
+      }
       const data = (await res.json()) as { id: string; isAdmin: number };
-      if (!res.ok || !data.isAdmin) { navigate("/dashboard"); return; }
+      if (!res.ok || !data.isAdmin) {
+        navigate("/dashboard");
+        return;
+      }
       setCurrentUserId(data.id);
     });
   }, [navigate]);
@@ -98,7 +110,11 @@ export function AdminUsersPage() {
       const res = await api.admin.users[":id"].approve.$post({ param: { id: userId } });
       if (res.ok) updateUser(userId, { status: "active" });
     } finally {
-      setApproving((prev) => { const n = new Set(prev); n.delete(userId); return n; });
+      setApproving((prev) => {
+        const n = new Set(prev);
+        n.delete(userId);
+        return n;
+      });
     }
   }
 
@@ -108,7 +124,11 @@ export function AdminUsersPage() {
       const res = await api.admin.users[":id"].reject.$post({ param: { id: userId } });
       if (res.ok) updateUser(userId, { status: "rejected" });
     } finally {
-      setRejecting((prev) => { const n = new Set(prev); n.delete(userId); return n; });
+      setRejecting((prev) => {
+        const n = new Set(prev);
+        n.delete(userId);
+        return n;
+      });
     }
   }
 
@@ -119,7 +139,11 @@ export function AdminUsersPage() {
       const res = await api.admin.users[":id"].$delete({ param: { id: userId } });
       if (res.ok) setUsers((prev) => prev.filter((u) => u.id !== userId));
     } finally {
-      setDeleting((prev) => { const n = new Set(prev); n.delete(userId); return n; });
+      setDeleting((prev) => {
+        const n = new Set(prev);
+        n.delete(userId);
+        return n;
+      });
     }
   }
 
@@ -129,7 +153,11 @@ export function AdminUsersPage() {
       const res = await api.admin.users[":id"].promote.$post({ param: { id: userId } });
       if (res.ok) updateUser(userId, { isAdmin: 1 });
     } finally {
-      setPromoting((prev) => { const n = new Set(prev); n.delete(userId); return n; });
+      setPromoting((prev) => {
+        const n = new Set(prev);
+        n.delete(userId);
+        return n;
+      });
     }
   }
 
@@ -139,7 +167,11 @@ export function AdminUsersPage() {
       const res = await api.admin.users[":id"].demote.$post({ param: { id: userId } });
       if (res.ok) updateUser(userId, { isAdmin: 0 });
     } finally {
-      setPromoting((prev) => { const n = new Set(prev); n.delete(userId); return n; });
+      setPromoting((prev) => {
+        const n = new Set(prev);
+        n.delete(userId);
+        return n;
+      });
     }
   }
 
@@ -225,7 +257,9 @@ export function AdminUsersPage() {
                         Admin
                       </span>
                     )}
-                    <span className={`text-xs px-2 py-0.5 rounded-full border capitalize ${STATUS_STYLES[user.status] ?? "bg-gray-800 text-gray-400"}`}>
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded-full border capitalize ${STATUS_STYLES[user.status] ?? "bg-gray-800 text-gray-400"}`}
+                    >
                       {user.status}
                     </span>
                   </div>
@@ -251,7 +285,9 @@ export function AdminUsersPage() {
                         onClick={() => handleApprove(user.id)}
                         className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-600 hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-colors flex items-center gap-1"
                       >
-                        {approving.has(user.id) ? <Loader2 size={11} className="animate-spin" /> : null}
+                        {approving.has(user.id) ? (
+                          <Loader2 size={11} className="animate-spin" />
+                        ) : null}
                         Approve
                       </button>
                       <button
@@ -260,7 +296,9 @@ export function AdminUsersPage() {
                         onClick={() => handleReject(user.id)}
                         className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-700 hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-colors flex items-center gap-1"
                       >
-                        {rejecting.has(user.id) ? <Loader2 size={11} className="animate-spin" /> : null}
+                        {rejecting.has(user.id) ? (
+                          <Loader2 size={11} className="animate-spin" />
+                        ) : null}
                         Reject
                       </button>
                     </>
@@ -270,7 +308,9 @@ export function AdminUsersPage() {
                     <button
                       type="button"
                       disabled={promoting.has(user.id)}
-                      onClick={() => user.isAdmin ? handleDemote(user.id) : handlePromote(user.id)}
+                      onClick={() =>
+                        user.isAdmin ? handleDemote(user.id) : handlePromote(user.id)
+                      }
                       className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-800 hover:bg-purple-900 hover:text-purple-300 disabled:opacity-50 disabled:cursor-not-allowed text-gray-400 transition-colors flex items-center gap-1"
                     >
                       {promoting.has(user.id) ? (
@@ -284,24 +324,30 @@ export function AdminUsersPage() {
                     </button>
                   )}
 
-                  {(user.status === "active" || user.status === "rejected") && user.id !== currentUserId && (
-                    <button
-                      type="button"
-                      disabled={deleting.has(user.id)}
-                      onClick={() => handleDelete(user.id)}
-                      className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-800 hover:bg-red-900 hover:text-red-300 disabled:opacity-50 disabled:cursor-not-allowed text-gray-400 transition-colors flex items-center gap-1"
-                    >
-                      {deleting.has(user.id) ? <Loader2 size={11} className="animate-spin" /> : null}
-                      Delete
-                    </button>
-                  )}
+                  {(user.status === "active" || user.status === "rejected") &&
+                    user.id !== currentUserId && (
+                      <button
+                        type="button"
+                        disabled={deleting.has(user.id)}
+                        onClick={() => handleDelete(user.id)}
+                        className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-800 hover:bg-red-900 hover:text-red-300 disabled:opacity-50 disabled:cursor-not-allowed text-gray-400 transition-colors flex items-center gap-1"
+                      >
+                        {deleting.has(user.id) ? (
+                          <Loader2 size={11} className="animate-spin" />
+                        ) : null}
+                        Delete
+                      </button>
+                    )}
 
                   {user.status !== "active" && (
                     <button
                       type="button"
                       onClick={() => {
                         if (mergingUserId === user.id) setMergingUserId(null);
-                        else { setMergingUserId(user.id); setMergeTargetId(""); }
+                        else {
+                          setMergingUserId(user.id);
+                          setMergeTargetId("");
+                        }
                       }}
                       className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors"
                     >
