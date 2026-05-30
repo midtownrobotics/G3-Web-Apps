@@ -1,9 +1,9 @@
-import { count, eq } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { validator } from "hono/validator";
 import { createDb } from "./db";
-import { checklistItems, checklistLists } from "./db/schema";
+import { checklistIssues, checklistItems, checklistLists } from "./db/schema";
 import { requireAuth } from "./middleware/auth";
 import type { AppEnv } from "./types";
 
@@ -77,6 +77,19 @@ const itemBodyValidator = validator("json", (value, c) => {
   };
 });
 
+const checkedValidator = validator("json", (value, c) => {
+  const v = value as { checked?: unknown };
+  if (typeof v.checked !== "boolean") return c.json({ error: "checked must be a boolean." }, 400);
+  return { checked: v.checked };
+});
+
+const issueTextValidator = validator("json", (value, c) => {
+  const v = value as { text?: unknown };
+  if (typeof v.text !== "string" || !v.text.trim())
+    return c.json({ error: "text must be a non-empty string." }, 400);
+  return { text: v.text.trim() };
+});
+
 const reorderValidator = validator("json", (value, c) => {
   const v = value as { ids?: unknown };
   if (
@@ -86,6 +99,16 @@ const reorderValidator = validator("json", (value, c) => {
     return c.json({ error: "ids must be an array of positive integers." }, 400);
   return { ids: v.ids as number[] };
 });
+
+// Shared select shape for list queries — counts only checkable items (type = 'item')
+const listSelect = {
+  id: checklistLists.id,
+  name: checklistLists.name,
+  description: checklistLists.description,
+  createdAt: checklistLists.createdAt,
+  itemCount: sql<number>`count(case when ${checklistItems.type} = 'item' then 1 end)`,
+  checkedCount: sql<number>`count(case when ${checklistItems.type} = 'item' and ${checklistItems.checked} = 1 then 1 end)`,
+};
 
 const app = base
   .get("/health", (c) => c.json({ status: "ok", service: "pit" }))
@@ -103,13 +126,7 @@ const app = base
   .get("/lists", async (c) => {
     const db = createDb(c.env.PIT_DB);
     const rows = await db
-      .select({
-        id: checklistLists.id,
-        name: checklistLists.name,
-        description: checklistLists.description,
-        createdAt: checklistLists.createdAt,
-        itemCount: count(checklistItems.id),
-      })
+      .select(listSelect)
       .from(checklistLists)
       .leftJoin(checklistItems, eq(checklistItems.listId, checklistLists.id))
       .groupBy(checklistLists.id);
@@ -122,13 +139,7 @@ const app = base
 
     const db = createDb(c.env.PIT_DB);
     const [row] = await db
-      .select({
-        id: checklistLists.id,
-        name: checklistLists.name,
-        description: checklistLists.description,
-        createdAt: checklistLists.createdAt,
-        itemCount: count(checklistItems.id),
-      })
+      .select(listSelect)
       .from(checklistLists)
       .leftJoin(checklistItems, eq(checklistItems.listId, checklistLists.id))
       .where(eq(checklistLists.id, id))
@@ -154,6 +165,49 @@ const app = base
     return c.json(items);
   })
 
+  // Issues — reads (all)
+  .get("/issues", async (c) => {
+    const db = createDb(c.env.PIT_DB);
+    const issues = await db
+      .select({
+        id: checklistIssues.id,
+        itemId: checklistIssues.itemId,
+        itemName: checklistItems.name,
+        listId: checklistLists.id,
+        listName: checklistLists.name,
+        text: checklistIssues.text,
+        createdAt: checklistIssues.createdAt,
+      })
+      .from(checklistIssues)
+      .innerJoin(checklistItems, eq(checklistIssues.itemId, checklistItems.id))
+      .innerJoin(checklistLists, eq(checklistItems.listId, checklistLists.id))
+      .orderBy(checklistIssues.createdAt);
+    return c.json(issues);
+  })
+
+  // Issues — reads (per list)
+  .get("/lists/:id/issues", async (c) => {
+    const listId = parseId(c.req.param("id"));
+    if (!listId) return c.json({ error: "Invalid id." }, 400);
+
+    const db = createDb(c.env.PIT_DB);
+    const [list] = await db.select().from(checklistLists).where(eq(checklistLists.id, listId));
+    if (!list) return c.json({ error: "List not found." }, 404);
+
+    const issues = await db
+      .select({
+        id: checklistIssues.id,
+        itemId: checklistIssues.itemId,
+        text: checklistIssues.text,
+        createdAt: checklistIssues.createdAt,
+      })
+      .from(checklistIssues)
+      .innerJoin(checklistItems, eq(checklistIssues.itemId, checklistItems.id))
+      .where(eq(checklistItems.listId, listId))
+      .orderBy(checklistIssues.createdAt);
+    return c.json(issues);
+  })
+
   // Lists — writes
   .post("/lists", requireAuth, listBodyValidator, async (c) => {
     const { name, description } = c.req.valid("json");
@@ -175,6 +229,16 @@ const app = base
     const [existing] = await db.select().from(checklistLists).where(eq(checklistLists.id, id));
     if (!existing) return c.json({ error: "List not found." }, 404);
 
+    const itemIds = (
+      await db
+        .select({ id: checklistItems.id })
+        .from(checklistItems)
+        .where(eq(checklistItems.listId, id))
+    ).map((i) => i.id);
+
+    if (itemIds.length > 0) {
+      await db.delete(checklistIssues).where(inArray(checklistIssues.itemId, itemIds));
+    }
     await db.delete(checklistItems).where(eq(checklistItems.listId, id));
     await db.delete(checklistLists).where(eq(checklistLists.id, id));
     return c.json({ success: true });
@@ -266,6 +330,7 @@ const app = base
     const [item] = await db.select().from(checklistItems).where(eq(checklistItems.id, itemId));
     if (!item || item.listId !== listId) return c.json({ error: "Item not found." }, 404);
 
+    await db.delete(checklistIssues).where(eq(checklistIssues.itemId, itemId));
     await db.delete(checklistItems).where(eq(checklistItems.id, itemId));
     return c.json({ success: true });
   })
@@ -303,7 +368,82 @@ const app = base
       const [updated] = await db.select().from(checklistItems).where(eq(checklistItems.id, itemId));
       return c.json(updated);
     },
-  );
+  )
+
+  // Checked state — no auth required (runner is public)
+  .patch("/lists/:id/items/:itemId/checked", checkedValidator, async (c) => {
+    const listId = parseId(c.req.param("id"));
+    const itemId = parseId(c.req.param("itemId"));
+    if (!listId || !itemId) return c.json({ error: "Invalid id." }, 400);
+
+    const { checked } = c.req.valid("json");
+    const db = createDb(c.env.PIT_DB);
+    const [item] = await db.select().from(checklistItems).where(eq(checklistItems.id, itemId));
+    if (!item || item.listId !== listId) return c.json({ error: "Item not found." }, 404);
+
+    await db.update(checklistItems).set({ checked }).where(eq(checklistItems.id, itemId));
+    const [updated] = await db.select().from(checklistItems).where(eq(checklistItems.id, itemId));
+    return c.json(updated);
+  })
+
+  .post("/lists/:id/reset", async (c) => {
+    const listId = parseId(c.req.param("id"));
+    if (!listId) return c.json({ error: "Invalid id." }, 400);
+
+    const db = createDb(c.env.PIT_DB);
+    const [list] = await db.select().from(checklistLists).where(eq(checklistLists.id, listId));
+    if (!list) return c.json({ error: "List not found." }, 404);
+
+    await db
+      .update(checklistItems)
+      .set({ checked: false })
+      .where(eq(checklistItems.listId, listId));
+    return c.json({ success: true });
+  })
+
+  // Issues — no auth required (runner is public)
+  .post("/lists/:id/items/:itemId/issues", issueTextValidator, async (c) => {
+    const listId = parseId(c.req.param("id"));
+    const itemId = parseId(c.req.param("itemId"));
+    if (!listId || !itemId) return c.json({ error: "Invalid id." }, 400);
+
+    const { text } = c.req.valid("json");
+    const db = createDb(c.env.PIT_DB);
+    const [item] = await db.select().from(checklistItems).where(eq(checklistItems.id, itemId));
+    if (!item || item.listId !== listId) return c.json({ error: "Item not found." }, 404);
+
+    const now = Math.floor(Date.now() / 1000);
+    const result = await db.insert(checklistIssues).values({ itemId, text, createdAt: now });
+    const [created] = await db
+      .select()
+      .from(checklistIssues)
+      .where(eq(checklistIssues.id, Number(result.meta.last_row_id)));
+    return c.json(created, 201);
+  })
+
+  .delete("/lists/:id/items/:itemId/issues/:issueId", async (c) => {
+    const listId = parseId(c.req.param("id"));
+    const itemId = parseId(c.req.param("itemId"));
+    const issueId = parseId(c.req.param("issueId"));
+    if (!listId || !itemId || !issueId) return c.json({ error: "Invalid id." }, 400);
+
+    const db = createDb(c.env.PIT_DB);
+    const [item] = await db.select().from(checklistItems).where(eq(checklistItems.id, itemId));
+    if (!item || item.listId !== listId) return c.json({ error: "Item not found." }, 404);
+
+    const [issue] = await db.select().from(checklistIssues).where(eq(checklistIssues.id, issueId));
+    if (!issue || issue.itemId !== itemId) return c.json({ error: "Issue not found." }, 404);
+
+    await db.delete(checklistIssues).where(eq(checklistIssues.id, issueId));
+    return c.json({ success: true });
+  })
+
+  // Global reset — unchecks all items across all lists, preserves issues
+  .post("/reset", async (c) => {
+    const db = createDb(c.env.PIT_DB);
+    await db.update(checklistItems).set({ checked: false });
+    return c.json({ success: true });
+  });
 
 export type PitApp = typeof app;
 export default app;

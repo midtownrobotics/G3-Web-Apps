@@ -18,5 +18,15 @@ export const checklistItems = sqliteTable("checklist_items", {
     .default("item"),
   name: text("name").notNull(),
   description: text("description"),
+  checked: integer("checked", { mode: "boolean" }).notNull().default(false),
+  createdAt: integer("created_at").notNull(),
+});
+
+export const checklistIssues = sqliteTable("checklist_issues", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  itemId: integer("item_id")
+    .notNull()
+    .references(() => checklistItems.id),
+  text: text("text").notNull(),
   createdAt: integer("created_at").notNull(),
 });

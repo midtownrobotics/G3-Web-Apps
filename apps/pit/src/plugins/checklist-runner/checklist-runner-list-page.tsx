@@ -1,19 +1,77 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { api } from "../../shared/api";
+import { getErrorMessage } from "../../shared/api-error";
+import { fetchAllIssues } from "../../shared/getters/issues";
 import { fetchLists } from "../../shared/getters/lists";
-import type { ChecklistList } from "../../shared/getters/types";
+import type { ChecklistIssueSummary, ChecklistList } from "../../shared/getters/types";
 
 export function ChecklistRunnerListPage() {
   const navigate = useNavigate();
   const [lists, setLists] = useState<ChecklistList[]>([]);
+  const [issues, setIssues] = useState<ChecklistIssueSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmDeleteIssueId, setConfirmDeleteIssueId] = useState<number | null>(null);
+  const [banner, setBanner] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchLists()
-      .then(setLists)
+    Promise.all([fetchLists(), fetchAllIssues()])
+      .then(([listsData, issuesData]) => {
+        setLists(listsData);
+        setIssues(issuesData);
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (loading) return;
+    const interval = setInterval(() => {
+      Promise.all([fetchLists(), fetchAllIssues()])
+        .then(([listsData, issuesData]) => {
+          setLists(listsData);
+          setIssues(issuesData);
+        })
+        .catch(() => {});
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [loading]);
+
+  async function handleDeleteIssue(issue: ChecklistIssueSummary) {
+    setIssues((prev) => prev.filter((i) => i.id !== issue.id));
+    setConfirmDeleteIssueId(null);
+    const res = await api.lists[":id"].items[":itemId"].issues[":issueId"].$delete({
+      param: {
+        id: String(issue.listId),
+        itemId: String(issue.itemId),
+        issueId: String(issue.id),
+      },
+    });
+    if (!res.ok) {
+      setBanner(await getErrorMessage(res as unknown as Response));
+      fetchAllIssues()
+        .then(setIssues)
+        .catch(() => {});
+    }
+  }
+
+  async function handleGlobalReset() {
+    const res = await api.reset.$post({});
+    if (!res.ok) {
+      setBanner(await getErrorMessage(res as unknown as Response));
+      setConfirmReset(false);
+      return;
+    }
+    setConfirmReset(false);
+    setBanner(null);
+    Promise.all([fetchLists(), fetchAllIssues()])
+      .then(([listsData, issuesData]) => {
+        setLists(listsData);
+        setIssues(issuesData);
+      })
+      .catch(() => {});
+  }
 
   if (loading) {
     return (
@@ -23,10 +81,68 @@ export function ChecklistRunnerListPage() {
     );
   }
 
+  const totalItems = lists.reduce((sum, l) => sum + l.itemCount, 0);
+  const totalChecked = lists.reduce((sum, l) => sum + l.checkedCount, 0);
+  const globalProgress = totalItems > 0 ? totalChecked / totalItems : 0;
+  const allDone = totalChecked === totalItems && totalItems > 0;
+
   return (
     <main className="min-h-screen bg-gray-950 text-white">
       <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
-        <h1 className="text-3xl font-bold tracking-tight">Checklists</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold tracking-tight">Checklists</h1>
+          {lists.length > 0 && !confirmReset && (
+            <button
+              type="button"
+              onClick={() => setConfirmReset(true)}
+              className="text-sm text-gray-500 hover:text-red-400 transition-colors"
+            >
+              Reset All
+            </button>
+          )}
+          {confirmReset && (
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-gray-400">Reset all checklists?</span>
+              <button
+                type="button"
+                onClick={handleGlobalReset}
+                className="px-3 py-1 bg-red-700 hover:bg-red-600 text-white text-xs font-semibold rounded-lg"
+              >
+                Reset
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmReset(false)}
+                className="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs rounded-lg"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+        </div>
+
+        {banner && (
+          <p className="text-red-400 text-sm bg-red-950 border border-red-800 rounded-lg px-4 py-2">
+            {banner}
+          </p>
+        )}
+
+        {totalItems > 0 && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-sm">
+              <span className={allDone ? "text-green-400 font-semibold" : "text-gray-400"}>
+                {allDone ? "All done!" : `${totalChecked} of ${totalItems} items complete`}
+              </span>
+              <span className="text-gray-600 text-xs">{Math.round(globalProgress * 100)}%</span>
+            </div>
+            <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-300 ${allDone ? "bg-green-500" : "bg-red-500"}`}
+                style={{ width: `${globalProgress * 100}%` }}
+              />
+            </div>
+          </div>
+        )}
 
         {lists.length === 0 ? (
           <p className="text-gray-500 text-center py-12">
@@ -41,33 +157,107 @@ export function ChecklistRunnerListPage() {
           </p>
         ) : (
           <div className="space-y-3">
-            {lists.map((list) => (
-              <button
-                key={list.id}
-                type="button"
-                onClick={() => navigate(`/checklists/${list.id}`)}
-                className="w-full bg-gray-900 hover:bg-gray-800 border border-gray-700 hover:border-gray-600 rounded-xl p-5 text-left transition-colors group"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-lg font-semibold text-white group-hover:text-red-400 transition-colors truncate">
-                      {list.name}
-                    </p>
-                    {list.description && (
-                      <p className="text-sm text-gray-500 mt-0.5 truncate">{list.description}</p>
-                    )}
+            {lists.map((list) => {
+              const listProgress = list.itemCount > 0 ? list.checkedCount / list.itemCount : 0;
+              const listDone = list.checkedCount === list.itemCount && list.itemCount > 0;
+
+              return (
+                <button
+                  key={list.id}
+                  type="button"
+                  onClick={() => navigate(`/checklists/${list.id}`)}
+                  className="w-full bg-gray-900 hover:bg-gray-800 border border-gray-700 hover:border-gray-600 rounded-xl p-5 text-left transition-colors group"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-lg font-semibold text-white group-hover:text-red-400 transition-colors truncate">
+                        {list.name}
+                      </p>
+                      {list.description && (
+                        <p className="text-sm text-gray-500 mt-0.5 truncate">{list.description}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span
+                        className={`text-xs rounded-full px-2 py-0.5 ${listDone ? "bg-green-900 text-green-400" : "bg-gray-800 text-gray-500"}`}
+                      >
+                        {list.checkedCount}/{list.itemCount}
+                      </span>
+                      <span className="text-gray-500 group-hover:text-red-400 transition-colors">
+                        →
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <span className="text-xs text-gray-500 bg-gray-800 rounded-full px-2 py-0.5">
-                      {list.itemCount} {list.itemCount === 1 ? "item" : "items"}
-                    </span>
-                    <span className="text-gray-500 group-hover:text-red-400 transition-colors">
-                      →
-                    </span>
-                  </div>
+
+                  {list.itemCount > 0 && (
+                    <div className="mt-3 h-1 bg-gray-800 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-300 ${listDone ? "bg-green-500" : "bg-red-500"}`}
+                        style={{ width: `${listProgress * 100}%` }}
+                      />
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Issues */}
+        {issues.length > 0 && (
+          <div className="space-y-3 pt-2 border-t border-gray-800">
+            <div className="text-lg font-semibold text-gray-200">
+              Issues{" "}
+              <span className="text-sm font-normal text-yellow-500">{issues.length} open</span>
+            </div>
+
+            <div className="space-y-2">
+              {issues.map((issue) => (
+                <div
+                  key={issue.id}
+                  className="bg-gray-900 border border-yellow-900/50 rounded-xl px-4 py-3"
+                >
+                  {confirmDeleteIssueId === issue.id ? (
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-gray-400 flex-1 truncate">
+                        Delete this issue?
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteIssue(issue)}
+                        className="px-2 py-0.5 bg-red-700 hover:bg-red-600 text-white text-xs font-semibold rounded"
+                      >
+                        Delete
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDeleteIssueId(null)}
+                        className="px-2 py-0.5 bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs rounded"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-start gap-3 group/issue">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-yellow-200/80">{issue.text}</p>
+                        <p className="text-xs text-gray-600 mt-1">
+                          {issue.listName} · {issue.itemName}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDeleteIssueId(issue.id)}
+                        className="opacity-0 group-hover/issue:opacity-100 p-0.5 text-gray-600 hover:text-red-400 transition-all shrink-0 mt-0.5"
+                        title="Delete issue"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
                 </div>
-              </button>
-            ))}
+              ))}
+            </div>
           </div>
         )}
       </div>
