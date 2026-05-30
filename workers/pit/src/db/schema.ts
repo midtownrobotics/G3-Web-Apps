@@ -13,6 +13,9 @@ export const checklistItems = sqliteTable("checklist_items", {
     .notNull()
     .references(() => checklistLists.id),
   index: integer("index").notNull(),
+  type: text("type", { enum: ["item", "topic"] })
+    .notNull()
+    .default("item"),
   name: text("name").notNull(),
   description: text("description"),
   createdAt: integer("created_at").notNull(),

@@ -61,8 +61,9 @@ export function ChecklistRunnerPage() {
     );
   }
 
+  const checkableItems = items.filter((i) => i.type === "item");
   const doneCount = checked.size;
-  const totalCount = items.length;
+  const totalCount = checkableItems.length;
   const progress = totalCount > 0 ? doneCount / totalCount : 0;
   const allDone = doneCount === totalCount && totalCount > 0;
 
@@ -124,6 +125,16 @@ export function ChecklistRunnerPage() {
         ) : (
           <div className="space-y-2">
             {items.map((item) => {
+              if (item.type === "topic") {
+                return (
+                  <div key={item.id} className="pt-3 pb-1 first:pt-0">
+                    <p className="text-xs font-bold uppercase tracking-widest text-gray-500 border-b border-gray-800 pb-2">
+                      {item.name}
+                    </p>
+                  </div>
+                );
+              }
+
               const isChecked = checked.has(item.id);
               return (
                 <button

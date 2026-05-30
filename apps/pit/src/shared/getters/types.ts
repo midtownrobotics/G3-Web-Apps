@@ -10,6 +10,7 @@ export type ChecklistItem = {
   id: number;
   listId: number;
   index: number;
+  type: "item" | "topic";
   name: string;
   description: string | null;
   createdAt: number;

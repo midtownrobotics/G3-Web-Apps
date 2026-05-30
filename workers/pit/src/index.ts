@@ -62,6 +62,21 @@ const listBodyValidator = validator("json", (value, c) => {
   };
 });
 
+const itemBodyValidator = validator("json", (value, c) => {
+  const v = value as { name?: unknown; description?: unknown; type?: unknown };
+  if (typeof v.name !== "string" || !v.name.trim())
+    return c.json({ error: "name must be a non-empty string." }, 400);
+  if (v.description !== undefined && v.description !== null && typeof v.description !== "string")
+    return c.json({ error: "description must be a string or null." }, 400);
+  if (v.type !== undefined && v.type !== "item" && v.type !== "topic")
+    return c.json({ error: "type must be 'item' or 'topic'." }, 400);
+  return {
+    name: v.name.trim(),
+    description: (typeof v.description === "string" ? v.description : null) as string | null,
+    type: ((v.type as string) ?? "item") as "item" | "topic",
+  };
+});
+
 const reorderValidator = validator("json", (value, c) => {
   const v = value as { ids?: unknown };
   if (
@@ -216,11 +231,11 @@ const app = base
     return c.json({ success: true });
   })
 
-  .post("/lists/:id/items", requireAuth, listBodyValidator, async (c) => {
+  .post("/lists/:id/items", requireAuth, itemBodyValidator, async (c) => {
     const listId = parseId(c.req.param("id"));
     if (!listId) return c.json({ error: "Invalid list id." }, 400);
 
-    const { name, description } = c.req.valid("json");
+    const { name, description, type } = c.req.valid("json");
     const db = createDb(c.env.PIT_DB);
     const [list] = await db.select().from(checklistLists).where(eq(checklistLists.id, listId));
     if (!list) return c.json({ error: "List not found." }, 404);
@@ -234,7 +249,7 @@ const app = base
     const now = Math.floor(Date.now() / 1000);
     const result = await db
       .insert(checklistItems)
-      .values({ listId, index, name, description, createdAt: now });
+      .values({ listId, index, type, name, description, createdAt: now });
     const [created] = await db
       .select()
       .from(checklistItems)
