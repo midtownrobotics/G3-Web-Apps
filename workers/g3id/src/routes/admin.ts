@@ -1,8 +1,9 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { createDb } from "../db";
 import { coreSessions, coreSlackLinkCodes, coreUserIdentities, coreUsers } from "../db/schema";
 import { requireAdmin } from "../middleware/auth";
+import { sendDM } from "../lib/slack-api";
 import type { AppEnv } from "../types";
 
 export const adminRouter = new Hono<AppEnv>()
@@ -53,6 +54,19 @@ export const adminRouter = new Hono<AppEnv>()
       .update(coreUsers)
       .set({ status: "active", updatedAt: Math.floor(Date.now() / 1000) })
       .where(eq(coreUsers.id, id));
+
+    const [slackIdentity] = await db
+      .select({ providerId: coreUserIdentities.providerId })
+      .from(coreUserIdentities)
+      .where(and(eq(coreUserIdentities.userId, id), eq(coreUserIdentities.provider, "slack")));
+
+    if (slackIdentity?.providerId) {
+      await sendDM(
+        slackIdentity.providerId,
+        "✅ Your G3 account has been approved! You can now sign in.",
+        c.env,
+      );
+    }
 
     return c.json({ message: "User approved." });
   })
