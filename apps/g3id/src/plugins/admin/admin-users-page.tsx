@@ -252,7 +252,7 @@ export function AdminUsersPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-white font-semibold">{firstName(user.displayName)}</span>
-                    {user.isAdmin && (
+                    {user.isAdmin === 1 && (
                       <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
                         Admin
                       </span>
@@ -263,14 +263,18 @@ export function AdminUsersPage() {
                       {user.status}
                     </span>
                   </div>
-                  {/* Identity icons + last login */}
+                  {/* Identity icons + timestamps */}
                   <div className="flex items-center gap-2 mt-1">
                     {user.identities.map((identity) => (
                       <ProviderIcon key={identity.provider} provider={identity.provider} />
                     ))}
                     <span className="text-xs text-gray-600">·</span>
-                    <span className="text-xs text-gray-500">
-                      {user.lastLoginAt ? relativeTime(user.lastLoginAt) : "never"}
+                    <span className="text-xs text-gray-500" title="Last login">
+                      {user.lastLoginAt ? relativeTime(user.lastLoginAt) : "never logged in"}
+                    </span>
+                    <span className="text-xs text-gray-600">·</span>
+                    <span className="text-xs text-gray-500" title="Joined">
+                      joined {relativeTime(user.createdAt)}
                     </span>
                   </div>
                 </div>
