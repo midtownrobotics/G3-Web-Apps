@@ -13,8 +13,18 @@ type User = {
   status: string;
   isAdmin: number;
   createdAt: number;
+  lastLoginAt: number | null;
   identities: Identity[];
 };
+
+function relativeTime(ts: number): string {
+  const diff = Math.floor(Date.now() / 1000) - ts;
+  if (diff < 60) return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 86400 * 30) return `${Math.floor(diff / 86400)}d ago`;
+  return new Date(ts * 1000).toLocaleDateString();
+}
 
 const STATUS_STYLES: Record<string, string> = {
   pending: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
@@ -219,11 +229,15 @@ export function AdminUsersPage() {
                       {user.status}
                     </span>
                   </div>
-                  {/* Identity icons */}
+                  {/* Identity icons + last login */}
                   <div className="flex items-center gap-2 mt-1">
                     {user.identities.map((identity) => (
                       <ProviderIcon key={identity.provider} provider={identity.provider} />
                     ))}
+                    <span className="text-xs text-gray-600">·</span>
+                    <span className="text-xs text-gray-500">
+                      {user.lastLoginAt ? relativeTime(user.lastLoginAt) : "never"}
+                    </span>
                   </div>
                 </div>
 
