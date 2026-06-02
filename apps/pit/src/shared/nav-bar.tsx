@@ -1,11 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import type { PluginNavItem } from "./plugin-types";
+import { useAuth } from "./use-auth";
 
 export function NavBar({ items }: { items: PluginNavItem[] }) {
   const [open, setOpen] = useState(false);
   const [visible, setVisible] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { user } = useAuth();
+
+  const visibleItems = items.filter((item) => {
+    if (item.requiresAdmin) return user?.isAdmin === true;
+    if (item.requiresAuth) return user != null;
+    return true;
+  });
 
   function openMenu() {
     setOpen(true);
@@ -30,7 +38,7 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
         <span className="font-bold text-red-400 mr-4 tracking-tight">G3 Pit</span>
 
         <div className="hidden md:flex items-center gap-6">
-          {items.map((item) => (
+          {visibleItems.map((item) => (
             <Link
               key={item.to}
               to={item.to}
@@ -71,7 +79,7 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
         <div
           className={`fixed inset-0 z-40 bg-gray-900 flex flex-col px-8 pt-24 gap-8 md:hidden transition-opacity duration-200 ${visible ? "opacity-100" : "opacity-0"}`}
         >
-          {items.map((item) => (
+          {visibleItems.map((item) => (
             <Link
               key={item.to}
               to={item.to}

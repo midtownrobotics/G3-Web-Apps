@@ -24,6 +24,7 @@ export function ChecklistDetailPage() {
   const [editingItem, setEditingItem] = useState<ItemEditState>(null);
 
   const [adding, setAdding] = useState(false);
+  const [addingType, setAddingType] = useState<"item" | "topic">("item");
   const [newItemName, setNewItemName] = useState("");
   const [newItemDesc, setNewItemDesc] = useState("");
   const [addError, setAddError] = useState("");
@@ -93,7 +94,11 @@ export function ChecklistDetailPage() {
     }
     const res = await api.lists[":id"].items.$post({
       param: { id: String(list.id) },
-      json: { name: newItemName.trim(), description: newItemDesc.trim() || null },
+      json: {
+        name: newItemName.trim(),
+        description: addingType === "item" ? newItemDesc.trim() || null : null,
+        type: addingType,
+      },
     });
     if (!res.ok) {
       setBanner(await getErrorMessage(res as unknown as Response));
@@ -308,24 +313,41 @@ export function ChecklistDetailPage() {
             Items <span className="text-gray-600 font-normal text-sm">({items.length})</span>
           </h2>
           {!adding && (
-            <button
-              type="button"
-              onClick={() => {
-                setAdding(true);
-                setBanner(null);
-              }}
-              className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-sm font-semibold rounded-lg transition-colors"
-            >
-              + Add Item
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setAdding(true);
+                  setAddingType("topic");
+                  setBanner(null);
+                }}
+                className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-200 text-sm font-semibold rounded-lg transition-colors"
+              >
+                + Add Topic
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAdding(true);
+                  setAddingType("item");
+                  setBanner(null);
+                }}
+                className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-sm font-semibold rounded-lg transition-colors"
+              >
+                + Add Item
+              </button>
+            </div>
           )}
         </div>
 
         {adding && (
           <div className="bg-gray-900 rounded-xl border border-gray-700 p-4 space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+              {addingType === "topic" ? "New Topic" : "New Item"}
+            </p>
             <input
               type="text"
-              placeholder="Item name"
+              placeholder={addingType === "topic" ? "Topic name" : "Item name"}
               value={newItemName}
               onChange={(e) => {
                 setNewItemName(e.target.value);
@@ -339,13 +361,15 @@ export function ChecklistDetailPage() {
               // biome-ignore lint/a11y/noAutofocus: intentional — user just opened the add form
               autoFocus
             />
-            <textarea
-              placeholder="Description (optional)"
-              value={newItemDesc}
-              onChange={(e) => setNewItemDesc(e.target.value)}
-              rows={2}
-              className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-red-500 resize-none"
-            />
+            {addingType === "item" && (
+              <textarea
+                placeholder="Description (optional)"
+                value={newItemDesc}
+                onChange={(e) => setNewItemDesc(e.target.value)}
+                rows={2}
+                className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-red-500 resize-none"
+              />
+            )}
             {addError && <p className="text-red-400 text-xs">{addError}</p>}
             <div className="flex gap-2">
               <button
@@ -376,95 +400,24 @@ export function ChecklistDetailPage() {
         )}
 
         <div className="space-y-2">
-          {sortedItems.map((item, pos) => (
-            <div key={item.id} className="bg-gray-900 rounded-xl border border-gray-700 p-4">
-              {editingItem?.id === item.id && editingItem.field === "name" ? (
-                <div className="flex gap-2 mb-1">
-                  <input
-                    ref={editInputRef as React.RefObject<HTMLInputElement>}
-                    value={editingItem.value}
-                    onChange={(e) => setEditingItem({ ...editingItem, value: e.target.value })}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") saveItemEdit();
-                      if (e.key === "Escape") setEditingItem(null);
-                    }}
-                    className="flex-1 bg-gray-800 border border-gray-600 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-red-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={saveItemEdit}
-                    className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-xs font-semibold rounded-lg"
-                  >
-                    Save
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEditingItem(null)}
-                    className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs rounded-lg"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center justify-between gap-2">
-                  {/* Reorder buttons */}
-                  <div className="flex flex-col gap-0.5 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => moveItem(item.id, "up")}
-                      disabled={pos === 0}
-                      className="p-1 text-gray-600 hover:text-gray-300 disabled:opacity-20 disabled:cursor-not-allowed rounded transition-colors leading-none"
-                      aria-label="Move up"
-                    >
-                      ▲
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => moveItem(item.id, "down")}
-                      disabled={pos === sortedItems.length - 1}
-                      className="p-1 text-gray-600 hover:text-gray-300 disabled:opacity-20 disabled:cursor-not-allowed rounded transition-colors leading-none"
-                      aria-label="Move down"
-                    >
-                      ▼
-                    </button>
-                  </div>
-                  <span className="text-sm font-medium text-white flex-1">{item.name}</span>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      type="button"
-                      title="Rename"
-                      onClick={() =>
-                        setEditingItem({ id: item.id, field: "name", value: item.name })
-                      }
-                      className="p-1.5 text-gray-600 hover:text-gray-300 rounded transition-colors"
-                    >
-                      ✎
-                    </button>
-                    <button
-                      type="button"
-                      title="Delete"
-                      onClick={() => setConfirmDeleteItem(item.id)}
-                      className="p-1.5 text-gray-600 hover:text-red-400 rounded transition-colors"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {editingItem?.id === item.id && editingItem.field === "description" ? (
-                <div className="flex gap-2 mt-2">
-                  <textarea
-                    ref={editInputRef as React.RefObject<HTMLTextAreaElement>}
-                    value={editingItem.value}
-                    onChange={(e) => setEditingItem({ ...editingItem, value: e.target.value })}
-                    onKeyDown={(e) => {
-                      if (e.key === "Escape") setEditingItem(null);
-                    }}
-                    rows={2}
-                    className="flex-1 bg-gray-800 border border-gray-600 rounded-lg px-3 py-1.5 text-sm text-gray-300 focus:outline-none focus:border-red-500 resize-none"
-                  />
-                  <div className="flex flex-col gap-1">
+          {sortedItems.map((item, pos) =>
+            item.type === "topic" ? (
+              <div
+                key={item.id}
+                className="rounded-lg border border-dashed border-gray-600 px-4 py-2.5"
+              >
+                {editingItem?.id === item.id && editingItem.field === "name" ? (
+                  <div className="flex gap-2">
+                    <input
+                      ref={editInputRef as React.RefObject<HTMLInputElement>}
+                      value={editingItem.value}
+                      onChange={(e) => setEditingItem({ ...editingItem, value: e.target.value })}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") saveItemEdit();
+                        if (e.key === "Escape") setEditingItem(null);
+                      }}
+                      className="flex-1 bg-gray-800 border border-gray-600 rounded-lg px-3 py-1.5 text-sm font-semibold text-white focus:outline-none focus:border-red-500"
+                    />
                     <button
                       type="button"
                       onClick={saveItemEdit}
@@ -480,44 +433,217 @@ export function ChecklistDetailPage() {
                       ✕
                     </button>
                   </div>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() =>
-                    setEditingItem({
-                      id: item.id,
-                      field: "description",
-                      value: item.description ?? "",
-                    })
-                  }
-                  className="text-xs text-gray-500 hover:text-gray-400 transition-colors text-left mt-1 pl-8"
-                >
-                  {item.description ?? <span className="italic">Add description…</span>}
-                </button>
-              )}
+                ) : (
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex flex-col gap-0.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => moveItem(item.id, "up")}
+                        disabled={pos === 0}
+                        className="p-1 text-gray-600 hover:text-gray-300 disabled:opacity-20 disabled:cursor-not-allowed rounded transition-colors leading-none"
+                        aria-label="Move up"
+                      >
+                        ▲
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveItem(item.id, "down")}
+                        disabled={pos === sortedItems.length - 1}
+                        className="p-1 text-gray-600 hover:text-gray-300 disabled:opacity-20 disabled:cursor-not-allowed rounded transition-colors leading-none"
+                        aria-label="Move down"
+                      >
+                        ▼
+                      </button>
+                    </div>
+                    <span className="text-xs font-bold uppercase tracking-widest text-gray-400 flex-1">
+                      {item.name}
+                    </span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        title="Rename"
+                        onClick={() =>
+                          setEditingItem({ id: item.id, field: "name", value: item.name })
+                        }
+                        className="p-1.5 text-gray-600 hover:text-gray-300 rounded transition-colors"
+                      >
+                        ✎
+                      </button>
+                      <button
+                        type="button"
+                        title="Delete"
+                        onClick={() => setConfirmDeleteItem(item.id)}
+                        className="p-1.5 text-gray-600 hover:text-red-400 rounded transition-colors"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                )}
 
-              {confirmDeleteItem === item.id && (
-                <div className="mt-3 pt-3 border-t border-gray-700 flex items-center gap-3">
-                  <span className="text-xs text-gray-400">Delete this item?</span>
+                {confirmDeleteItem === item.id && (
+                  <div className="mt-2 pt-2 border-t border-gray-700 flex items-center gap-3">
+                    <span className="text-xs text-gray-400">Delete this topic?</span>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteItem(item.id)}
+                      className="px-3 py-1 bg-red-700 hover:bg-red-600 text-white text-xs font-semibold rounded-lg"
+                    >
+                      Delete
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteItem(null)}
+                      className="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs rounded-lg"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div key={item.id} className="bg-gray-900 rounded-xl border border-gray-700 p-4">
+                {editingItem?.id === item.id && editingItem.field === "name" ? (
+                  <div className="flex gap-2 mb-1">
+                    <input
+                      ref={editInputRef as React.RefObject<HTMLInputElement>}
+                      value={editingItem.value}
+                      onChange={(e) => setEditingItem({ ...editingItem, value: e.target.value })}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") saveItemEdit();
+                        if (e.key === "Escape") setEditingItem(null);
+                      }}
+                      className="flex-1 bg-gray-800 border border-gray-600 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-red-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={saveItemEdit}
+                      className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-xs font-semibold rounded-lg"
+                    >
+                      Save
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingItem(null)}
+                      className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs rounded-lg"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between gap-2">
+                    {/* Reorder buttons */}
+                    <div className="flex flex-col gap-0.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => moveItem(item.id, "up")}
+                        disabled={pos === 0}
+                        className="p-1 text-gray-600 hover:text-gray-300 disabled:opacity-20 disabled:cursor-not-allowed rounded transition-colors leading-none"
+                        aria-label="Move up"
+                      >
+                        ▲
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveItem(item.id, "down")}
+                        disabled={pos === sortedItems.length - 1}
+                        className="p-1 text-gray-600 hover:text-gray-300 disabled:opacity-20 disabled:cursor-not-allowed rounded transition-colors leading-none"
+                        aria-label="Move down"
+                      >
+                        ▼
+                      </button>
+                    </div>
+                    <span className="text-sm font-medium text-white flex-1">{item.name}</span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        title="Rename"
+                        onClick={() =>
+                          setEditingItem({ id: item.id, field: "name", value: item.name })
+                        }
+                        className="p-1.5 text-gray-600 hover:text-gray-300 rounded transition-colors"
+                      >
+                        ✎
+                      </button>
+                      <button
+                        type="button"
+                        title="Delete"
+                        onClick={() => setConfirmDeleteItem(item.id)}
+                        className="p-1.5 text-gray-600 hover:text-red-400 rounded transition-colors"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {editingItem?.id === item.id && editingItem.field === "description" ? (
+                  <div className="flex gap-2 mt-2">
+                    <textarea
+                      ref={editInputRef as React.RefObject<HTMLTextAreaElement>}
+                      value={editingItem.value}
+                      onChange={(e) => setEditingItem({ ...editingItem, value: e.target.value })}
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape") setEditingItem(null);
+                      }}
+                      rows={2}
+                      className="flex-1 bg-gray-800 border border-gray-600 rounded-lg px-3 py-1.5 text-sm text-gray-300 focus:outline-none focus:border-red-500 resize-none"
+                    />
+                    <div className="flex flex-col gap-1">
+                      <button
+                        type="button"
+                        onClick={saveItemEdit}
+                        className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-xs font-semibold rounded-lg"
+                      >
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingItem(null)}
+                        className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs rounded-lg"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                ) : (
                   <button
                     type="button"
-                    onClick={() => handleDeleteItem(item.id)}
-                    className="px-3 py-1 bg-red-700 hover:bg-red-600 text-white text-xs font-semibold rounded-lg"
+                    onClick={() =>
+                      setEditingItem({
+                        id: item.id,
+                        field: "description",
+                        value: item.description ?? "",
+                      })
+                    }
+                    className="text-xs text-gray-500 hover:text-gray-400 transition-colors text-left mt-1 pl-8"
                   >
-                    Delete
+                    {item.description ?? <span className="italic">Add description…</span>}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setConfirmDeleteItem(null)}
-                    className="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs rounded-lg"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
+                )}
+
+                {confirmDeleteItem === item.id && (
+                  <div className="mt-3 pt-3 border-t border-gray-700 flex items-center gap-3">
+                    <span className="text-xs text-gray-400">Delete this item?</span>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteItem(item.id)}
+                      className="px-3 py-1 bg-red-700 hover:bg-red-600 text-white text-xs font-semibold rounded-lg"
+                    >
+                      Delete
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteItem(null)}
+                      className="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs rounded-lg"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+              </div>
+            ),
+          )}
         </div>
       </div>
     </main>

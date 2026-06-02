@@ -1,10 +1,10 @@
-import { count, eq } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { validator } from "hono/validator";
 import { createDb } from "./db";
-import { checklistItems, checklistLists } from "./db/schema";
-import { requireAuth } from "./middleware/auth";
+import { batteries, checklistIssues, checklistItems, checklistLists, settings } from "./db/schema";
+import { requireAdmin, requireAuth } from "./middleware/auth";
 import type { AppEnv } from "./types";
 
 const base = new Hono<AppEnv>();
@@ -62,6 +62,55 @@ const listBodyValidator = validator("json", (value, c) => {
   };
 });
 
+const itemBodyValidator = validator("json", (value, c) => {
+  const v = value as { name?: unknown; description?: unknown; type?: unknown };
+  if (typeof v.name !== "string" || !v.name.trim())
+    return c.json({ error: "name must be a non-empty string." }, 400);
+  if (v.description !== undefined && v.description !== null && typeof v.description !== "string")
+    return c.json({ error: "description must be a string or null." }, 400);
+  if (v.type !== undefined && v.type !== "item" && v.type !== "topic")
+    return c.json({ error: "type must be 'item' or 'topic'." }, 400);
+  return {
+    name: v.name.trim(),
+    description: (typeof v.description === "string" ? v.description : null) as string | null,
+    type: ((v.type as string) ?? "item") as "item" | "topic",
+  };
+});
+
+const batteryStateValidator = validator("json", (value, c) => {
+  const v = value as { state?: unknown };
+  const valid = ["Charging", "In Robot", "Idle", "Broken", "Next Up"] as const;
+  if (!valid.includes(v.state as (typeof valid)[number]))
+    return c.json({ error: "state must be Charging, In Robot, Idle, or Broken, or Next Up." }, 400);
+  return { state: v.state as (typeof valid)[number] };
+});
+
+const batteryVoltageValidator = validator("json", (value, c) => {
+  const v = value as { voltage?: unknown };
+  if (v.voltage !== null && typeof v.voltage !== "number")
+    return c.json({ error: "voltage must be a number or null." }, 400);
+  return { voltage: (v.voltage ?? null) as number | null };
+});
+
+const checkedValidator = validator("json", (value, c) => {
+  const v = value as { checked?: unknown };
+  if (typeof v.checked !== "boolean") return c.json({ error: "checked must be a boolean." }, 400);
+  return { checked: v.checked };
+});
+
+const issueTextValidator = validator("json", (value, c) => {
+  const v = value as { text?: unknown };
+  if (typeof v.text !== "string" || !v.text.trim())
+    return c.json({ error: "text must be a non-empty string." }, 400);
+  return { text: v.text.trim() };
+});
+
+const listEventKeyValidator = validator("json", (value, c) => {
+  const v = value as { eventKey?: unknown };
+  if (typeof v.eventKey !== "string") return c.json({ error: "eventKey must be a string." }, 400);
+  return { eventKey: v.eventKey.trim() };
+});
+
 const reorderValidator = validator("json", (value, c) => {
   const v = value as { ids?: unknown };
   if (
@@ -71,6 +120,26 @@ const reorderValidator = validator("json", (value, c) => {
     return c.json({ error: "ids must be an array of positive integers." }, 400);
   return { ids: v.ids as number[] };
 });
+
+// Reads a setting from the DB, falling back to a default (e.g. an env var).
+async function getSetting(
+  db: ReturnType<typeof createDb>,
+  key: string,
+  fallback: string,
+): Promise<string> {
+  const [row] = await db.select().from(settings).where(eq(settings.key, key));
+  return row?.value ?? fallback;
+}
+
+// Shared select shape for list queries — counts only checkable items (type = 'item')
+const listSelect = {
+  id: checklistLists.id,
+  name: checklistLists.name,
+  description: checklistLists.description,
+  createdAt: checklistLists.createdAt,
+  itemCount: sql<number>`count(case when ${checklistItems.type} = 'item' then 1 end)`,
+  checkedCount: sql<number>`count(case when ${checklistItems.type} = 'item' and ${checklistItems.checked} = 1 then 1 end)`,
+};
 
 const app = base
   .get("/health", (c) => c.json({ status: "ok", service: "pit" }))
@@ -85,35 +154,23 @@ const app = base
   )
 
   // Lists — reads
-  .get("/lists", async (c) => {
+  .get("/lists", requireAuth, async (c) => {
     const db = createDb(c.env.PIT_DB);
     const rows = await db
-      .select({
-        id: checklistLists.id,
-        name: checklistLists.name,
-        description: checklistLists.description,
-        createdAt: checklistLists.createdAt,
-        itemCount: count(checklistItems.id),
-      })
+      .select(listSelect)
       .from(checklistLists)
       .leftJoin(checklistItems, eq(checklistItems.listId, checklistLists.id))
       .groupBy(checklistLists.id);
     return c.json(rows);
   })
 
-  .get("/lists/:id", async (c) => {
+  .get("/lists/:id", requireAuth, async (c) => {
     const id = parseId(c.req.param("id"));
     if (!id) return c.json({ error: "Invalid id." }, 400);
 
     const db = createDb(c.env.PIT_DB);
     const [row] = await db
-      .select({
-        id: checklistLists.id,
-        name: checklistLists.name,
-        description: checklistLists.description,
-        createdAt: checklistLists.createdAt,
-        itemCount: count(checklistItems.id),
-      })
+      .select(listSelect)
       .from(checklistLists)
       .leftJoin(checklistItems, eq(checklistItems.listId, checklistLists.id))
       .where(eq(checklistLists.id, id))
@@ -123,7 +180,7 @@ const app = base
   })
 
   // Items — reads
-  .get("/lists/:id/items", async (c) => {
+  .get("/lists/:id/items", requireAuth, async (c) => {
     const listId = parseId(c.req.param("id"));
     if (!listId) return c.json({ error: "Invalid id." }, 400);
 
@@ -137,6 +194,49 @@ const app = base
       .where(eq(checklistItems.listId, listId))
       .orderBy(checklistItems.index);
     return c.json(items);
+  })
+
+  // Issues — reads (all)
+  .get("/issues", requireAuth, async (c) => {
+    const db = createDb(c.env.PIT_DB);
+    const issues = await db
+      .select({
+        id: checklistIssues.id,
+        itemId: checklistIssues.itemId,
+        itemName: checklistItems.name,
+        listId: checklistLists.id,
+        listName: checklistLists.name,
+        text: checklistIssues.text,
+        createdAt: checklistIssues.createdAt,
+      })
+      .from(checklistIssues)
+      .innerJoin(checklistItems, eq(checklistIssues.itemId, checklistItems.id))
+      .innerJoin(checklistLists, eq(checklistItems.listId, checklistLists.id))
+      .orderBy(checklistIssues.createdAt);
+    return c.json(issues);
+  })
+
+  // Issues — reads (per list)
+  .get("/lists/:id/issues", requireAuth, async (c) => {
+    const listId = parseId(c.req.param("id"));
+    if (!listId) return c.json({ error: "Invalid id." }, 400);
+
+    const db = createDb(c.env.PIT_DB);
+    const [list] = await db.select().from(checklistLists).where(eq(checklistLists.id, listId));
+    if (!list) return c.json({ error: "List not found." }, 404);
+
+    const issues = await db
+      .select({
+        id: checklistIssues.id,
+        itemId: checklistIssues.itemId,
+        text: checklistIssues.text,
+        createdAt: checklistIssues.createdAt,
+      })
+      .from(checklistIssues)
+      .innerJoin(checklistItems, eq(checklistIssues.itemId, checklistItems.id))
+      .where(eq(checklistItems.listId, listId))
+      .orderBy(checklistIssues.createdAt);
+    return c.json(issues);
   })
 
   // Lists — writes
@@ -160,6 +260,16 @@ const app = base
     const [existing] = await db.select().from(checklistLists).where(eq(checklistLists.id, id));
     if (!existing) return c.json({ error: "List not found." }, 404);
 
+    const itemIds = (
+      await db
+        .select({ id: checklistItems.id })
+        .from(checklistItems)
+        .where(eq(checklistItems.listId, id))
+    ).map((i) => i.id);
+
+    if (itemIds.length > 0) {
+      await db.delete(checklistIssues).where(inArray(checklistIssues.itemId, itemIds));
+    }
     await db.delete(checklistItems).where(eq(checklistItems.listId, id));
     await db.delete(checklistLists).where(eq(checklistLists.id, id));
     return c.json({ success: true });
@@ -216,11 +326,11 @@ const app = base
     return c.json({ success: true });
   })
 
-  .post("/lists/:id/items", requireAuth, listBodyValidator, async (c) => {
+  .post("/lists/:id/items", requireAuth, itemBodyValidator, async (c) => {
     const listId = parseId(c.req.param("id"));
     if (!listId) return c.json({ error: "Invalid list id." }, 400);
 
-    const { name, description } = c.req.valid("json");
+    const { name, description, type } = c.req.valid("json");
     const db = createDb(c.env.PIT_DB);
     const [list] = await db.select().from(checklistLists).where(eq(checklistLists.id, listId));
     if (!list) return c.json({ error: "List not found." }, 404);
@@ -234,7 +344,7 @@ const app = base
     const now = Math.floor(Date.now() / 1000);
     const result = await db
       .insert(checklistItems)
-      .values({ listId, index, name, description, createdAt: now });
+      .values({ listId, index, type, name, description, createdAt: now });
     const [created] = await db
       .select()
       .from(checklistItems)
@@ -251,6 +361,7 @@ const app = base
     const [item] = await db.select().from(checklistItems).where(eq(checklistItems.id, itemId));
     if (!item || item.listId !== listId) return c.json({ error: "Item not found." }, 404);
 
+    await db.delete(checklistIssues).where(eq(checklistIssues.itemId, itemId));
     await db.delete(checklistItems).where(eq(checklistItems.id, itemId));
     return c.json({ success: true });
   })
@@ -288,7 +399,209 @@ const app = base
       const [updated] = await db.select().from(checklistItems).where(eq(checklistItems.id, itemId));
       return c.json(updated);
     },
-  );
+  )
+
+  // Checked state — no auth required (runner is public)
+  .patch("/lists/:id/items/:itemId/checked", requireAuth, checkedValidator, async (c) => {
+    const listId = parseId(c.req.param("id"));
+    const itemId = parseId(c.req.param("itemId"));
+    if (!listId || !itemId) return c.json({ error: "Invalid id." }, 400);
+
+    const { checked } = c.req.valid("json");
+    const db = createDb(c.env.PIT_DB);
+    const [item] = await db.select().from(checklistItems).where(eq(checklistItems.id, itemId));
+    if (!item || item.listId !== listId) return c.json({ error: "Item not found." }, 404);
+
+    await db.update(checklistItems).set({ checked }).where(eq(checklistItems.id, itemId));
+    const [updated] = await db.select().from(checklistItems).where(eq(checklistItems.id, itemId));
+    return c.json(updated);
+  })
+
+  .post("/lists/:id/reset", requireAuth, async (c) => {
+    const listId = parseId(c.req.param("id"));
+    if (!listId) return c.json({ error: "Invalid id." }, 400);
+
+    const db = createDb(c.env.PIT_DB);
+    const [list] = await db.select().from(checklistLists).where(eq(checklistLists.id, listId));
+    if (!list) return c.json({ error: "List not found." }, 404);
+
+    await db
+      .update(checklistItems)
+      .set({ checked: false })
+      .where(eq(checklistItems.listId, listId));
+    return c.json({ success: true });
+  })
+
+  // Issues — no auth required (runner is public)
+  .post("/lists/:id/items/:itemId/issues", requireAuth, issueTextValidator, async (c) => {
+    const listId = parseId(c.req.param("id"));
+    const itemId = parseId(c.req.param("itemId"));
+    if (!listId || !itemId) return c.json({ error: "Invalid id." }, 400);
+
+    const { text } = c.req.valid("json");
+    const db = createDb(c.env.PIT_DB);
+    const [item] = await db.select().from(checklistItems).where(eq(checklistItems.id, itemId));
+    if (!item || item.listId !== listId) return c.json({ error: "Item not found." }, 404);
+
+    const now = Math.floor(Date.now() / 1000);
+    const result = await db.insert(checklistIssues).values({ itemId, text, createdAt: now });
+    const [created] = await db
+      .select()
+      .from(checklistIssues)
+      .where(eq(checklistIssues.id, Number(result.meta.last_row_id)));
+    return c.json(created, 201);
+  })
+
+  .delete("/lists/:id/items/:itemId/issues/:issueId", requireAuth, async (c) => {
+    const listId = parseId(c.req.param("id"));
+    const itemId = parseId(c.req.param("itemId"));
+    const issueId = parseId(c.req.param("issueId"));
+    if (!listId || !itemId || !issueId) return c.json({ error: "Invalid id." }, 400);
+
+    const db = createDb(c.env.PIT_DB);
+    const [item] = await db.select().from(checklistItems).where(eq(checklistItems.id, itemId));
+    if (!item || item.listId !== listId) return c.json({ error: "Item not found." }, 404);
+
+    const [issue] = await db.select().from(checklistIssues).where(eq(checklistIssues.id, issueId));
+    if (!issue || issue.itemId !== itemId) return c.json({ error: "Issue not found." }, 404);
+
+    await db.delete(checklistIssues).where(eq(checklistIssues.id, issueId));
+    return c.json({ success: true });
+  })
+
+  // Batteries
+  .get("/batteries", requireAuth, async (c) => {
+    const db = createDb(c.env.PIT_DB);
+    const rows = await db.select().from(batteries).orderBy(batteries.createdAt);
+    return c.json(rows);
+  })
+
+  .post("/batteries", requireAuth, listNameValidator, async (c) => {
+    const { name } = c.req.valid("json");
+    const db = createDb(c.env.PIT_DB);
+    const now = Math.floor(Date.now() / 1000);
+    const result = await db
+      .insert(batteries)
+      .values({ name, state: "Idle", stateSince: Date.now(), createdAt: now });
+    const [created] = await db
+      .select()
+      .from(batteries)
+      .where(eq(batteries.id, Number(result.meta.last_row_id)));
+    return c.json(created, 201);
+  })
+
+  .delete("/batteries/:id", requireAuth, async (c) => {
+    const id = parseId(c.req.param("id"));
+    if (!id) return c.json({ error: "Invalid id." }, 400);
+    const db = createDb(c.env.PIT_DB);
+    const [existing] = await db.select().from(batteries).where(eq(batteries.id, id));
+    if (!existing) return c.json({ error: "Battery not found." }, 404);
+    await db.delete(batteries).where(eq(batteries.id, id));
+    return c.json({ success: true });
+  })
+
+  .patch("/batteries/:id/state", requireAuth, batteryStateValidator, async (c) => {
+    const id = parseId(c.req.param("id"));
+    if (!id) return c.json({ error: "Invalid id." }, 400);
+    const { state } = c.req.valid("json");
+    const db = createDb(c.env.PIT_DB);
+    const [existing] = await db.select().from(batteries).where(eq(batteries.id, id));
+    if (!existing) return c.json({ error: "Battery not found." }, 404);
+    const tracksVoltage = state === "In Robot" || state === "Next Up";
+    await db
+      .update(batteries)
+      .set({ state, stateSince: Date.now(), ...(!tracksVoltage ? { voltage: null } : {}) })
+      .where(eq(batteries.id, id));
+    const [updated] = await db.select().from(batteries).where(eq(batteries.id, id));
+    return c.json(updated);
+  })
+
+  .patch("/batteries/:id/voltage", requireAuth, batteryVoltageValidator, async (c) => {
+    const id = parseId(c.req.param("id"));
+    if (!id) return c.json({ error: "Invalid id." }, 400);
+    const { voltage } = c.req.valid("json");
+    const db = createDb(c.env.PIT_DB);
+    const [existing] = await db.select().from(batteries).where(eq(batteries.id, id));
+    if (!existing) return c.json({ error: "Battery not found." }, 404);
+    await db.update(batteries).set({ voltage }).where(eq(batteries.id, id));
+    const [updated] = await db.select().from(batteries).where(eq(batteries.id, id));
+    return c.json(updated);
+  })
+
+  // Global reset — unchecks all items across all lists, preserves issues
+  .post("/reset", requireAuth, async (c) => {
+    const db = createDb(c.env.PIT_DB);
+    await db.update(checklistItems).set({ checked: false });
+    return c.json({ success: true });
+  })
+
+  // Pit monitor — proxies external APIs so the frontend avoids CORS
+  .get("/monitor/data", requireAuth, async (c) => {
+    const db = createDb(c.env.PIT_DB);
+    const team = c.env.TEAM_NUMBER;
+    const eventKey = await getSetting(db, "eventKey", c.env.EVENT_KEY);
+    const tbaKey = c.env.TBA_AUTH_KEY;
+    const nexusKey = c.env.NEXUS_API_KEY;
+    const year = new Date().getFullYear();
+
+    const [nexusResult, tbaResult, sbResult] = await Promise.allSettled([
+      eventKey && nexusKey
+        ? fetch(`https://frc.nexus/api/v1/event/${eventKey}`, {
+            headers: { "Nexus-Api-Key": nexusKey },
+          }).then((r) => (r.ok ? r.json() : null))
+        : Promise.resolve(null),
+      eventKey && tbaKey
+        ? fetch(`https://www.thebluealliance.com/api/v3/team/frc${team}/event/${eventKey}/status`, {
+            headers: { "X-TBA-Auth-Key": tbaKey },
+          }).then((r) => (r.ok ? r.json() : null))
+        : Promise.resolve(null),
+      team
+        ? fetch(`https://api.statbotics.io/v3/team_year/${team}/${year}`).then((r) =>
+            r.ok ? r.json() : null,
+          )
+        : Promise.resolve(null),
+    ]);
+
+    const nexus = nexusResult.status === "fulfilled" ? nexusResult.value : null;
+    const tba = tbaResult.status === "fulfilled" ? tbaResult.value : null;
+    const sb = sbResult.status === "fulfilled" ? sbResult.value : null;
+
+    // biome-ignore lint/suspicious/noExplicitAny: external API shapes
+    const tbaAny = tba as any;
+    // biome-ignore lint/suspicious/noExplicitAny: external API shapes
+    const sbAny = sb as any;
+
+    const record = tbaAny?.qual?.ranking?.record;
+    const ranking = sbAny
+      ? {
+          rank: sbAny.district_rank ?? null,
+          wins: record?.wins ?? sbAny.record?.wins ?? 0,
+          losses: record?.losses ?? sbAny.record?.losses ?? 0,
+          ties: record?.ties ?? sbAny.record?.ties ?? 0,
+          rp: sbAny.district_points ?? 0,
+          epa: sbAny.epa?.breakdown?.total_points ?? 0,
+        }
+      : null;
+
+    return c.json({ teamNumber: team, nexus, ranking });
+  })
+
+  // Admin — settings (admin only)
+  .get("/admin/settings", requireAdmin, async (c) => {
+    const db = createDb(c.env.PIT_DB);
+    const eventKey = await getSetting(db, "eventKey", c.env.EVENT_KEY);
+    return c.json({ eventKey, teamNumber: c.env.TEAM_NUMBER });
+  })
+
+  .patch("/admin/settings/event-key", requireAdmin, listEventKeyValidator, async (c) => {
+    const { eventKey } = c.req.valid("json");
+    const db = createDb(c.env.PIT_DB);
+    await db
+      .insert(settings)
+      .values({ key: "eventKey", value: eventKey })
+      .onConflictDoUpdate({ target: settings.key, set: { value: eventKey } });
+    return c.json({ eventKey });
+  });
 
 export type PitApp = typeof app;
 export default app;
