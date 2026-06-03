@@ -1,0 +1,8 @@
+@import "@g3/ui/index.css";
+@import "tailwindcss";
+
+html,
+body {
+  background-color: #111827;
+  overscroll-behavior: none;
+}

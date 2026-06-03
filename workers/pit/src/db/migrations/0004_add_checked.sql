@@ -1,0 +1,1 @@
+ALTER TABLE checklist_items ADD COLUMN checked INTEGER NOT NULL DEFAULT 0;

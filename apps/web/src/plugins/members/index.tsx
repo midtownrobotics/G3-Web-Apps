@@ -4,7 +4,5 @@ import { MembersPage } from "./members-page";
 export const membersPlugin: Plugin = {
   name: "members",
   routes: [{ path: "/members", element: <MembersPage /> }],
-  navItems: [
-    { label: "Members", to: "/members", order: 1, requiresAuth: true }
-  ],
+  navItems: [{ label: "Member Apps", to: "/members", order: 1, requiresAuth: true }],
 };
