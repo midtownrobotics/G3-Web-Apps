@@ -1,9 +1,61 @@
 import { and, asc, eq } from "drizzle-orm";
 import { Hono } from "hono";
+import { validator } from "hono/validator";
 import { createShopDb } from "../db";
 import { partDefinitionProcessBlueprints, partDefinitions } from "../db/schema";
 import { requireAuth } from "../middleware/auth";
 import type { AppEnv } from "../types";
+
+const updatePartValidator = validator(
+  "json",
+  (
+    value,
+  ): {
+    onshapePartNumber?: string;
+    revision?: string;
+    subsystemId?: number;
+    name?: string;
+    notes?: string | null;
+    partDrawingUrl?: string | null;
+  } => {
+    const v = (value ?? {}) as Record<string, unknown>;
+    const out: {
+      onshapePartNumber?: string;
+      revision?: string;
+      subsystemId?: number;
+      name?: string;
+      notes?: string | null;
+      partDrawingUrl?: string | null;
+    } = {};
+    if (typeof v.onshapePartNumber === "string") out.onshapePartNumber = v.onshapePartNumber;
+    if (typeof v.revision === "string") out.revision = v.revision;
+    if (typeof v.subsystemId === "number") out.subsystemId = v.subsystemId;
+    if (typeof v.name === "string") out.name = v.name;
+    if (v.notes === null || typeof v.notes === "string") out.notes = v.notes;
+    if (v.partDrawingUrl === null || typeof v.partDrawingUrl === "string")
+      out.partDrawingUrl = v.partDrawingUrl;
+    return out;
+  },
+);
+
+const addBlueprintValidator = validator(
+  "json",
+  (value, c): { index: number; processId: number } => {
+    const v = (value ?? {}) as { index?: unknown; processId?: unknown };
+    if (!Number.isInteger(v.index) || (v.index as number) < 0)
+      return c.json({ error: "index must be a non-negative integer." }, 400) as never;
+    if (!Number.isInteger(v.processId) || (v.processId as number) < 1)
+      return c.json({ error: "processId must be a positive integer." }, 400) as never;
+    return { index: v.index as number, processId: v.processId as number };
+  },
+);
+
+const reorderBlueprintValidator = validator("json", (value, c): { processIds: number[] } => {
+  const v = (value ?? {}) as { processIds?: unknown };
+  if (!Array.isArray(v.processIds) || v.processIds.some((p) => !Number.isInteger(p)))
+    return c.json({ error: "processIds must be an array of integers." }, 400) as never;
+  return { processIds: v.processIds as number[] };
+});
 
 export const partDefinitionsRouter = new Hono<AppEnv>()
   .get("/", requireAuth, async (c) => {
@@ -62,16 +114,9 @@ export const partDefinitionsRouter = new Hono<AppEnv>()
 
     return c.json(partDef, 201);
   })
-  .patch("/:id", requireAuth, async (c) => {
+  .patch("/:id", requireAuth, updatePartValidator, async (c) => {
     const id = Number(c.req.param("id"));
-    const body = await c.req.json<{
-      onshapePartNumber?: string;
-      revision?: string;
-      subsystemId?: number;
-      name?: string;
-      notes?: string | null;
-      partDrawingUrl?: string | null;
-    }>();
+    const body = c.req.valid("json");
 
     const updates: Partial<{
       onshapePartNumber: string;
@@ -131,15 +176,11 @@ export const partDefinitionsRouter = new Hono<AppEnv>()
       .all();
     return c.json(rows);
   })
-  .patch("/:id/processes/reorder", requireAuth, async (c) => {
+  .patch("/:id/processes/reorder", requireAuth, reorderBlueprintValidator, async (c) => {
     const partDefinitionId = Number(c.req.param("id"));
-    const { processIds } = await c.req.json<{ processIds: number[] }>();
+    const { processIds } = c.req.valid("json");
 
-    if (
-      !Array.isArray(processIds) ||
-      processIds.length === 0 ||
-      processIds.some((pid) => !Number.isInteger(pid))
-    ) {
+    if (processIds.length === 0) {
       return c.json({ error: "processIds must be a non-empty array of integers." }, 400);
     }
 
@@ -187,13 +228,9 @@ export const partDefinitionsRouter = new Hono<AppEnv>()
       .all();
     return c.json(rows);
   })
-  .post("/:id/processes", requireAuth, async (c) => {
+  .post("/:id/processes", requireAuth, addBlueprintValidator, async (c) => {
     const partDefinitionId = Number(c.req.param("id"));
-    const { index, processId } = await c.req.json<{ index: number; processId: number }>();
-
-    if (index === undefined || !processId) {
-      return c.json({ error: "index and processId are required." }, 400);
-    }
+    const { index, processId } = c.req.valid("json");
 
     const db = createShopDb(c.env.SHOP_DB);
     const row = await db

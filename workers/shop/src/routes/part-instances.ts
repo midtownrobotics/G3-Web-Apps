@@ -1,5 +1,6 @@
 import { asc, eq, max } from "drizzle-orm";
 import { Hono } from "hono";
+import { validator } from "hono/validator";
 import { createShopDb } from "../db";
 import {
   partDefinitionProcessBlueprints,
@@ -8,6 +9,29 @@ import {
 } from "../db/schema";
 import { requireAuth } from "../middleware/auth";
 import type { AppEnv } from "../types";
+
+const createInstancesValidator = validator(
+  "json",
+  (value, c): { partDefinitionId: number; quantity: number } => {
+    const v = (value ?? {}) as { partDefinitionId?: unknown; quantity?: unknown };
+    if (!Number.isInteger(v.partDefinitionId) || (v.partDefinitionId as number) < 1)
+      return c.json({ error: "partDefinitionId must be a positive integer." }, 400) as never;
+    if (!Number.isInteger(v.quantity) || (v.quantity as number) < 1)
+      return c.json({ error: "quantity must be a positive integer." }, 400) as never;
+    return { partDefinitionId: v.partDefinitionId as number, quantity: v.quantity as number };
+  },
+);
+
+const updateInstanceValidator = validator(
+  "json",
+  (value): { isPriority?: boolean; isStale?: boolean } => {
+    const v = (value ?? {}) as { isPriority?: unknown; isStale?: unknown };
+    const out: { isPriority?: boolean; isStale?: boolean } = {};
+    if (typeof v.isPriority === "boolean") out.isPriority = v.isPriority;
+    if (typeof v.isStale === "boolean") out.isStale = v.isStale;
+    return out;
+  },
+);
 
 export const partInstancesRouter = new Hono<AppEnv>()
   .get("/", requireAuth, async (c) => {
@@ -26,15 +50,8 @@ export const partInstancesRouter = new Hono<AppEnv>()
     const rows = await db.select().from(partInstances).all();
     return c.json(rows);
   })
-  .post("/", requireAuth, async (c) => {
-    const { partDefinitionId, quantity } = await c.req.json<{
-      partDefinitionId: number;
-      quantity: number;
-    }>();
-
-    if (!partDefinitionId || !quantity || quantity < 1) {
-      return c.json({ error: "partDefinitionId and quantity (>= 1) are required." }, 400);
-    }
+  .post("/", requireAuth, createInstancesValidator, async (c) => {
+    const { partDefinitionId, quantity } = c.req.valid("json");
 
     const db = createShopDb(c.env.SHOP_DB);
     const now = Date.now();
@@ -84,9 +101,9 @@ export const partInstancesRouter = new Hono<AppEnv>()
 
     return c.json(rows, 201);
   })
-  .patch("/:id", requireAuth, async (c) => {
+  .patch("/:id", requireAuth, updateInstanceValidator, async (c) => {
     const id = Number(c.req.param("id"));
-    const body = await c.req.json<{ isPriority?: boolean; isStale?: boolean }>();
+    const body = c.req.valid("json");
 
     const updates: Partial<{ isPriority: number; isStale: number }> = {};
     if (body.isPriority !== undefined) updates.isPriority = body.isPriority ? 1 : 0;
