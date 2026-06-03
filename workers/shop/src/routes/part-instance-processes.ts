@@ -1,4 +1,4 @@
-import { eq, and } from "drizzle-orm";
+import { and, asc, eq, gt } from "drizzle-orm";
 import { Hono } from "hono";
 import { createShopDb } from "../db";
 import { partInstanceProcesses } from "../db/schema";
@@ -49,6 +49,28 @@ export const partInstanceProcessesRouter = new Hono<AppEnv>()
       .get();
 
     if (!row) return c.json({ error: "Part instance process not found." }, 404);
+
+    // Promote the next process in the pipeline so it becomes actionable.
+    const next = await db
+      .select()
+      .from(partInstanceProcesses)
+      .where(
+        and(
+          eq(partInstanceProcesses.partInstanceId, partInstanceId),
+          gt(partInstanceProcesses.index, row.index),
+        ),
+      )
+      .orderBy(asc(partInstanceProcesses.index))
+      .limit(1)
+      .get();
+
+    if (next && next.status === "waiting") {
+      await db
+        .update(partInstanceProcesses)
+        .set({ status: "todo" })
+        .where(eq(partInstanceProcesses.id, next.id));
+    }
+
     return c.json(row);
   })
   .post("/:partInstanceId/processes/:processId/doing", requireAuth, async (c) => {

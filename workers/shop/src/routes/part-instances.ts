@@ -1,7 +1,11 @@
-import { eq, and, max } from "drizzle-orm";
+import { asc, eq, max } from "drizzle-orm";
 import { Hono } from "hono";
 import { createShopDb } from "../db";
-import { partInstances } from "../db/schema";
+import {
+  partDefinitionProcessBlueprints,
+  partInstanceProcesses,
+  partInstances,
+} from "../db/schema";
 import { requireAuth } from "../middleware/auth";
 import type { AppEnv } from "../types";
 
@@ -54,6 +58,29 @@ export const partInstancesRouter = new Hono<AppEnv>()
       )
       .returning()
       .all();
+
+    // Copy the part definition's process blueprint onto each new instance.
+    // The first process is ready to start (todo); the rest are blocked (waiting).
+    const blueprints = await db
+      .select()
+      .from(partDefinitionProcessBlueprints)
+      .where(eq(partDefinitionProcessBlueprints.partDefinitionId, partDefinitionId))
+      .orderBy(asc(partDefinitionProcessBlueprints.index))
+      .all();
+
+    if (blueprints.length > 0) {
+      await db.insert(partInstanceProcesses).values(
+        rows.flatMap((instance) =>
+          blueprints.map((bp, i) => ({
+            partInstanceId: instance.id,
+            processId: bp.processId,
+            index: bp.index,
+            status: (i === 0 ? "todo" : "waiting") as "todo" | "waiting",
+            createdAt: now,
+          })),
+        ),
+      );
+    }
 
     return c.json(rows, 201);
   })
