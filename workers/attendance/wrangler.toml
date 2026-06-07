@@ -23,8 +23,8 @@ binding = "G3ID"
 service = "g3id-production"
 
 [[env.production.routes]]
-pattern = "api.attendance.g3robotics.com/*"
-zone_name = "g3robotics.com"
+pattern = "api.attendance.g3robotics.com"
+custom_domain = true
 
 [env.production.triggers]
 crons = ["0 * * * *"]

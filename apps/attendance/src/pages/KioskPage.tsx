@@ -1,24 +1,45 @@
 import { QRCodeSVG } from "qrcode.react";
 import { useCallback, useEffect, useState } from "react";
-import { type PageType, WINDOW_MS, buildQrUrl, msUntilNextWindow } from "../utils/token";
+import { API } from "../utils/auth";
+import { type PageType, WINDOW_MS, msUntilNextWindow } from "../utils/token";
 import "./KioskPage.css";
 
 interface Props {
   type: PageType;
 }
 
+// The live code comes from the admin-protected /code route, not the client clock.
+async function fetchCode(): Promise<number | null> {
+  try {
+    const r = await fetch(`${API}/code`, { credentials: "include" });
+    if (!r.ok) return null;
+    const data = (await r.json()) as { w?: number };
+    return typeof data.w === "number" ? data.w : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function KioskPage({ type }: Props) {
   const isSignIn = type === "signin";
   const label = isSignIn ? "SIGN IN" : "SIGN OUT";
 
-  const [qrValue, setQrValue] = useState(() => buildQrUrl(type));
+  const [qrValue, setQrValue] = useState<string | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(Math.ceil(msUntilNextWindow() / 1000));
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const refreshToken = useCallback(() => {
-    setQrValue(buildQrUrl(type));
-    setRefreshKey((k) => k + 1);
+  const refreshToken = useCallback(async () => {
+    const w = await fetchCode();
+    if (w != null) {
+      setQrValue(`${window.location.origin}/?action=${type}&w=${w}`);
+      setRefreshKey((k) => k + 1);
+    }
   }, [type]);
+
+  // Initial code
+  useEffect(() => {
+    refreshToken();
+  }, [refreshToken]);
 
   // Align refresh to exact window boundary, then repeat every 30s
   useEffect(() => {
@@ -66,13 +87,17 @@ export default function KioskPage({ type }: Props) {
           </svg>
 
           <div className="kiosk__qr-frame" key={refreshKey}>
-            <QRCodeSVG
-              value={qrValue}
-              size={220}
-              bgColor="transparent"
-              fgColor={isSignIn ? "#00ff88" : "#ff3344"}
-              level="M"
-            />
+            {qrValue ? (
+              <QRCodeSVG
+                value={qrValue}
+                size={220}
+                bgColor="transparent"
+                fgColor={isSignIn ? "#00ff88" : "#ff3344"}
+                level="M"
+              />
+            ) : (
+              <div className="kiosk__qr-loading">…</div>
+            )}
           </div>
         </div>
 

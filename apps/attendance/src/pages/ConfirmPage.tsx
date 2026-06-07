@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { API, redirectToLogin } from "../utils/auth";
 import { type PageType, VALID_WINDOWS, WINDOW_MS } from "../utils/token";
 import "./ConfirmPage.css";
 
@@ -20,8 +21,6 @@ type Status =
     }
   | { kind: "error"; message: string };
 
-const API = (import.meta.env.VITE_API_URL as string) || "/api";
-const G3ID_WEB = (import.meta.env.VITE_G3ID_WEB as string) || "https://g3id.g3robotics.com";
 const ALL_APPS_URL = "https://web.g3robotics.com/members";
 const REDIRECT_SECONDS = 5;
 
@@ -29,10 +28,6 @@ function tokenValid(w: string): boolean {
   const win = Number.parseInt(w, 10);
   const current = Math.floor(Date.now() / WINDOW_MS);
   return !Number.isNaN(win) && current - win <= VALID_WINDOWS && win <= current;
-}
-
-function redirectToLogin(): void {
-  window.location.href = `${G3ID_WEB}/login?redirect=${encodeURIComponent(window.location.href)}`;
 }
 
 function formatDuration(ms: number): string {

@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { Firestore } from "./firestore";
 import { requireAuth } from "./middleware/auth";
-import { validateToken } from "./token";
+import { currentWindow, validateToken } from "./token";
 import type { AppEnv } from "./types";
 
 const AUTO_SIGNOUT_MS = 12 * 60 * 60 * 1000;
@@ -65,6 +65,13 @@ const app = base
       isAdmin: c.get("userIsAdmin"),
     }),
   )
+
+  // Current kiosk code — admin only. The kiosk display fetches this to build its
+  // QR, so the live presence token is never issued to non-admins.
+  .get("/code", requireAuth, (c) => {
+    if (!c.get("userIsAdmin")) return c.json({ error: "Forbidden." }, 403);
+    return c.json({ w: currentWindow() });
+  })
 
   // Sign in — identity from the G3ID session, presence from the kiosk token.
   .post("/signin", requireAuth, async (c) => {

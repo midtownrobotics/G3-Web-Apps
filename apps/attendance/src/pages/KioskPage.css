@@ -46,6 +46,37 @@
   animation: fadeUp .6s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+/* Admin gate + QR loading placeholder */
+.kiosk-gate {
+  gap: 16px;
+  text-align: center;
+  padding: 0 24px;
+}
+.kiosk-gate__title {
+  font-family: var(--font);
+  font-size: clamp(22px, 6vw, 34px);
+  font-weight: 700;
+  letter-spacing: .12em;
+  color: var(--accent);
+  text-shadow: 0 0 40px var(--accent-dim);
+}
+.kiosk-gate__text {
+  font-family: var(--font);
+  font-size: 15px;
+  letter-spacing: .15em;
+  color: rgba(255, 255, 255, 0.45);
+}
+.kiosk__qr-loading {
+  width: 220px;
+  height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font);
+  font-size: 48px;
+  color: rgba(255, 255, 255, 0.25);
+}
+
 @keyframes fadeUp {
   from {
     opacity: 0;
