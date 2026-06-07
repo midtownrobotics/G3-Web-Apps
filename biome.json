@@ -7,7 +7,14 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "ignore": ["dist", ".wrangler", "node_modules", "*.tsbuildinfo", ".claude"]
+    "ignore": [
+      "dist",
+      ".wrangler",
+      "node_modules",
+      "*.tsbuildinfo",
+      ".claude",
+      "apps/skill-tree"
+    ]
   },
   "formatter": {
     "enabled": true,

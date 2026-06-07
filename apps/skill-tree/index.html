@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FRC Skill Trees</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- Login screen — visible by default, hidden after auth is confirmed -->
+<div id="loginScreen" class="login-screen">
+  <div class="login-card">
+    <div class="login-logo">FRC <span>Skill</span> Trees</div>
+    <div class="login-sub">Sign in to continue</div>
+    <input id="loginEmail" type="email" placeholder="Email" autocomplete="email" />
+    <input id="loginPassword" type="password" placeholder="Password" autocomplete="current-password" />
+    <div id="loginError" class="login-error"></div>
+    <button id="loginBtn" onclick="doLogin()">Sign In</button>
+  </div>
+</div>
+
+<header>
+  <div class="hr1">
+    <div class="logo">FRC <span>Skill</span> Trees</div>
+    <div class="nav">
+      <button class="nb act" id="navOv" onclick="go('ov')">Overview</button>
+      <button class="nb" id="navTr" onclick="go('tr')">Skill Trees</button>
+      <button class="nb" id="navMn" onclick="go('mn')" style="display:none">Mentors</button>
+    </div>
+    <div class="hsep"></div>
+    <div class="legend">
+      <div class="li"><div class="ld ld-lo"></div>Locked</div>
+      <div class="li"><div class="ld ld-av"></div>Available</div>
+      <div class="li"><div class="ld ld-pr"></div>In Progress</div>
+      <div class="li"><div class="ld ld-dn"></div>Complete</div>
+    </div>
+    <a class="logout-btn" href="https://web.g3robotics.com/members">All Apps</a>
+    <button class="logout-btn" onclick="doLogout()">Sign Out</button>
+  </div>
+  <div class="hr2">
+    <div class="tree-sel-wrap">
+      <label>Tree</label>
+      <select id="treeSel" onchange="onTreeSel()"></select>
+    </div>
+    <div class="sw">
+      <label>Student</label>
+      <select id="ssel"></select>
+    </div>
+  </div>
+</header>
+
+<div class="view act" id="vOv">
+  <div class="ov-wrap">
+    <div class="ov-title">Team Overview</div>
+    <div class="ov-sub">Skill tree progress for all students</div>
+    <div class="ov-grid" id="ovGrid"></div>
+    <div class="sum-title">Student Totals</div>
+    <div id="sumWrap"></div>
+  </div>
+</div>
+
+<div class="view" id="vTr">
+  <div class="tree-area" id="treeArea">
+    <div class="trees" id="treesC"></div>
+  </div>
+</div>
+
+<div class="view" id="vMn">
+  <div class="ov-wrap">
+    <div class="ov-title">Mentors</div>
+    <div class="ov-sub">Mentors can update any student's progress. Site admins are always mentors.</div>
+    <div id="mnWrap"></div>
+  </div>
+</div>
+
+<div class="panel" id="panel">
+  <div class="p-head">
+    <div class="p-tag" id="pTag"></div>
+    <div class="p-title" id="pTitle"></div>
+    <button class="p-x" onclick="closePanel()">✕</button>
+  </div>
+  <div class="p-body">
+    <div><div class="sbadge" id="pBadge"><div class="sb-dot"></div><span id="pSt"></span></div></div>
+    <div><div class="sec">Description</div><div class="p-desc" id="pDesc"></div></div>
+    <div id="pPreSec"><div class="sec">Prerequisites</div><div class="pr-list" id="pPre"></div></div>
+    <div id="pUpdateSec">
+      <div class="sec">Update Progress</div>
+      <div class="st-btns">
+        <button class="st-btn sba" id="bNS" onclick="setSt('not-started')"><span>○</span> Not Started <span class="ck">✓</span></button>
+        <button class="st-btn sbp" id="bIP" onclick="setSt('in-progress')"><span>◑</span> In Progress  <span class="ck">✓</span></button>
+        <button class="st-btn sbc" id="bC"  onclick="setSt('complete')">   <span>●</span> Complete     <span class="ck">✓</span></button>
+      </div>
+    </div>
+  </div>
+  <div class="p-foot" id="pFoot"></div>
+</div>
+<div class="panel-overlay" id="panelOverlay" onclick="closePanel()"></div>
+
+<!-- app.js is an ES module; it imports trees.js and firebase.js internally -->
+<script type="module" src="app.js"></script>
+</body>
+</html>
