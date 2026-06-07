@@ -1,0 +1,34 @@
+name = "attendance"
+main = "src/index.ts"
+compatibility_date = "2026-05-17"
+
+[[services]]
+binding = "G3ID"
+service = "g3id"
+
+[triggers]
+crons = ["0 * * * *"]
+
+[vars]
+FRONTEND_URL = "http://localhost:5181"
+FIREBASE_PROJECT_ID = "g3-attendance"
+# FIREBASE_CLIENT_EMAIL and FIREBASE_PRIVATE_KEY are secrets — set in `.dev.vars`
+# locally and via `wrangler secret put` in production.
+
+[env.production]
+name = "attendance-production"
+
+[[env.production.services]]
+binding = "G3ID"
+service = "g3id-production"
+
+[[env.production.routes]]
+pattern = "api.attendance.g3robotics.com/*"
+zone_name = "g3robotics.com"
+
+[env.production.triggers]
+crons = ["0 * * * *"]
+
+[env.production.vars]
+FRONTEND_URL = "https://signin.attendance.g3robotics.com"
+FIREBASE_PROJECT_ID = ""
