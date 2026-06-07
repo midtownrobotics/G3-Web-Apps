@@ -31,4 +31,4 @@ crons = ["0 * * * *"]
 
 [env.production.vars]
 FRONTEND_URL = "https://signin.attendance.g3robotics.com"
-FIREBASE_PROJECT_ID = ""
+FIREBASE_PROJECT_ID = "g3-attendance"
