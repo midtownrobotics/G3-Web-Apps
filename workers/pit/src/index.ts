@@ -105,10 +105,20 @@ const issueTextValidator = validator("json", (value, c) => {
   return { text: v.text.trim() };
 });
 
-const listEventKeyValidator = validator("json", (value, c) => {
-  const v = value as { eventKey?: unknown };
-  if (typeof v.eventKey !== "string") return c.json({ error: "eventKey must be a string." }, 400);
-  return { eventKey: v.eventKey.trim() };
+const SETTING_KEYS = ["eventKey", "tbaAuthKey", "nexusApiKey"] as const;
+type SettingKey = (typeof SETTING_KEYS)[number];
+
+const settingsValidator = validator("json", (value, c): Partial<Record<SettingKey, string>> => {
+  const v = (value ?? {}) as Record<string, unknown>;
+  const out: Partial<Record<SettingKey, string>> = {};
+  for (const k of SETTING_KEYS) {
+    if (v[k] !== undefined) {
+      if (typeof v[k] !== "string")
+        return c.json({ error: `${k} must be a string.` }, 400) as never;
+      out[k] = (v[k] as string).trim();
+    }
+  }
+  return out;
 });
 
 const reorderValidator = validator("json", (value, c) => {
@@ -508,10 +518,28 @@ const app = base
     const [existing] = await db.select().from(batteries).where(eq(batteries.id, id));
     if (!existing) return c.json({ error: "Battery not found." }, 404);
     const tracksVoltage = state === "In Robot" || state === "Next Up";
+    // Count a use each time the battery newly enters the robot.
+    const enteringRobot = state === "In Robot" && existing.state !== "In Robot";
     await db
       .update(batteries)
-      .set({ state, stateSince: Date.now(), ...(!tracksVoltage ? { voltage: null } : {}) })
+      .set({
+        state,
+        stateSince: Date.now(),
+        ...(!tracksVoltage ? { voltage: null } : {}),
+        ...(enteringRobot ? { useCount: sql`${batteries.useCount} + 1` } : {}),
+      })
       .where(eq(batteries.id, id));
+    const [updated] = await db.select().from(batteries).where(eq(batteries.id, id));
+    return c.json(updated);
+  })
+
+  .post("/batteries/:id/reset-uses", requireAuth, async (c) => {
+    const id = parseId(c.req.param("id"));
+    if (!id) return c.json({ error: "Invalid id." }, 400);
+    const db = createDb(c.env.PIT_DB);
+    const [existing] = await db.select().from(batteries).where(eq(batteries.id, id));
+    if (!existing) return c.json({ error: "Battery not found." }, 404);
+    await db.update(batteries).set({ useCount: 0 }).where(eq(batteries.id, id));
     const [updated] = await db.select().from(batteries).where(eq(batteries.id, id));
     return c.json(updated);
   })
@@ -540,8 +568,8 @@ const app = base
     const db = createDb(c.env.PIT_DB);
     const team = c.env.TEAM_NUMBER;
     const eventKey = await getSetting(db, "eventKey", c.env.EVENT_KEY);
-    const tbaKey = c.env.TBA_AUTH_KEY;
-    const nexusKey = c.env.NEXUS_API_KEY;
+    const tbaKey = await getSetting(db, "tbaAuthKey", c.env.TBA_AUTH_KEY);
+    const nexusKey = await getSetting(db, "nexusApiKey", c.env.NEXUS_API_KEY);
     const year = new Date().getFullYear();
 
     const [nexusResult, tbaResult, sbResult] = await Promise.allSettled([
@@ -572,35 +600,44 @@ const app = base
     const sbAny = sb as any;
 
     const record = tbaAny?.qual?.ranking?.record;
-    const ranking = sbAny
+    const ranking = tbaAny?.qual?.ranking || sbAny
       ? {
-          rank: sbAny.district_rank ?? null,
-          wins: record?.wins ?? sbAny.record?.wins ?? 0,
-          losses: record?.losses ?? sbAny.record?.losses ?? 0,
-          ties: record?.ties ?? sbAny.record?.ties ?? 0,
-          rp: sbAny.district_points ?? 0,
-          epa: sbAny.epa?.breakdown?.total_points ?? 0,
+          rank: tbaAny?.qual?.ranking?.rank ?? null,
+          wins: record?.wins ?? sbAny?.record?.wins ?? 0,
+          losses: record?.losses ?? sbAny?.record?.losses ?? 0,
+          ties: record?.ties ?? sbAny?.record?.ties ?? 0,
+          rp: tbaAny?.qual?.ranking?.ranking_points ?? sbAny?.event_points ?? 0,
+          epa: sbAny?.epa?.breakdown?.total_points ?? 0,
         }
       : null;
 
     return c.json({ teamNumber: team, nexus, ranking });
   })
 
-  // Admin — settings (admin only)
+  // Admin — settings (admin only). Event key + external API keys live in the DB
+  // so they're configurable at runtime; env vars are the fallback defaults.
   .get("/admin/settings", requireAdmin, async (c) => {
     const db = createDb(c.env.PIT_DB);
-    const eventKey = await getSetting(db, "eventKey", c.env.EVENT_KEY);
-    return c.json({ eventKey, teamNumber: c.env.TEAM_NUMBER });
+    const [eventKey, tbaAuthKey, nexusApiKey] = await Promise.all([
+      getSetting(db, "eventKey", c.env.EVENT_KEY),
+      getSetting(db, "tbaAuthKey", c.env.TBA_AUTH_KEY),
+      getSetting(db, "nexusApiKey", c.env.NEXUS_API_KEY),
+    ]);
+    return c.json({ eventKey, tbaAuthKey, nexusApiKey, teamNumber: c.env.TEAM_NUMBER });
   })
 
-  .patch("/admin/settings/event-key", requireAdmin, listEventKeyValidator, async (c) => {
-    const { eventKey } = c.req.valid("json");
+  .patch("/admin/settings", requireAdmin, settingsValidator, async (c) => {
+    const updates = c.req.valid("json");
     const db = createDb(c.env.PIT_DB);
-    await db
-      .insert(settings)
-      .values({ key: "eventKey", value: eventKey })
-      .onConflictDoUpdate({ target: settings.key, set: { value: eventKey } });
-    return c.json({ eventKey });
+    await Promise.all(
+      Object.entries(updates).map(([key, value]) =>
+        db
+          .insert(settings)
+          .values({ key, value })
+          .onConflictDoUpdate({ target: settings.key, set: { value } }),
+      ),
+    );
+    return c.json({ ok: true });
   });
 
 export type PitApp = typeof app;

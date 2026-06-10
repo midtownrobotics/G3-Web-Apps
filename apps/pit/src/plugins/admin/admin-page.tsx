@@ -7,13 +7,15 @@ export function AdminPage() {
   const { user, loading: authLoading } = useAuth();
 
   const [eventKey, setEventKey] = useState("");
+  const [tbaAuthKey, setTbaAuthKey] = useState("");
+  const [nexusApiKey, setNexusApiKey] = useState("");
   const [teamNumber, setTeamNumber] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [banner, setBanner] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
-  const isAdmin = user?.isAdmin === true;
+  const isAdmin = user?.isAdmin == true;
 
   useEffect(() => {
     if (!isAdmin) {
@@ -26,6 +28,8 @@ export function AdminPage() {
       .then((data) => {
         if (data) {
           setEventKey(data.eventKey);
+          setTbaAuthKey(data.tbaAuthKey);
+          setNexusApiKey(data.nexusApiKey);
           setTeamNumber(data.teamNumber);
         }
       })
@@ -36,8 +40,12 @@ export function AdminPage() {
   async function handleSave() {
     setSaving(true);
     setSaved(false);
-    const res = await api.admin.settings["event-key"].$patch({
-      json: { eventKey: eventKey.trim() },
+    const res = await api.admin.settings.$patch({
+      json: {
+        eventKey: eventKey.trim(),
+        tbaAuthKey: tbaAuthKey.trim(),
+        nexusApiKey: nexusApiKey.trim(),
+      },
     });
     setSaving(false);
     if (!res.ok) {
@@ -68,7 +76,7 @@ export function AdminPage() {
   return (
     <main className="min-h-screen bg-gray-950 text-white">
       <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
-        <h1 className="text-3xl font-bold tracking-tight">Admin</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
 
         {banner && (
           <p className="text-red-400 text-sm bg-red-950 border border-red-800 rounded-lg px-4 py-2">
@@ -76,38 +84,47 @@ export function AdminPage() {
           </p>
         )}
 
-        <div className="bg-gray-900 rounded-xl border border-gray-700 p-5 space-y-4">
+        <div className="bg-gray-900 rounded-xl border border-gray-700 p-5 space-y-5">
           <div>
-            <h2 className="text-lg font-semibold text-gray-200">Event Configuration</h2>
+            <h2 className="text-lg font-semibold text-gray-200">Event & API Configuration</h2>
             <p className="text-sm text-gray-500 mt-0.5">
               Team {teamNumber}. Used by the Pit Monitor for Nexus, TBA, and Statbotics data.
             </p>
           </div>
 
-          <div className="space-y-1.5">
-            <label htmlFor="event-key" className="text-sm font-medium text-gray-400">
-              Event Key
-            </label>
-            <input
-              id="event-key"
-              type="text"
-              placeholder="e.g. 2026gacmp"
-              value={eventKey}
-              onChange={(e) => {
-                setEventKey(e.target.value);
-                setSaved(false);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleSave();
-              }}
-              className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-red-500 font-mono"
-            />
-            <p className="text-xs text-gray-600">
-              The Blue Alliance event key (year + event code). Leave blank to disable monitor data.
-            </p>
-          </div>
+          <Field
+            id="event-key"
+            label="Event Key"
+            placeholder="e.g. 2026gacmp"
+            value={eventKey}
+            onChange={setEventKey}
+            onSaved={() => setSaved(false)}
+            hint="The Blue Alliance event key (year + event code). Leave blank to disable monitor data."
+          />
 
-          <div className="flex items-center gap-3">
+          <Field
+            id="tba-key"
+            label="TBA Auth Key"
+            placeholder="The Blue Alliance read API key"
+            value={tbaAuthKey}
+            onChange={setTbaAuthKey}
+            onSaved={() => setSaved(false)}
+            secret
+            hint="From thebluealliance.com/account. Powers rankings & match data."
+          />
+
+          <Field
+            id="nexus-key"
+            label="Nexus API Key"
+            placeholder="FRC Nexus API key"
+            value={nexusApiKey}
+            onChange={setNexusApiKey}
+            onSaved={() => setSaved(false)}
+            secret
+            hint="From frc.nexus. Powers live queuing/match status."
+          />
+
+          <div className="flex items-center gap-3 pt-1">
             <button
               type="button"
               onClick={handleSave}
@@ -121,5 +138,57 @@ export function AdminPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+function Field({
+  id,
+  label,
+  placeholder,
+  value,
+  onChange,
+  onSaved,
+  hint,
+  secret,
+}: {
+  id: string;
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (v: string) => void;
+  onSaved: () => void;
+  hint: string;
+  secret?: boolean;
+}) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="space-y-1.5">
+      <label htmlFor={id} className="text-sm font-medium text-gray-400">
+        {label}
+      </label>
+      <div className="flex gap-2">
+        <input
+          id={id}
+          type={secret && !show ? "password" : "text"}
+          placeholder={placeholder}
+          value={value}
+          onChange={(e) => {
+            onChange(e.target.value);
+            onSaved();
+          }}
+          className="flex-1 bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-red-500 font-mono"
+        />
+        {secret && (
+          <button
+            type="button"
+            onClick={() => setShow((s) => !s)}
+            className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs rounded-lg shrink-0"
+          >
+            {show ? "Hide" : "Show"}
+          </button>
+        )}
+      </div>
+      <p className="text-xs text-gray-600">{hint}</p>
+    </div>
   );
 }

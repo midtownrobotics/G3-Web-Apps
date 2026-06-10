@@ -11,7 +11,7 @@ export function useAuth(): { user: AuthState; loading: boolean } {
     api.me
       .$get()
       .then((res) => (res.ok ? res.json() : null))
-      .then((data) => setUser(data as AuthState))
+      .then((data) => setUser(data))
       .catch(() => setUser(null))
       .finally(() => setLoading(false));
   }, []);
