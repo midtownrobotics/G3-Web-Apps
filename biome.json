@@ -13,7 +13,9 @@
       "node_modules",
       "*.tsbuildinfo",
       ".claude",
-      "apps/skill-tree"
+      "apps/skill-tree",
+      "workers/attendance/src/firestore.ts",
+      "workers/attendance/src/auth.ts"
     ]
   },
   "formatter": {
