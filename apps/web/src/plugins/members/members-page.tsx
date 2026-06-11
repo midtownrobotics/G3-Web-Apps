@@ -6,12 +6,9 @@ import {
   FaInstagram,
   FaSlack,
   FaToolbox,
-  FaTree,
   FaTrophy,
   FaUserShield,
 } from "react-icons/fa";
-import { FaTreeCity } from "react-icons/fa6";
-import { GiBranchArrow } from "react-icons/gi";
 import { LuGitBranch } from "react-icons/lu";
 
 type App = {
