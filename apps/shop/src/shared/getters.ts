@@ -67,3 +67,12 @@ export async function fetchProcessQueue(
   if (!res.ok) throw new Error(`Failed to fetch process queue (${res.status})`);
   return res.json() as Promise<PartInstanceProcess[]>;
 }
+
+/** The API only exposes instance processes per-process or per-instance, so
+ * fan out across processes (few) rather than instances (many). */
+export async function fetchAllInstanceProcesses(
+  processes: Process[],
+): Promise<PartInstanceProcess[]> {
+  const lists = await Promise.all(processes.map((p) => fetchProcessQueue(p.id)));
+  return lists.flat();
+}

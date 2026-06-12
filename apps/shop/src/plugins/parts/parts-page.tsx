@@ -1,301 +1,467 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { api } from "../../shared/api";
-import { getErrorMessage } from "../../shared/api-error";
-import { fetchPartDefinitions, fetchProcesses, fetchSubsystems } from "../../shared/getters";
-import type { PartDefinition, Process, Subsystem } from "../../shared/types";
+import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import {
+  type InstanceRow,
+  type InstanceState,
+  STATE_META,
+  buildInstanceRows,
+} from "../../shared/derive";
+import { ErrorBanner, PageLoading } from "../../shared/ui";
+import { useShopData } from "../../shared/use-shop-data";
+import { PartCard } from "./part-card";
+
+type SortKey = "newest" | "oldest" | "alpha" | "priority" | "process" | "status" | "subsystem";
+
+/** Sorts that order whole blueprints — instances stay grouped with a connector line. */
+const GROUPED_SORTS: SortKey[] = ["newest", "oldest", "alpha", "priority", "subsystem"];
+
+const STATE_ORDER: Record<InstanceState, number> = {
+  doing: 0,
+  todo: 1,
+  waiting: 2,
+  "no-processes": 3,
+  complete: 4,
+};
+
+type Filters = {
+  priority: "all" | "priority" | "standard";
+  subsystemId: number;
+  processId: number;
+  state: "" | InstanceState;
+  revision: string;
+  minQty: number;
+};
+
+const DEFAULT_FILTERS: Filters = {
+  priority: "all",
+  subsystemId: 0,
+  processId: 0,
+  state: "",
+  revision: "",
+  minQty: 0,
+};
 
 export function PartsPage() {
-  const navigate = useNavigate();
-  const [parts, setParts] = useState<PartDefinition[]>([]);
-  const [subsystems, setSubsystems] = useState<Subsystem[]>([]);
-  const [processes, setProcesses] = useState<Process[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [banner, setBanner] = useState<string | null>(null);
+  const { data, loading, error, refresh } = useShopData();
 
-  const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState({
-    name: "",
-    onshapePartNumber: "",
-    revision: "",
-    subsystemId: 0,
-    notes: "",
-    partDrawingUrl: "",
-  });
-  const [selectedProcessIds, setSelectedProcessIds] = useState<number[]>([]);
-  const [createError, setCreateError] = useState("");
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<SortKey>("newest");
+  const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [selectedInstanceId, setSelectedInstanceId] = useState<number | null>(null);
 
-  async function load() {
-    try {
-      const [p, s, pr] = await Promise.all([
-        fetchPartDefinitions(),
-        fetchSubsystems(),
-        fetchProcesses(),
-      ]);
-      setParts(p);
-      setSubsystems(s);
-      setProcesses(pr);
-    } catch {}
-    setLoading(false);
-  }
+  const rows = useMemo(() => (data ? buildInstanceRows(data) : []), [data]);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: load is stable
-  useEffect(() => {
-    load();
-  }, []);
+  const qtyByDef = useMemo(() => {
+    const map = new Map<number, number>();
+    for (const r of rows)
+      map.set(r.definition.id, (map.get(r.definition.id) ?? 0) + 1);
+    return map;
+  }, [rows]);
 
-  function toggleProcess(id: number) {
-    setSelectedProcessIds((prev) =>
-      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id],
-    );
-  }
+  const processName = (pid: number) =>
+    data?.processes.find((p) => p.id === pid)?.name ?? `Process #${pid}`;
+  const subsystemName = (sid: number) => data?.subsystems.find((s) => s.id === sid)?.name ?? "—";
 
-  async function handleCreate() {
-    if (!form.name.trim() || !form.onshapePartNumber.trim() || !form.revision.trim()) {
-      setCreateError("Name, Onshape part #, and revision are required.");
-      return;
-    }
-    if (!form.subsystemId) {
-      setCreateError("Select a subsystem.");
-      return;
-    }
-    const res = await api["part-definitions"].$post({
-      json: {
-        name: form.name.trim(),
-        onshapePartNumber: form.onshapePartNumber.trim(),
-        revision: form.revision.trim(),
-        subsystemId: form.subsystemId,
-        notes: form.notes.trim() || undefined,
-        partDrawingUrl: form.partDrawingUrl.trim() || undefined,
-        processIds: selectedProcessIds,
-      },
+  // ── Filter ──────────────────────────────────────────────────────────────
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return rows.filter((r) => {
+      if (q) {
+        const hay =
+          `${r.definition.name} ${r.definition.onshapePartNumber} ${r.definition.revision}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      if (filters.priority === "priority" && !r.instance.isPriority) return false;
+      if (filters.priority === "standard" && r.instance.isPriority) return false;
+      if (filters.subsystemId && r.definition.subsystemId !== filters.subsystemId) return false;
+      if (filters.processId && r.current?.processId !== filters.processId) return false;
+      if (filters.state && r.state !== filters.state) return false;
+      if (
+        filters.revision.trim() &&
+        r.definition.revision.toLowerCase() !== filters.revision.trim().toLowerCase()
+      )
+        return false;
+      if (filters.minQty > 0 && (qtyByDef.get(r.definition.id) ?? 0) < filters.minQty)
+        return false;
+      return true;
     });
-    if (!res.ok) {
-      setBanner(await getErrorMessage(res as unknown as Response));
-      return;
+  }, [rows, search, filters, qtyByDef]);
+
+  // ── Sort + group ────────────────────────────────────────────────────────
+  // biome-ignore lint/correctness/useExhaustiveDependencies: processName/subsystemName derive from data, which filtered already depends on
+  const groups = useMemo(() => {
+    if (!GROUPED_SORTS.includes(sort)) {
+      const flat = [...filtered];
+      if (sort === "process") {
+        flat.sort((a, b) => {
+          const an = a.current ? processName(a.current.processId) : "￿";
+          const bn = b.current ? processName(b.current.processId) : "￿";
+          return an.localeCompare(bn) || a.definition.name.localeCompare(b.definition.name);
+        });
+      } else {
+        flat.sort(
+          (a, b) =>
+            STATE_ORDER[a.state] - STATE_ORDER[b.state] ||
+            a.definition.name.localeCompare(b.definition.name),
+        );
+      }
+      return flat.map((r) => [r]);
     }
-    const created = (await res.json()) as PartDefinition;
-    navigate(`/parts/${created.id}`);
-  }
 
-  if (loading) {
-    return (
-      <main className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <p className="text-gray-400">Loading…</p>
-      </main>
-    );
-  }
+    const byDef = new Map<number, InstanceRow[]>();
+    for (const r of filtered) {
+      const list = byDef.get(r.definition.id);
+      if (list) list.push(r);
+      else byDef.set(r.definition.id, [r]);
+    }
+    const grouped = [...byDef.values()];
+    for (const g of grouped) g.sort((a, b) => a.instance.instanceNumber - b.instance.instanceNumber);
 
-  const subsystemName = (id: number) => subsystems.find((s) => s.id === id)?.name ?? "—";
-  const grouped = subsystems
-    .map((s) => ({ subsystem: s, parts: parts.filter((p) => p.subsystemId === s.id) }))
-    .filter((g) => g.parts.length > 0);
-  const orphans = parts.filter((p) => !subsystems.some((s) => s.id === p.subsystemId));
+    const def = (g: InstanceRow[]) => g[0].definition;
+    switch (sort) {
+      case "oldest":
+        grouped.sort((a, b) => def(a).createdAt - def(b).createdAt);
+        break;
+      case "alpha":
+        grouped.sort((a, b) => def(a).name.localeCompare(def(b).name));
+        break;
+      case "priority":
+        for (const g of grouped)
+          g.sort(
+            (a, b) =>
+              b.instance.isPriority - a.instance.isPriority ||
+              a.instance.instanceNumber - b.instance.instanceNumber,
+          );
+        grouped.sort(
+          (a, b) =>
+            Math.max(...b.map((r) => r.instance.isPriority)) -
+              Math.max(...a.map((r) => r.instance.isPriority)) ||
+            def(b).createdAt - def(a).createdAt,
+        );
+        break;
+      case "subsystem":
+        grouped.sort(
+          (a, b) =>
+            subsystemName(def(a).subsystemId).localeCompare(subsystemName(def(b).subsystemId)) ||
+            def(a).name.localeCompare(def(b).name),
+        );
+        break;
+      default: // newest
+        grouped.sort((a, b) => def(b).createdAt - def(a).createdAt);
+    }
+    return grouped;
+  }, [filtered, sort]);
+
+  if (loading) return <PageLoading />;
+
+  const selectedRow =
+    selectedInstanceId !== null
+      ? (rows.find((r) => r.instance.id === selectedInstanceId) ?? null)
+      : null;
+
+  const activeFilterCount =
+    (filters.priority !== "all" ? 1 : 0) +
+    (filters.subsystemId ? 1 : 0) +
+    (filters.processId ? 1 : 0) +
+    (filters.state ? 1 : 0) +
+    (filters.revision.trim() ? 1 : 0) +
+    (filters.minQty > 0 ? 1 : 0);
 
   return (
-    <main className="min-h-screen bg-gray-950 text-white">
-      <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold tracking-tight">Parts</h1>
-          {!creating && (
+    <main className="min-h-screen bg-mist">
+      <div className="max-w-5xl mx-auto px-6 py-8 space-y-5">
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="font-display text-4xl text-ink">Parts</h1>
+          <Link
+            to="/parts/new"
+            className="px-4 py-2 bg-crimson hover:bg-crimson-dark text-paper text-sm font-semibold rounded-lg transition-colors"
+          >
+            + Add Part
+          </Link>
+        </div>
+
+        {error && <ErrorBanner message={error} />}
+
+        {/* Toolbar */}
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by name, part number, or revision…"
+              className="flex-1 min-w-52 bg-paper border border-steel/40 rounded-lg px-3 py-2 text-sm text-ink placeholder-steel focus:outline-none focus:border-crimson"
+            />
             <button
               type="button"
-              onClick={() => {
-                setCreating(true);
-                setBanner(null);
-              }}
-              className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-sm font-semibold rounded-lg transition-colors"
+              onClick={() => setFiltersOpen((o) => !o)}
+              className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                filtersOpen || activeFilterCount > 0
+                  ? "bg-crimson-tint border-crimson/40 text-crimson-dark"
+                  : "bg-paper border-steel/40 text-steel-dark hover:border-steel"
+              }`}
             >
-              + New Part
+              Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
             </button>
+            <label className="flex items-center gap-2 text-sm text-steel-dark">
+              Sort
+              <select
+                value={sort}
+                onChange={(e) => setSort(e.target.value as SortKey)}
+                className="bg-paper border border-steel/40 rounded-lg px-2.5 py-2 text-sm text-ink focus:outline-none focus:border-crimson"
+              >
+                <option value="newest">Newest first</option>
+                <option value="oldest">Oldest first</option>
+                <option value="alpha">A–Z</option>
+                <option value="priority">Priority first</option>
+                <option value="process">By process</option>
+                <option value="status">By status</option>
+                <option value="subsystem">By subsystem</option>
+              </select>
+            </label>
+          </div>
+
+          {filtersOpen && data && (
+            <div className="bg-paper border border-steel/30 rounded-xl p-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              <FilterSelect
+                label="Priority"
+                value={filters.priority}
+                onChange={(v) => setFilters({ ...filters, priority: v as Filters["priority"] })}
+                options={[
+                  ["all", "All"],
+                  ["priority", "Priority only"],
+                  ["standard", "Standard only"],
+                ]}
+              />
+              <FilterSelect
+                label="Subsystem"
+                value={String(filters.subsystemId)}
+                onChange={(v) => setFilters({ ...filters, subsystemId: Number(v) })}
+                options={[
+                  ["0", "All"],
+                  ...data.subsystems.map((s): [string, string] => [String(s.id), s.name]),
+                ]}
+              />
+              <FilterSelect
+                label="Process"
+                value={String(filters.processId)}
+                onChange={(v) => setFilters({ ...filters, processId: Number(v) })}
+                options={[
+                  ["0", "All"],
+                  ...data.processes.map((p): [string, string] => [String(p.id), p.name]),
+                ]}
+              />
+              <FilterSelect
+                label="Status"
+                value={filters.state}
+                onChange={(v) => setFilters({ ...filters, state: v as Filters["state"] })}
+                options={[
+                  ["", "All"],
+                  ...Object.entries(STATE_META).map(([k, m]): [string, string] => [k, m.label]),
+                ]}
+              />
+              <div className="space-y-1">
+                <span className="text-xs font-medium text-steel-dark">Revision</span>
+                <input
+                  type="text"
+                  value={filters.revision}
+                  onChange={(e) => setFilters({ ...filters, revision: e.target.value })}
+                  placeholder="e.g. B"
+                  className="w-full bg-paper border border-steel/40 rounded-lg px-2.5 py-1.5 text-sm text-ink placeholder-steel focus:outline-none focus:border-crimson"
+                />
+              </div>
+              <div className="space-y-1">
+                <span className="text-xs font-medium text-steel-dark">Min Quantity</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={filters.minQty || ""}
+                  onChange={(e) =>
+                    setFilters({ ...filters, minQty: Math.max(0, Number(e.target.value)) })
+                  }
+                  placeholder="Any"
+                  className="w-full bg-paper border border-steel/40 rounded-lg px-2.5 py-1.5 text-sm text-ink placeholder-steel focus:outline-none focus:border-crimson"
+                />
+              </div>
+              {activeFilterCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setFilters(DEFAULT_FILTERS)}
+                  className="self-end text-sm text-crimson hover:text-crimson-dark font-medium text-left pb-1.5"
+                >
+                  Clear all
+                </button>
+              )}
+            </div>
           )}
         </div>
 
-        {banner && (
-          <p className="text-red-400 text-sm bg-red-950 border border-red-800 rounded-lg px-4 py-2">
-            {banner}
-          </p>
-        )}
+        {/* Table */}
+        <div className="bg-paper border border-steel/30 rounded-xl overflow-hidden">
+          <div className="flex items-center gap-3 px-3 py-2 border-b border-steel/25 bg-mist text-xs font-semibold uppercase tracking-wider text-steel">
+            <span className="w-8 shrink-0" />
+            <span className="w-3.5 shrink-0" />
+            <span className="flex-1 min-w-0">Part</span>
+            <span className="w-44 shrink-0 hidden sm:block">Number / Rev</span>
+            <span className="w-36 shrink-0 hidden md:block">Process</span>
+            <span className="w-28 shrink-0">Status</span>
+          </div>
 
-        {creating && (
-          <div className="bg-gray-900 rounded-xl border border-gray-700 p-5 space-y-3">
-            <h2 className="font-semibold text-gray-200">New Part</h2>
+          {groups.length === 0 && (
+            <p className="text-steel text-sm text-center py-12">
+              {rows.length === 0
+                ? "No parts in production yet. Add one to get started."
+                : "No parts match your search or filters."}
+            </p>
+          )}
 
-            {subsystems.length === 0 ? (
-              <p className="text-yellow-400 text-sm">Create a subsystem in Settings first.</p>
-            ) : (
-              <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <Field
-                    label="Name"
-                    value={form.name}
-                    onChange={(v) => setForm({ ...form, name: v })}
-                    placeholder="Front left bracket"
-                  />
-                  <div className="space-y-1">
-                    <span className="text-xs font-medium text-gray-400">Subsystem</span>
-                    <select
-                      value={form.subsystemId}
-                      onChange={(e) => setForm({ ...form, subsystemId: Number(e.target.value) })}
-                      className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-red-500"
-                    >
-                      <option value={0}>Select…</option>
-                      {subsystems.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <Field
-                    label="Onshape Part #"
-                    value={form.onshapePartNumber}
-                    onChange={(v) => setForm({ ...form, onshapePartNumber: v })}
-                    placeholder="0001"
-                  />
-                  <Field
-                    label="Revision"
-                    value={form.revision}
-                    onChange={(v) => setForm({ ...form, revision: v })}
-                    placeholder="A"
-                  />
-                  <Field
-                    label="Drawing URL (optional)"
-                    value={form.partDrawingUrl}
-                    onChange={(v) => setForm({ ...form, partDrawingUrl: v })}
-                    placeholder="https://…"
-                  />
-                  <Field
-                    label="Notes (optional)"
-                    value={form.notes}
-                    onChange={(v) => setForm({ ...form, notes: v })}
-                    placeholder=""
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <span className="text-xs font-medium text-gray-400">
-                    Process blueprint (tap in order)
-                  </span>
-                  {processes.length === 0 ? (
-                    <p className="text-gray-600 text-sm">No processes — add some in Settings.</p>
-                  ) : (
-                    <div className="flex flex-wrap gap-2">
-                      {processes.map((p) => {
-                        const pos = selectedProcessIds.indexOf(p.id);
-                        const selected = pos !== -1;
-                        return (
-                          <button
-                            key={p.id}
-                            type="button"
-                            onClick={() => toggleProcess(p.id)}
-                            className={`px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors ${
-                              selected
-                                ? "bg-red-600 border-red-500 text-white"
-                                : "bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500"
-                            }`}
-                          >
-                            {selected && <span className="font-bold mr-1">{pos + 1}.</span>}
-                            {p.name}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                {createError && <p className="text-red-400 text-xs">{createError}</p>}
-                <div className="flex gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={handleCreate}
-                    className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-sm font-semibold rounded-lg"
-                  >
-                    Create
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCreating(false);
-                      setCreateError("");
-                      setSelectedProcessIds([]);
-                    }}
-                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-200 text-sm rounded-lg"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </>
+          <div className="divide-y divide-steel/15">
+            {groups.map((group) =>
+              group.map((row, i) => (
+                <PartRow
+                  key={row.instance.id}
+                  row={row}
+                  connector={
+                    group.length === 1
+                      ? "only"
+                      : i === 0
+                        ? "first"
+                        : i === group.length - 1
+                          ? "last"
+                          : "middle"
+                  }
+                  processName={processName}
+                  onOpen={() => setSelectedInstanceId(row.instance.id)}
+                />
+              )),
             )}
           </div>
-        )}
-
-        {parts.length === 0 && !creating && (
-          <p className="text-gray-500 text-center py-12">
-            No parts yet. Create one to get started.
-          </p>
-        )}
-
-        {[...grouped, ...(orphans.length ? [{ subsystem: null, parts: orphans }] : [])].map(
-          (group) => (
-            <section key={group.subsystem?.id ?? "orphans"} className="space-y-2">
-              <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500">
-                {group.subsystem?.name ?? "Other"}
-              </h2>
-              <div className="space-y-2">
-                {group.parts.map((part) => (
-                  <button
-                    key={part.id}
-                    type="button"
-                    onClick={() => navigate(`/parts/${part.id}`)}
-                    className="w-full bg-gray-900 hover:bg-gray-800 border border-gray-700 hover:border-gray-600 rounded-xl p-4 text-left transition-colors group"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-base font-semibold text-white group-hover:text-red-400 transition-colors truncate">
-                          {part.name}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-0.5 font-mono">
-                          {part.onshapePartNumber} · Rev {part.revision} ·{" "}
-                          {subsystemName(part.subsystemId)}
-                        </p>
-                      </div>
-                      <span className="text-gray-500 group-hover:text-red-400 transition-colors shrink-0">
-                        →
-                      </span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </section>
-          ),
-        )}
+        </div>
       </div>
+
+      {selectedRow && data && (
+        <PartCard
+          row={selectedRow}
+          data={data}
+          onClose={() => setSelectedInstanceId(null)}
+          onChanged={refresh}
+        />
+      )}
     </main>
   );
 }
 
-function Field({
+function PartRow({
+  row,
+  connector,
+  processName,
+  onOpen,
+}: {
+  row: InstanceRow;
+  connector: "only" | "first" | "middle" | "last";
+  processName: (pid: number) => string;
+  onOpen: () => void;
+}) {
+  const meta = STATE_META[row.state];
+  return (
+    <div className="relative flex items-center gap-3 px-3 py-2.5 hover:bg-mist/70 transition-colors">
+      {row.instance.isPriority ? (
+        <span
+          className="absolute left-0 inset-y-0 w-1 bg-amber-400"
+          title="Priority part"
+        />
+      ) : null}
+
+      <button
+        type="button"
+        onClick={onOpen}
+        title="View part details"
+        aria-label="View part details"
+        className="w-8 h-8 shrink-0 rounded-lg text-steel hover:text-ink hover:bg-steel-tint text-lg leading-none transition-colors"
+      >
+        ⋮
+      </button>
+
+      <Connector pos={connector} />
+
+      <span
+        className="flex-1 min-w-0 text-sm font-medium text-ink truncate"
+        title={`Part name: ${row.definition.name} (instance #${row.instance.instanceNumber})`}
+      >
+        {row.definition.name}
+        <span className="text-steel font-normal ml-1.5">#{row.instance.instanceNumber}</span>
+      </span>
+
+      <span
+        className="w-44 shrink-0 hidden sm:block text-sm font-mono text-steel-dark truncate"
+        title={`Onshape part number ${row.definition.onshapePartNumber}, revision ${row.definition.revision}`}
+      >
+        {row.definition.onshapePartNumber} · Rev {row.definition.revision}
+      </span>
+
+      <span
+        className="w-36 shrink-0 hidden md:block text-sm text-ink truncate"
+        title={
+          row.current
+            ? `Current process: ${processName(row.current.processId)}`
+            : "No current process"
+        }
+      >
+        {row.current ? processName(row.current.processId) : "—"}
+      </span>
+
+      <span className="w-28 shrink-0" title={`Status: ${meta.label}`}>
+        <span
+          className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full border ${meta.badge}`}
+        >
+          {meta.label}
+        </span>
+      </span>
+    </div>
+  );
+}
+
+/** Vertical line tying instances of the same blueprint together. */
+function Connector({ pos }: { pos: "only" | "first" | "middle" | "last" }) {
+  if (pos === "only") return <span className="w-3.5 shrink-0" />;
+  return (
+    <span className="relative w-3.5 self-stretch shrink-0" aria-hidden="true">
+      <span
+        className={`absolute left-1/2 -translate-x-1/2 w-px bg-steel/50 ${
+          pos === "first" ? "top-1/2 bottom-0" : pos === "last" ? "top-0 bottom-1/2" : "inset-y-0"
+        }`}
+      />
+      <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-steel/60" />
+    </span>
+  );
+}
+
+function FilterSelect({
   label,
   value,
   onChange,
-  placeholder,
+  options,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
-  placeholder?: string;
+  options: [string, string][];
 }) {
   return (
     <div className="space-y-1">
-      <span className="text-xs font-medium text-gray-400">{label}</span>
-      <input
-        type="text"
+      <span className="text-xs font-medium text-steel-dark">{label}</span>
+      <select
         value={value}
-        placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-red-500"
-      />
+        className="w-full bg-paper border border-steel/40 rounded-lg px-2.5 py-1.5 text-sm text-ink focus:outline-none focus:border-crimson"
+      >
+        {options.map(([v, l]) => (
+          <option key={v} value={v}>
+            {l}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }

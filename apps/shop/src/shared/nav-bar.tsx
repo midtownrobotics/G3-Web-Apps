@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, NavLink } from "react-router-dom";
 import type { PluginNavItem } from "./plugin-types";
 
 export function NavBar({ items }: { items: PluginNavItem[] }) {
@@ -24,28 +24,34 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
     [],
   );
 
+  const linkClass = ({ isActive }: { isActive: boolean }) =>
+    `relative text-sm font-medium transition-colors py-4 ${
+      isActive
+        ? "text-crimson after:absolute after:left-0 after:right-0 after:bottom-0 after:h-0.5 after:bg-crimson"
+        : "text-steel-dark hover:text-ink"
+    }`;
+
   return (
     <>
-      <nav className="relative z-50 bg-gray-900 text-white px-6 py-4 flex items-center gap-6">
-        <span className="font-bold text-red-400 mr-4 tracking-tight">G3 Shop</span>
+      <nav className="sticky top-0 z-50 bg-paper border-b border-steel/25 px-6 flex items-center gap-8 h-14">
+        <Link to="/" className="font-display text-2xl text-crimson tracking-wide leading-none">
+          G3 SHOP
+        </Link>
 
-        <div className="hidden md:flex items-center gap-6">
+        <div className="hidden md:flex items-center gap-7 h-full">
           {items.map((item) => (
-            <Link
-              key={item.to}
-              to={item.to}
-              className="text-sm text-gray-300 hover:text-red-400 transition-colors"
-            >
+            <NavLink key={item.to} to={item.to} end={item.to === "/"} className={linkClass}>
               {item.label}
-            </Link>
+            </NavLink>
           ))}
-          <a
-            className="text-sm text-gray-300 hover:text-red-400 transition-colors"
-            href="https://web.g3robotics.com/members"
-          >
-            All Apps
-          </a>
         </div>
+
+        <a
+          className="hidden md:block ml-auto text-sm font-medium text-steel-dark hover:text-ink transition-colors"
+          href="https://web.g3robotics.com/members"
+        >
+          All Apps
+        </a>
 
         <div className="ml-auto md:hidden">
           <button
@@ -55,13 +61,13 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
             aria-label="Toggle menu"
           >
             <span
-              className={`block w-6 h-0.5 bg-white group-hover:bg-red-400 transition-all duration-200 ${open ? "translate-y-2 rotate-45" : ""}`}
+              className={`block w-6 h-0.5 bg-ink group-hover:bg-crimson transition-all duration-200 ${open ? "translate-y-2 rotate-45" : ""}`}
             />
             <span
-              className={`block w-6 h-0.5 bg-white group-hover:bg-red-400 transition-all duration-200 ${open ? "opacity-0" : ""}`}
+              className={`block w-6 h-0.5 bg-ink group-hover:bg-crimson transition-all duration-200 ${open ? "opacity-0" : ""}`}
             />
             <span
-              className={`block w-6 h-0.5 bg-white group-hover:bg-red-400 transition-all duration-200 ${open ? "-translate-y-2 -rotate-45" : ""}`}
+              className={`block w-6 h-0.5 bg-ink group-hover:bg-crimson transition-all duration-200 ${open ? "-translate-y-2 -rotate-45" : ""}`}
             />
           </button>
         </div>
@@ -69,20 +75,20 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
 
       {open && (
         <div
-          className={`fixed inset-0 z-40 bg-gray-900 flex flex-col px-8 pt-24 gap-8 md:hidden transition-opacity duration-200 ${visible ? "opacity-100" : "opacity-0"}`}
+          className={`fixed inset-0 z-40 bg-paper flex flex-col px-8 pt-24 gap-8 md:hidden transition-opacity duration-200 ${visible ? "opacity-100" : "opacity-0"}`}
         >
           {items.map((item) => (
             <Link
               key={item.to}
               to={item.to}
               onClick={closeMenu}
-              className="text-2xl font-bold text-gray-100 hover:text-red-400 transition-colors"
+              className="text-2xl font-bold text-ink hover:text-crimson transition-colors"
             >
               {item.label}
             </Link>
           ))}
           <a
-            className="text-2xl font-bold text-gray-100 hover:text-red-400 transition-colors"
+            className="text-2xl font-bold text-ink hover:text-crimson transition-colors"
             href="https://web.g3robotics.com/members"
           >
             All Apps
