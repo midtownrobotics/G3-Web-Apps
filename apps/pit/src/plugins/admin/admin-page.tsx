@@ -7,6 +7,7 @@ export function AdminPage() {
   const { user, loading: authLoading } = useAuth();
 
   const [eventKey, setEventKey] = useState("");
+  const [nexusEventKey, setNexusEventKey] = useState("");
   const [tbaAuthKey, setTbaAuthKey] = useState("");
   const [nexusApiKey, setNexusApiKey] = useState("");
   const [teamNumber, setTeamNumber] = useState("");
@@ -28,6 +29,7 @@ export function AdminPage() {
       .then((data) => {
         if (data) {
           setEventKey(data.eventKey);
+          setNexusEventKey(data.nexusEventKey);
           setTbaAuthKey(data.tbaAuthKey);
           setNexusApiKey(data.nexusApiKey);
           setTeamNumber(data.teamNumber);
@@ -43,6 +45,7 @@ export function AdminPage() {
     const res = await api.admin.settings.$patch({
       json: {
         eventKey: eventKey.trim(),
+        nexusEventKey: nexusEventKey.trim(),
         tbaAuthKey: tbaAuthKey.trim(),
         nexusApiKey: nexusApiKey.trim(),
       },
@@ -88,18 +91,29 @@ export function AdminPage() {
           <div>
             <h2 className="text-lg font-semibold text-gray-200">Event & API Configuration</h2>
             <p className="text-sm text-gray-500 mt-0.5">
-              Team {teamNumber}. Used by the Pit Monitor for Nexus, TBA, and Statbotics data.
+              Team {teamNumber}. Nexus and TBA event keys can be different (especially for
+              offseason).
             </p>
           </div>
 
           <Field
             id="event-key"
-            label="Event Key"
+            label="TBA Event Key"
             placeholder="e.g. 2026gacmp"
             value={eventKey}
             onChange={setEventKey}
             onSaved={() => setSaved(false)}
-            hint="The Blue Alliance event key (year + event code). Leave blank to disable monitor data."
+            hint="The Blue Alliance event key (year + event code). Used for rankings, matches, and status."
+          />
+
+          <Field
+            id="nexus-event-key"
+            label="Nexus Event Key"
+            placeholder="e.g. 2026gacmp"
+            value={nexusEventKey}
+            onChange={setNexusEventKey}
+            onSaved={() => setSaved(false)}
+            hint="Nexus event key (can differ from TBA, especially for offseason). Leave blank to disable Nexus data."
           />
 
           <Field
