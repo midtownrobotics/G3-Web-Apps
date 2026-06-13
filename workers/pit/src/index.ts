@@ -625,7 +625,11 @@ const app = base
     // Build context rankings: top 3 and teams around us
     let contextRankings: Array<{ rank: number; team: string }> | null = null;
     if (tbaRankingsAny?.rankings && Array.isArray(tbaRankingsAny.rankings) && ourRank) {
-      const top3 = tbaRankingsAny.rankings.slice(0, 3).map((r: any) => ({
+      interface TbaRanking {
+        rank: number;
+        team_key: string;
+      }
+      const top3 = tbaRankingsAny.rankings.slice(0, 3).map((r: TbaRanking) => ({
         rank: r.rank as number,
         team: (r.team_key as string).replace("frc", ""),
       }));
@@ -650,14 +654,14 @@ const app = base
       }
 
       const context = contextRanks
-        .map((r) => tbaRankingsAny.rankings.find((rank: any) => rank.rank === r))
+        .map((r) => tbaRankingsAny.rankings.find((rank: TbaRanking) => rank.rank === r))
         .filter(Boolean)
-        .map((r: any) => ({
+        .map((r: TbaRanking) => ({
           rank: r.rank as number,
           team: (r.team_key as string).replace("frc", ""),
         }));
 
-      contextRankings = { top3, context } as any;
+      contextRankings = { top3, context } as Array<{ rank: number; team: string }>;
     }
 
     return c.json({ teamNumber: team, nexus, ranking, contextRankings });

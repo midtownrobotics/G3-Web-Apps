@@ -16,7 +16,7 @@ export function AdminPage() {
   const [banner, setBanner] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
-  const isAdmin = user?.isAdmin == true;
+  const isAdmin = user?.isAdmin === true;
 
   useEffect(() => {
     if (!isAdmin) {

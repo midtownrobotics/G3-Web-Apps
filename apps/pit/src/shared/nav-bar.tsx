@@ -47,7 +47,7 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
               {item.label}
             </Link>
           ))}
-          {user?.isAdmin == true && (
+          {user?.isAdmin === true && (
             <Link
               to="/admin"
               className="text-sm text-gray-300 hover:text-red-400 transition-colors"
