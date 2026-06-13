@@ -40,8 +40,8 @@ function layout(nodes) {
 
   // 3. Radial positioning: place nodes in rings around center
   const pos = {};
-  const radiusStart = 150;
-  const radiusStep = 160;
+  const radiusStart = 0;
+  const radiusStep = 180;
 
   // Calculate actual canvas dimensions based on max radius
   const maxRadius = radiusStart + maxRank * radiusStep + NW;
