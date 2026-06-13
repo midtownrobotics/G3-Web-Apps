@@ -623,7 +623,12 @@ const app = base
         : null;
 
     // Build context rankings: top 3 and teams around us
-    let contextRankings: Array<{ rank: number; team: string }> | null = null;
+    interface RankingInfo {
+      rank: number;
+      team: string;
+    }
+    type ContextRankings = { top3: RankingInfo[]; context: RankingInfo[] } | null;
+    let contextRankings: ContextRankings = null;
     if (tbaRankingsAny?.rankings && Array.isArray(tbaRankingsAny.rankings) && ourRank) {
       interface TbaRanking {
         rank: number;
@@ -661,7 +666,7 @@ const app = base
           team: (r.team_key as string).replace("frc", ""),
         }));
 
-      contextRankings = { top3, context } as Array<{ rank: number; team: string }>;
+      contextRankings = { top3, context };
     }
 
     return c.json({ teamNumber: team, nexus, ranking, contextRankings });
