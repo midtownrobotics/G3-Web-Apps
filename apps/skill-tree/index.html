@@ -66,6 +66,16 @@
   </div>
 </div>
 
+<!-- Sub-tree overlay — opened when a category box is clicked -->
+<div class="subtree-backdrop" id="subtreeBackdrop" onclick="closeSubtree()"></div>
+<div class="subtree-overlay" id="subtreeOverlay">
+  <div class="subtree-head">
+    <button class="subtree-back" onclick="closeSubtree()">← Back</button>
+    <div class="subtree-title" id="subtreeTitle"></div>
+  </div>
+  <div class="subtree-scroll"><div class="subtree-canvas" id="subtreeCanvas"></div></div>
+</div>
+
 <div class="view" id="vMn">
   <div class="ov-wrap">
     <div class="ov-title">Mentors</div>
