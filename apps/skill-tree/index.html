@@ -82,14 +82,22 @@
   </div>
   <div class="p-body">
     <div><div class="sbadge" id="pBadge"><div class="sb-dot"></div><span id="pSt"></span></div></div>
-    <div><div class="sec">Description</div><div class="p-desc" id="pDesc"></div></div>
-    <div id="pPreSec"><div class="sec">Prerequisites</div><div class="pr-list" id="pPre"></div></div>
-    <div id="pUpdateSec">
-      <div class="sec">Update Progress</div>
-      <div class="st-btns">
-        <button class="st-btn sba" id="bNS" onclick="setSt('not-started')"><span>○</span> Not Started <span class="ck">✓</span></button>
-        <button class="st-btn sbp" id="bIP" onclick="setSt('in-progress')"><span>◑</span> In Progress  <span class="ck">✓</span></button>
-        <button class="st-btn sbc" id="bC"  onclick="setSt('complete')">   <span>●</span> Complete     <span class="ck">✓</span></button>
+    <div class="sec-drop">
+      <button class="sec-header" onclick="toggleDropdown('desc')">Description <span class="sec-arrow">▼</span></button>
+      <div class="sec-content" id="descContent"><div class="p-desc" id="pDesc"></div></div>
+    </div>
+    <div id="pPreSec" class="sec-drop">
+      <button class="sec-header" onclick="toggleDropdown('prereq')">Prerequisites <span class="sec-arrow">▼</span></button>
+      <div class="sec-content" id="prereqContent"><div class="pr-list" id="pPre"></div></div>
+    </div>
+    <div id="pUpdateSec" class="sec-drop">
+      <button class="sec-header" onclick="toggleDropdown('update')">Update Progress <span class="sec-arrow">▼</span></button>
+      <div class="sec-content" id="updateContent">
+        <div class="st-btns">
+          <button class="st-btn sba" id="bNS" onclick="setSt('not-started')"><span>○</span> Not Started <span class="ck">✓</span></button>
+          <button class="st-btn sbp" id="bIP" onclick="setSt('in-progress')"><span>◑</span> In Progress  <span class="ck">✓</span></button>
+          <button class="st-btn sbc" id="bC"  onclick="setSt('complete')">   <span>●</span> Complete     <span class="ck">✓</span></button>
+        </div>
       </div>
     </div>
   </div>
