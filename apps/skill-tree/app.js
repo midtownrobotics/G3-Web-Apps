@@ -10,8 +10,8 @@ import {
 // ═══════════════════════════════════════════════════════
 // LAYOUT ENGINE
 // ═══════════════════════════════════════════════════════
-let NW=164, NH=72, CG=44;
-let LANE_H=20, STUB=24, CHAN_CLEAR=8, LANE_W=10, RG_MIN=48;
+let NW=164, NH=72, CG=60; // increased CG from 44 to 60 for better spacing
+let LANE_H=20, STUB=24, CHAN_CLEAR=16, LANE_W=16, RG_MIN=48; // increased CHAN_CLEAR and LANE_W
 let RC=18; // edge corner radius — scaled with layout constants at render time
 
 // ── LAYOUT ──────────────────────────────────────────────
@@ -88,34 +88,43 @@ function layout(nodes) {
   Object.values(pos).forEach(p => { p.x = Math.round(p.x - minX); });
   const cw = Math.max(...Object.values(pos).map(p => p.x)) + NW;
 
-  // 5. Stub-crossing nudge: break alignments between non-adjacent ranks
-  //    that would cause vertical stubs to overlap channel segments
-  const centerX = id => pos[id] ? pos[id].x + NW/2 : 0;
-  const hasCross = id => {
-    const n = nodes.find(n => n.id === id); if (!n) return false;
-    if (n.prereqs.some(pid => pos[pid] && Math.abs(centerX(pid) - centerX(id)) > 2)) return true;
-    if (nodes.some(m => m.prereqs.includes(id) && pos[m.id] && Math.abs(centerX(m.id) - centerX(id)) > 2)) return true;
-    return false;
-  };
-  for (let pass = 0; pass < 4; pass++) {
-    let nudged = false;
-    nodes.forEach(a => {
-      nodes.forEach(b => {
-        if (a.id === b.id || Math.abs(rank[a.id] - rank[b.id]) <= 1) return;
-        if (Math.abs(centerX(a.id) - centerX(b.id)) > 2) return;
-        if (!hasCross(a.id) && !hasCross(b.id)) return;
-        const target = rank[a.id] > rank[b.id] ? a : b;
-        pos[target.id].x += LANE_W;
-        nudged = true;
-        const grp2 = nodes.filter(n => rank[n.id] === rank[target.id]).sort((a,b) => pos[a.id].x - pos[b.id].x);
-        for (let i = 1; i < grp2.length; i++) {
-          const p = pos[grp2[i-1].id], c = pos[grp2[i].id];
-          if (c.x < p.x + NW + CG) c.x = p.x + NW + CG;
-        }
-      });
+  // 5. Collision avoidance: push nodes right to avoid overlap
+  Object.keys(byRank).map(Number).sort((a,b)=>a-b).forEach(r => {
+    const sorted = [...byRank[r]].sort((a,b) => pos[a.id].x - pos[b.id].x);
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = pos[sorted[i-1].id];
+      const curr = pos[sorted[i].id];
+      if (curr.x < prev.x + NW + CG) {
+        curr.x = prev.x + NW + CG;
+      }
+    }
+  });
+
+  // 5b. Recentering pass (bottom-up): pull parents back to center over children
+  Object.keys(byRank).map(Number).sort((a,b) => b-a).forEach(r => {
+    byRank[r].forEach(parent => {
+      const childrenInNextRank = nodes.filter(m => m.prereqs.includes(parent.id) && rank[m.id] === r + 1);
+      if (!childrenInNextRank.length) return;
+
+      // Calculate center under children
+      const childCenters = childrenInNextRank.map(child => pos[child.id].x + NW/2);
+      const avgChildCenter = childCenters.reduce((a,b) => a+b, 0) / childCenters.length;
+      const desiredParentX = avgChildCenter - NW/2;
+
+      // Move parent toward desired position, but not left of where it needs to be
+      pos[parent.id].x = desiredParentX;
     });
-    if (!nudged) break;
-  }
+
+    // Re-apply collision avoidance for this rank
+    const sorted = [...byRank[r]].sort((a,b) => pos[a.id].x - pos[b.id].x);
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = pos[sorted[i-1].id];
+      const curr = pos[sorted[i].id];
+      if (curr.x < prev.x + NW + CG) {
+        curr.x = prev.x + NW + CG;
+      }
+    }
+  });
 
   // 6. Assign chanX for all non-direct edges (needed before gap sizing)
   const chanXMap = {};
@@ -127,7 +136,7 @@ function layout(nodes) {
       const x1 = sp.x + NW/2, x2 = dp.x + NW/2;
       if (Math.abs(x1 - x2) < 2) return; // direct
       const nomX = (x1 + x2) / 2;
-      // Snap away from card bodies and center-x stubs
+      // Snap away from card bodies and center-x stubs with generous buffers
       const intervals = [];
       nodes.forEach(m => {
         const mr = rank[m.id];
@@ -140,12 +149,12 @@ function layout(nodes) {
         if (mr < rank[pid] || mr > rank[n.id]) return;
         const mp = pos[m.id]; if (!mp) return;
         const cx = mp.x + NW/2;
-        intervals.push([cx - LANE_W, cx + LANE_W]);
+        intervals.push([cx - LANE_W*2, cx + LANE_W*2]); // doubled buffer
       });
-      const clear = x => !intervals.some(([a,b]) => x >= a && x <= b);
+      const clear = x => !intervals.some(([a,b]) => x > a && x < b);
       let chanX = nomX;
       if (!clear(nomX)) {
-        for (let d = 2; d < canvasW; d += 2) {
+        for (let d = LANE_W; d < canvasW; d += LANE_W) {
           if (clear(nomX - d)) { chanX = nomX - d; break; }
           if (clear(nomX + d)) { chanX = nomX + d; break; }
         }
