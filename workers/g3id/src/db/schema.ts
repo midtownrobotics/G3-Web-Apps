@@ -88,3 +88,47 @@ export const coreSlackLinkCodes = sqliteTable(
     ),
   ],
 );
+
+export const coreUserPins = sqliteTable(
+  "core_user_pins",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    userId: text("user_id")
+      .notNull()
+      .unique()
+      .references(() => coreUsers.id),
+    pin: text("pin").notNull().unique(),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+);
+
+export const kioskDevices = sqliteTable(
+  "kiosk_devices",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    name: text("name").notNull(),
+    token: text("token").notNull().unique(),
+    createdBy: text("created_by")
+      .notNull()
+      .references(() => coreUsers.id),
+    createdAt: integer("created_at").notNull(),
+    lastUsedAt: integer("last_used_at"),
+    revokedAt: integer("revoked_at"),
+  },
+);
+
+export const kioskActivationCodes = sqliteTable(
+  "kiosk_activation_codes",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    code: text("code").notNull().unique(),
+    createdBy: text("created_by")
+      .notNull()
+      .references(() => coreUsers.id),
+    deviceName: text("device_name").notNull(),
+    expiresAt: integer("expires_at").notNull(),
+    used: integer("used").notNull().default(0),
+    createdAt: integer("created_at").notNull(),
+  },
+);

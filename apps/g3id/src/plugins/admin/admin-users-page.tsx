@@ -79,7 +79,7 @@ export function AdminUsersPage() {
         navigate("/login");
         return;
       }
-      const data = (await res.json()) as { id: string; isAdmin: number };
+      const data = (await res.json()) as { id: string; isAdmin?: boolean };
       if (!res.ok || !data.isAdmin) {
         navigate("/dashboard");
         return;

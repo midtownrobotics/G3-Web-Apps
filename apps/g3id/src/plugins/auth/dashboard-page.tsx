@@ -11,9 +11,11 @@ type Me = {
   email: string;
   displayName: string;
   status: string;
-  isAdmin: number;
+  isAdmin: boolean;
   createdAt: number;
   identities: Identity[];
+  sessionType: "oauth" | "pin";
+  kioskDeviceId?: number;
 };
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -33,6 +35,11 @@ export function DashboardPage() {
   const [slackCode, setSlackCode] = useState<string | null>(null);
   const [slackError, setSlackError] = useState<string | null>(null);
   const slackPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const [pin, setPin] = useState<string | null>(null);
+  const [showPin, setShowPin] = useState(false);
+  const [pinLoading, setPinLoading] = useState(false);
+  const [pinError, setPinError] = useState<string | null>(null);
 
   async function handleConnectSlack() {
     setSlackError(null);
@@ -92,6 +99,43 @@ export function DashboardPage() {
   async function handleLogout() {
     await api.auth.logout.$post();
     navigate("/login");
+  }
+
+  async function fetchPin() {
+    setPinError(null);
+    setPinLoading(true);
+    try {
+      const res = await api.auth.pin.me.$get();
+      if (!res.ok) {
+        setPinError("Failed to load PIN");
+        return;
+      }
+      const data = (await res.json()) as { pin: string };
+      setPin(data.pin);
+      setShowPin(true);
+    } catch {
+      setPinError("Failed to load PIN");
+    } finally {
+      setPinLoading(false);
+    }
+  }
+
+  async function regeneratePin() {
+    setPinError(null);
+    setPinLoading(true);
+    try {
+      const res = await api.auth.pin.regenerate.$post();
+      if (!res.ok) {
+        setPinError("Failed to regenerate PIN");
+        return;
+      }
+      const data = (await res.json()) as { pin: string };
+      setPin(data.pin);
+    } catch {
+      setPinError("Failed to regenerate PIN");
+    } finally {
+      setPinLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -223,6 +267,39 @@ export function DashboardPage() {
             </div>
           )}
         </div>
+
+        {me.sessionType === "oauth" && (
+          <div className="px-5 py-4">
+            <p className="text-xs text-gray-500 uppercase tracking-wide mb-3">Kiosk PIN</p>
+            {pin && showPin ? (
+              <div className="space-y-3">
+                <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 text-center">
+                  <p className="text-xs text-gray-400 mb-2">Your PIN</p>
+                  <p className="text-3xl font-mono font-bold text-red-400 tracking-widest">{pin}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={regeneratePin}
+                  disabled={pinLoading}
+                  className="w-full px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 disabled:opacity-50 border border-gray-700 text-sm text-gray-300 transition-colors"
+                >
+                  {pinLoading ? "Regenerating..." : "Regenerate PIN"}
+                </button>
+                {pinError && <p className="text-xs text-red-400 text-center">{pinError}</p>}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={fetchPin}
+                disabled={pinLoading}
+                className="w-full px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 disabled:opacity-50 border border-gray-700 text-sm text-gray-300 transition-colors"
+              >
+                {pinLoading ? "Loading..." : "Show PIN"}
+              </button>
+            )}
+            {pinError && <p className="text-xs text-red-400 text-center mt-2">{pinError}</p>}
+          </div>
+        )}
 
         <div className="px-5 py-4 flex items-center justify-between">
           <p className="text-xs text-gray-500">

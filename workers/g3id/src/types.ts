@@ -18,6 +18,7 @@ export type AppEnv = {
     ENVIRONMENT?: string;
   };
   Variables: {
-    userId: string;
+    userId?: string;
+    kioskDeviceId?: number;
   };
 };

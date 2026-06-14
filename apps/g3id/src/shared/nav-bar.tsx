@@ -31,9 +31,9 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
   useEffect(() => {
     api.auth.me.$get().then(async (res) => {
       if (res.ok) {
-        const data = (await res.json()) as { isAdmin?: number };
+        const data = (await res.json()) as { isAdmin?: boolean };
         setIsLoggedIn(true);
-        setIsAdmin(data.isAdmin === 1);
+        setIsAdmin(data.isAdmin ?? false);
       } else {
         setIsLoggedIn(false);
         setIsAdmin(false);
