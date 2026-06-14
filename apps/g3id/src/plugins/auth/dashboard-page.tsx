@@ -106,6 +106,18 @@ export function DashboardPage() {
     setPinLoading(true);
     try {
       const res = await api.auth.pin.me.$get();
+      if (res.status === 404) {
+        // No PIN exists yet, generate one
+        const genRes = await api.auth.pin.regenerate.$post();
+        if (!genRes.ok) {
+          setPinError("Failed to generate PIN");
+          return;
+        }
+        const data = (await genRes.json()) as { pin: string };
+        setPin(data.pin);
+        setShowPin(true);
+        return;
+      }
       if (!res.ok) {
         setPinError("Failed to load PIN");
         return;
@@ -271,6 +283,7 @@ export function DashboardPage() {
         {me.sessionType === "oauth" && (
           <div className="px-5 py-4">
             <p className="text-xs text-gray-500 uppercase tracking-wide mb-3">Kiosk PIN</p>
+            <p className="text-xs text-gray-400 mb-3">Use this PIN to access the kiosk on shop computers</p>
             {pin && showPin ? (
               <div className="space-y-3">
                 <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 text-center">
@@ -283,7 +296,7 @@ export function DashboardPage() {
                   disabled={pinLoading}
                   className="w-full px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 disabled:opacity-50 border border-gray-700 text-sm text-gray-300 transition-colors"
                 >
-                  {pinLoading ? "Regenerating..." : "Regenerate PIN"}
+                  {pinLoading ? "Regenerating..." : "Generate New PIN"}
                 </button>
                 {pinError && <p className="text-xs text-red-400 text-center">{pinError}</p>}
               </div>
@@ -294,7 +307,7 @@ export function DashboardPage() {
                 disabled={pinLoading}
                 className="w-full px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 disabled:opacity-50 border border-gray-700 text-sm text-gray-300 transition-colors"
               >
-                {pinLoading ? "Loading..." : "Show PIN"}
+                {pinLoading ? "Loading..." : "View PIN"}
               </button>
             )}
             {pinError && <p className="text-xs text-red-400 text-center mt-2">{pinError}</p>}

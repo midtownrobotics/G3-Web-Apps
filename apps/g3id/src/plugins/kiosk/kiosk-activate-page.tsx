@@ -6,7 +6,6 @@ const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
 export function KioskActivatePage() {
   const navigate = useNavigate();
   const [code, setCode] = useState("");
-  const [deviceName, setDeviceName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -26,7 +25,7 @@ export function KioskActivatePage() {
       const res = await fetch(`${apiBase}/kiosk/activate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, deviceName }),
+        body: JSON.stringify({ code }),
       });
 
       if (!res.ok) {
@@ -50,7 +49,7 @@ export function KioskActivatePage() {
       <div className="w-full max-w-md space-y-8">
         <div className="text-center">
           <h1 className="text-4xl font-bold text-white mb-2">Activate Kiosk</h1>
-          <p className="text-gray-400">Enter your activation code to set up this device</p>
+          <p className="text-gray-400">Enter the 6-digit code from your admin</p>
         </div>
 
         <form onSubmit={handleActivate} className="space-y-6">
@@ -69,24 +68,11 @@ export function KioskActivatePage() {
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Device Name
-            </label>
-            <input
-              type="text"
-              placeholder="e.g., Shop Register 1"
-              value={deviceName}
-              onChange={(e) => setDeviceName(e.target.value)}
-              className="w-full px-4 py-3 rounded-lg bg-gray-900 border border-gray-700 text-white placeholder-gray-600 focus:outline-none focus:border-red-400"
-            />
-          </div>
-
           {error && <p className="text-red-400 text-center text-sm">{error}</p>}
 
           <button
             type="submit"
-            disabled={loading || code.length !== 6 || !deviceName.trim()}
+            disabled={loading || code.length !== 6}
             className="w-full py-3 px-4 rounded-lg bg-red-600 hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold transition-colors"
           >
             {loading ? "Activating..." : "Activate Device"}

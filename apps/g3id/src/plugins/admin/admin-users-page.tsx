@@ -1,7 +1,7 @@
 import { Loader2, Shield, ShieldOff } from "lucide-react";
 import { useEffect, useState } from "react";
 import { FaGithub, FaGoogle, FaKey, FaSlack, FaSteam } from "react-icons/fa";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api } from "../../lib/api";
 
 type Identity = { provider: string; createdAt: number };
@@ -200,6 +200,21 @@ export function AdminUsersPage() {
 
   return (
     <main className="flex-1 px-4 py-8 max-w-2xl mx-auto w-full">
+      <div className="mb-6 flex gap-4 border-b border-gray-800">
+        <Link
+          to="/admin/users"
+          className="py-2 px-4 text-white font-medium border-b-2 border-red-400"
+        >
+          Users
+        </Link>
+        <Link
+          to="/admin/kiosk"
+          className="py-2 px-4 text-gray-400 hover:text-white transition-colors"
+        >
+          Kiosk Devices
+        </Link>
+      </div>
+
       <h1 className="text-2xl font-bold text-white mb-6">Users</h1>
 
       {/* Filter tabs */}

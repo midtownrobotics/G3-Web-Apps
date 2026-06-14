@@ -13,7 +13,7 @@ function generateToken(): string {
 
 export const kioskRouter = new Hono<AppEnv>()
   .post("/kiosk/activate", async (c) => {
-    let body: { code?: unknown; deviceName?: unknown };
+    let body: { code?: unknown };
     try {
       body = await c.req.json();
     } catch {
@@ -21,17 +21,21 @@ export const kioskRouter = new Hono<AppEnv>()
     }
 
     const code = typeof body.code === "string" ? body.code.trim() : "";
-    const deviceName = typeof body.deviceName === "string" ? body.deviceName.trim() : "";
 
-    if (!code || !deviceName) {
-      return c.json({ error: "Code and device name are required." }, 400);
+    if (!code) {
+      return c.json({ error: "Activation code is required." }, 400);
     }
 
     const db = createDb(c.env.DB);
     const now = Math.floor(Date.now() / 1000);
 
     const activation = await db
-      .select({ id: kioskActivationCodes.id, expiresAt: kioskActivationCodes.expiresAt, used: kioskActivationCodes.used })
+      .select({
+        id: kioskActivationCodes.id,
+        deviceName: kioskActivationCodes.deviceName,
+        expiresAt: kioskActivationCodes.expiresAt,
+        used: kioskActivationCodes.used,
+      })
       .from(kioskActivationCodes)
       .where(eq(kioskActivationCodes.code, code))
       .get();
@@ -52,9 +56,9 @@ export const kioskRouter = new Hono<AppEnv>()
 
     await db.batch([
       db.insert(kioskDevices).values({
-        name: deviceName,
+        name: activation.deviceName,
         token,
-        createdBy: "system", // This will be set by the admin creating the code
+        createdBy: "system",
         createdAt: now,
       }),
       db
