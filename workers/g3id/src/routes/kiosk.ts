@@ -33,6 +33,7 @@ export const kioskRouter = new Hono<AppEnv>()
       .select({
         id: kioskActivationCodes.id,
         deviceName: kioskActivationCodes.deviceName,
+        createdBy: kioskActivationCodes.createdBy,
         expiresAt: kioskActivationCodes.expiresAt,
         used: kioskActivationCodes.used,
       })
@@ -58,7 +59,7 @@ export const kioskRouter = new Hono<AppEnv>()
       db.insert(kioskDevices).values({
         name: activation.deviceName,
         token,
-        createdBy: "system",
+        createdBy: activation.createdBy,
         createdAt: now,
       }),
       db
