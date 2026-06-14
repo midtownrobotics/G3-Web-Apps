@@ -82,6 +82,9 @@ export const coreSlackLinkCodes = sqliteTable(
   },
   (table) => [
     check("core_slack_link_codes_type_check", sql`${table.type} IN ('signin', 'link')`),
-    check("core_slack_link_codes_status_check", sql`${table.status} IN ('pending', 'success', 'failed', 'linked', 'signup_pending')`),
+    check(
+      "core_slack_link_codes_status_check",
+      sql`${table.status} IN ('pending', 'success', 'failed', 'linked', 'signup_pending')`,
+    ),
   ],
 );
