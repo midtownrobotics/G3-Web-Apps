@@ -17,6 +17,7 @@ binding = "RATE_LIMIT"
 id = "45e7485d5f0e4f2abf76bd6400e64897"
 
 [vars]
+ENVIRONMENT = "development"
 GOOGLE_CLIENT_ID = "26070176131-lom1rtgi2tmahrd12md7452oieha1vbl.apps.googleusercontent.com"
 GOOGLE_REDIRECT_URI = "http://localhost:5173/api/auth/google/callback"
 GITHUB_CLIENT_ID = "Ov23liIzEnTs03zGJPKJ"
@@ -43,6 +44,7 @@ binding = "RATE_LIMIT"
 id = "d36a0313dd774bf78bacd76250ec085a"
 
 [env.production.vars]
+ENVIRONMENT = "production"
 GOOGLE_CLIENT_ID = "26070176131-lom1rtgi2tmahrd12md7452oieha1vbl.apps.googleusercontent.com"
 GOOGLE_REDIRECT_URI = "https://api.g3id.g3robotics.com/auth/google/callback"
 GITHUB_CLIENT_ID = "Ov23liIzEnTs03zGJPKJ"

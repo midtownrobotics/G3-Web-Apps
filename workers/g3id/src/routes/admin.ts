@@ -1,7 +1,14 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, or } from "drizzle-orm";
 import { Hono } from "hono";
 import { createDb } from "../db";
-import { coreSessions, coreSlackLinkCodes, coreUserIdentities, coreUsers } from "../db/schema";
+import {
+  coreSessions,
+  coreSlackLinkCodes,
+  coreUserIdentities,
+  coreUsers,
+  kioskActivationCodes,
+  kioskDevices,
+} from "../db/schema";
 import { sendDM } from "../lib/slack-api";
 import { requireAdmin } from "../middleware/auth";
 import type { AppEnv } from "../types";
@@ -227,4 +234,73 @@ export const adminRouter = new Hono<AppEnv>()
       .where(eq(coreUsers.id, id));
 
     return c.json({ message: "User demoted." });
+  })
+  .post("/kiosk/codes", async (c) => {
+    const userId = c.get("userId") as string;
+    let body: { deviceName?: unknown };
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: "Invalid request body." }, 400);
+    }
+
+    const deviceName = typeof body.deviceName === "string" ? body.deviceName.trim() : "";
+    if (!deviceName) {
+      return c.json({ error: "Device name is required." }, 400);
+    }
+
+    const code = (crypto.getRandomValues(new Uint32Array(1))[0] % 1000000)
+      .toString()
+      .padStart(6, "0");
+    const now = Math.floor(Date.now() / 1000);
+    const expiresAt = now + 30 * 60;
+
+    const db = createDb(c.env.DB);
+
+    await db.insert(kioskActivationCodes).values({
+      code,
+      createdBy: userId,
+      deviceName,
+      expiresAt,
+      createdAt: now,
+    });
+
+    return c.json({ code, expiresAt });
+  })
+  .get("/kiosk/devices", async (c) => {
+    const db = createDb(c.env.DB);
+    const now = Math.floor(Date.now() / 1000);
+    const fifteenMinutesAgo = now - 15 * 60;
+
+    const devices = await db
+      .select()
+      .from(kioskDevices)
+      .where(or(isNull(kioskDevices.revokedAt), gt(kioskDevices.revokedAt, fifteenMinutesAgo)))
+      .all();
+    return c.json(devices);
+  })
+  .delete("/kiosk/devices/:id", async (c) => {
+    const id = c.req.param("id");
+    const deviceId = Number.parseInt(id, 10);
+
+    if (Number.isNaN(deviceId)) {
+      return c.json({ error: "Invalid device ID." }, 400);
+    }
+
+    const db = createDb(c.env.DB);
+    const now = Math.floor(Date.now() / 1000);
+
+    const device = await db
+      .select({ id: kioskDevices.id })
+      .from(kioskDevices)
+      .where(eq(kioskDevices.id, deviceId))
+      .get();
+
+    if (!device) {
+      return c.json({ error: "Device not found." }, 404);
+    }
+
+    await db.update(kioskDevices).set({ revokedAt: now }).where(eq(kioskDevices.id, deviceId));
+
+    return c.json({ success: true });
   });

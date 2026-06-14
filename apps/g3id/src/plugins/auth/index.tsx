@@ -1,7 +1,6 @@
 import type { Plugin } from "../../shared/plugin-types";
 import { DashboardPage } from "./dashboard-page";
 import { EmailLoginPage } from "./email-login-page";
-import { EmailSignupPage } from "./email-signup-page";
 import { LoginPage } from "./login-page";
 import { OAuthErrorPage } from "./oauth-error-page";
 import { PendingPage } from "./pending-page";
@@ -16,7 +15,6 @@ export const authPlugin: Plugin = {
     { path: "/login/error", element: <OAuthErrorPage /> },
     { path: "/login/slack", element: <SlackLoginPage /> },
     { path: "/signup", element: <SignupPage /> },
-    { path: "/signup/email", element: <EmailSignupPage /> },
     { path: "/signup/pending", element: <PendingPage /> },
     { path: "/dashboard", element: <DashboardPage /> },
     { path: "/", element: <DashboardPage /> },

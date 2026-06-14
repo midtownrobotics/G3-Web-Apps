@@ -5,8 +5,10 @@ import { authRouter } from "./routes/auth";
 import { emailAuthRouter } from "./routes/auth/email";
 import { githubAuthRouter } from "./routes/auth/github";
 import { googleAuthRouter } from "./routes/auth/google";
+import { pinAuthRouter } from "./routes/auth/pin";
 import { slackAuthRouter } from "./routes/auth/slack";
 import { steamAuthRouter } from "./routes/auth/steam";
+import { kioskRouter } from "./routes/kiosk";
 import { slackRouter } from "./routes/slack";
 import type { AppEnv } from "./types";
 
@@ -40,10 +42,12 @@ const app = base
   .route("/auth", emailAuthRouter)
   .route("/auth", githubAuthRouter)
   .route("/auth", googleAuthRouter)
+  .route("/auth", pinAuthRouter)
   .route("/auth", slackAuthRouter)
   .route("/auth", steamAuthRouter)
   .route("/admin", adminRouter)
-  .route("/slack", slackRouter);
+  .route("/", kioskRouter)
+  .route("/", slackRouter);
 
 export type G3IDApp = typeof app;
 export default app;

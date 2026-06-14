@@ -1,4 +1,4 @@
-import { KeySquare, Loader2, Shield } from "lucide-react";
+import { Loader2, Shield } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { FaGithub, FaGoogle, FaSlack, FaSteam } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
@@ -11,9 +11,11 @@ type Me = {
   email: string;
   displayName: string;
   status: string;
-  isAdmin: number;
+  isAdmin: boolean;
   createdAt: number;
   identities: Identity[];
+  sessionType: "oauth" | "pin";
+  kioskDeviceId?: number;
 };
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -29,14 +31,15 @@ export function DashboardPage() {
   const navigate = useNavigate();
   const [me, setMe] = useState<Me | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [newPassword, setNewPassword] = useState("");
-  const [passwordLoading, setPasswordLoading] = useState(false);
-  const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [passwordDone, setPasswordDone] = useState(false);
 
   const [slackCode, setSlackCode] = useState<string | null>(null);
   const [slackError, setSlackError] = useState<string | null>(null);
   const slackPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const [pin, setPin] = useState<string | null>(null);
+  const [showPin, setShowPin] = useState(false);
+  const [pinLoading, setPinLoading] = useState(false);
+  const [pinError, setPinError] = useState<string | null>(null);
 
   async function handleConnectSlack() {
     setSlackError(null);
@@ -93,34 +96,63 @@ export function DashboardPage() {
     [],
   );
 
-  async function handleSetPassword(e: React.SyntheticEvent) {
-    e.preventDefault();
-    setPasswordLoading(true);
-    setPasswordError(null);
-    const res = await api.auth.password.$post({ json: { password: newPassword } });
-    const data = (await res.json()) as { ok?: boolean; error?: string };
-    setPasswordLoading(false);
-    if (!res.ok) {
-      setPasswordError(data.error ?? "Something went wrong.");
-      return;
-    }
-    setPasswordDone(true);
-    setMe((prev) =>
-      prev
-        ? {
-            ...prev,
-            identities: [
-              ...prev.identities,
-              { provider: "local", createdAt: Math.floor(Date.now() / 1000) },
-            ],
-          }
-        : prev,
-    );
-  }
-
   async function handleLogout() {
     await api.auth.logout.$post();
     navigate("/login");
+  }
+
+  async function fetchPin() {
+    setPinError(null);
+    setPinLoading(true);
+    try {
+      const res = await api.auth.pin.me.$get();
+      if (res.status === 404) {
+        // No PIN exists yet, generate one
+        const genRes = await api.auth.pin.regenerate.$post();
+        if (!genRes.ok) {
+          setPinError("Failed to generate PIN");
+          return;
+        }
+        const data = (await genRes.json()) as { pin: string };
+        setPin(data.pin);
+        setShowPin(true);
+        return;
+      }
+      if (!res.ok) {
+        setPinError("Failed to load PIN");
+        return;
+      }
+      const data = (await res.json()) as { pin: string };
+      setPin(data.pin);
+      setShowPin(true);
+    } catch {
+      setPinError("Failed to load PIN");
+    } finally {
+      setPinLoading(false);
+    }
+  }
+
+  async function regeneratePin() {
+    const confirmed = window.confirm(
+      "Generate a new PIN? Your old PIN will no longer work on kiosks.",
+    );
+    if (!confirmed) return;
+
+    setPinError(null);
+    setPinLoading(true);
+    try {
+      const res = await api.auth.pin.regenerate.$post();
+      if (!res.ok) {
+        setPinError("Failed to regenerate PIN");
+        return;
+      }
+      const data = (await res.json()) as { pin: string };
+      setPin(data.pin);
+    } catch {
+      setPinError("Failed to regenerate PIN");
+    } finally {
+      setPinLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -145,7 +177,7 @@ export function DashboardPage() {
   if (error) {
     return (
       <main className="flex-1 flex items-center justify-center px-4">
-        <p className="text-sm text-red-400">{error}</p>
+        <p className="text-sm text-primary-400">{error}</p>
       </main>
     );
   }
@@ -153,23 +185,23 @@ export function DashboardPage() {
   if (!me) {
     return (
       <main className="flex-1 flex items-center justify-center px-4">
-        <Loader2 size={24} className="animate-spin text-gray-500" />
+        <Loader2 size={24} className="animate-spin text-secondary-300" />
       </main>
     );
   }
 
   return (
     <main className="flex-1 px-6 py-8 max-w-lg mx-auto w-full">
-      <h1 className="text-3xl font-bold text-white mb-4 text-center">Dashboard</h1>
+      <h1 className="text-5xl font-bold text-white mb-4 text-center">Dashboard</h1>
 
-      <div className="bg-gray-900 border border-gray-800 rounded-lg divide-y divide-gray-800 mt-4">
+      <div className="bg-secondary-700 border border-secondary-600 rounded-lg divide-y divide-gray-800 mt-4">
         <div className="px-5 py-4 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full bg-gray-800 flex items-center justify-center text-lg font-semibold text-gray-300 shrink-0">
+          <div className="w-12 h-12 rounded-full bg-primary-500 flex items-center justify-center text-lg font-semibold text-white shrink-0">
             {me.displayName.charAt(0).toUpperCase()}
           </div>
           <div className="min-w-0">
             <p className="text-white font-semibold truncate">{me.displayName}</p>
-            <p className="text-gray-400 text-sm truncate">{me.email}</p>
+            <p className="text-secondary-200 text-sm truncate">{me.email}</p>
           </div>
           <span className="ml-auto text-xs px-2.5 py-0.5 rounded-full border capitalize bg-green-500/20 text-green-300 border-green-500/30 shrink-0">
             {me.status}
@@ -177,14 +209,14 @@ export function DashboardPage() {
         </div>
 
         <div className="px-5 py-4">
-          <p className="text-xs text-gray-500 uppercase tracking-wide mb-3">Sign-in methods</p>
+          <p className="text-xs text-secondary-300 uppercase tracking-wide mb-3">Sign-in methods</p>
           <div className="space-y-2">
             {me.identities.map((identity) => (
               <div key={identity.provider} className="flex items-center justify-between text-sm">
                 <span className="text-white">
                   {PROVIDER_LABELS[identity.provider] ?? identity.provider}
                 </span>
-                <span className="text-gray-500 text-xs">
+                <span className="text-secondary-300 text-xs">
                   Added {new Date(identity.createdAt * 1000).toLocaleDateString()}
                 </span>
               </div>
@@ -194,7 +226,7 @@ export function DashboardPage() {
           {!me.identities.some((i) => i.provider === "google") && (
             <a
               href={`${import.meta.env.VITE_API_BASE_URL}/auth/google/link`}
-              className="mt-3 w-full flex items-center justify-center gap-2 rounded-lg bg-gray-800 border border-gray-700 hover:border-red-400 px-4 py-2 text-sm text-gray-300 transition-colors"
+              className="mt-3 w-full flex items-center justify-center gap-2 rounded-lg bg-primary-500 hover:bg-primary-600 px-4 py-2 text-sm text-white transition-colors"
             >
               <FaGoogle size={16} />
               Connect Google
@@ -203,7 +235,7 @@ export function DashboardPage() {
           {!me.identities.some((i) => i.provider === "github") && (
             <a
               href={`${import.meta.env.VITE_API_BASE_URL}/auth/github/link`}
-              className="mt-3 w-full flex items-center justify-center gap-2 rounded-lg bg-gray-800 border border-gray-700 hover:border-red-400 px-4 py-2 text-sm text-gray-300 transition-colors"
+              className="mt-3 w-full flex items-center justify-center gap-2 rounded-lg bg-primary-500 hover:bg-primary-600 px-4 py-2 text-sm text-white transition-colors"
             >
               <FaGithub size={16} />
               Connect GitHub
@@ -212,7 +244,7 @@ export function DashboardPage() {
           {!me.identities.some((i) => i.provider === "steam") && (
             <a
               href={`${import.meta.env.VITE_API_BASE_URL}/auth/steam/link`}
-              className="mt-3 w-full flex items-center justify-center gap-2 rounded-lg bg-gray-800 border border-gray-700 hover:border-red-400 px-4 py-2 text-sm text-gray-300 transition-colors"
+              className="mt-3 w-full flex items-center justify-center gap-2 rounded-lg bg-primary-500 hover:bg-primary-600 px-4 py-2 text-sm text-white transition-colors"
             >
               <FaSteam size={16} />
               Connect Steam
@@ -221,15 +253,16 @@ export function DashboardPage() {
           {!me.identities.some((i) => i.provider === "slack") && (
             <div className="mt-3">
               {slackCode ? (
-                <div className="rounded-lg bg-gray-800 border border-gray-700 px-4 py-3 space-y-2">
-                  <p className="text-xs text-gray-400 text-center">
-                    DM this code to the G3 Slack bot, or run{" "}
-                    <span className="font-mono text-red-400">/link {slackCode}</span>
+                <div className="rounded-lg bg-gray-700 border border-gray-600 px-4 py-3 space-y-2">
+                  <p className="text-xs text-secondary-200 text-center">
+                    DM this code to the{" "}
+                    <span className="text-primary-500 font-medium">G3 Slack bot</span>, or run{" "}
+                    <span className="font-mono text-primary-400">/link {slackCode}</span>
                   </p>
                   <p className="font-mono text-3xl font-bold text-white text-center tracking-widest">
                     {slackCode}
                   </p>
-                  <div className="flex items-center justify-center gap-1.5 text-xs text-gray-500">
+                  <div className="flex items-center justify-center gap-1.5 text-xs text-secondary-300">
                     <Loader2 size={12} className="animate-spin" />
                     Waiting…
                   </div>
@@ -239,59 +272,63 @@ export function DashboardPage() {
                   <button
                     type="button"
                     onClick={handleConnectSlack}
-                    className="w-full flex items-center justify-center gap-2 rounded-lg bg-gray-800 border border-gray-700 hover:border-red-400 px-4 py-2 text-sm text-gray-300 transition-colors"
+                    className="w-full flex items-center justify-center gap-2 rounded-lg bg-primary-500 hover:bg-primary-600 px-4 py-2 text-sm text-white transition-colors"
                   >
                     <FaSlack size={16} />
                     Connect Slack
                   </button>
                   {slackError && (
-                    <p className="mt-1 text-xs text-red-400 text-center">{slackError}</p>
+                    <p className="mt-1 text-xs text-primary-400 text-center">{slackError}</p>
                   )}
                 </>
               )}
             </div>
           )}
-          {!me.identities.some((i) => i.provider === "local") && !passwordDone && (
-            <form onSubmit={handleSetPassword} className="mt-3 space-y-2">
-              <div className="flex gap-2">
-                <input
-                  type="password"
-                  autoComplete="new-password"
-                  placeholder="Set a password…"
-                  minLength={8}
-                  required
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  disabled={passwordLoading}
-                  className="flex-1 rounded-lg bg-gray-800 border border-gray-700 px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-red-400"
-                />
-                <button
-                  type="submit"
-                  disabled={passwordLoading || newPassword.length < 8}
-                  className="flex items-center gap-1.5 rounded-lg bg-gray-800 border border-gray-700 hover:border-red-400 px-3 py-2 text-sm text-gray-300 disabled:opacity-50 transition-colors"
-                >
-                  {passwordLoading ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : (
-                    <KeySquare size={14} />
-                  )}
-                  Set
-                </button>
-              </div>
-              {passwordError && <p className="text-xs text-red-400">{passwordError}</p>}
-            </form>
-          )}
         </div>
 
+        {me.sessionType === "oauth" && (
+          <div className="px-5 py-4">
+            <p className="text-xs text-secondary-300 uppercase tracking-wide mb-3">Kiosk PIN</p>
+            {pin && showPin ? (
+              <div className="space-y-3">
+                <div className="bg-gray-700 border border-gray-600 rounded-lg p-3 text-center">
+                  <p className="text-2xl font-mono font-bold text-white tracking-widest">{pin}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={regeneratePin}
+                  disabled={pinLoading}
+                  className="w-full px-4 py-2 rounded-lg bg-primary-500 hover:bg-primary-600 disabled:opacity-50 text-sm text-white transition-colors"
+                >
+                  {pinLoading ? "Regenerating..." : "Generate New PIN"}
+                </button>
+                {pinError && <p className="text-xs text-primary-400 text-center">{pinError}</p>}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={fetchPin}
+                disabled={pinLoading}
+                className="w-full px-4 py-2 rounded-lg bg-primary-500 hover:bg-primary-600 disabled:opacity-50 text-sm text-white transition-colors"
+              >
+                {pinLoading ? "Loading..." : "View PIN"}
+              </button>
+            )}
+            {pinError && !pin && (
+              <p className="text-xs text-primary-400 text-center mt-2">{pinError}</p>
+            )}
+          </div>
+        )}
+
         <div className="px-5 py-4 flex items-center justify-between">
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-secondary-300">
             Member since {new Date(me.createdAt * 1000).toLocaleDateString()}
           </p>
           <div className="flex items-center gap-3">
             {me.isAdmin ? (
               <Link
                 to="/admin/users"
-                className="text-xs text-purple-400 hover:text-purple-300 transition-colors flex items-center gap-1"
+                className="text-xs text-primary-400 hover:text-primary-300 transition-colors flex items-center gap-1"
               >
                 <Shield size={12} /> Admin
               </Link>
@@ -299,7 +336,7 @@ export function DashboardPage() {
             <button
               type="button"
               onClick={handleLogout}
-              className="text-xs text-gray-500 hover:text-red-400 transition-colors"
+              className="text-xs text-secondary-300 hover:text-primary-400 transition-colors"
             >
               Sign out
             </button>

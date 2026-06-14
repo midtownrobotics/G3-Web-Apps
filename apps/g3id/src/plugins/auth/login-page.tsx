@@ -15,67 +15,57 @@ export function LoginPage() {
     : "/login/email";
 
   return (
-    <main className="flex-1 flex items-center justify-center px-4">
+    <main className="flex-1 flex items-center justify-center px-4 bg-secondary-900">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
-          <h1 className="text-3xl font-bold text-white">
-            Welcome to <span className="text-red-400">G3</span>ID
+          <h1 className="text-5xl font-bold text-white">
+            Welcome to <span className="text-primary-500">G3</span>ID
           </h1>
-          <p className="mt-2 text-gray-400 text-sm">Choose a sign-in method</p>
+          <p className="mt-2 text-secondary-200 text-sm">Sign in with your account</p>
         </div>
-        {error && <p className="text-sm text-red-400 text-center">{error}</p>}
+        {error && <p className="text-sm text-primary-400 text-center">{error}</p>}
 
         <div className="space-y-3">
           <a
             href={`${apiBase}/auth/slack/initiate${rp}`}
-            className="w-full flex items-center justify-center gap-3 rounded-lg bg-gray-900 border border-gray-700 hover:border-red-400 px-4 py-2.5 text-sm text-white transition-colors"
+            className="w-full flex items-center justify-center gap-3 rounded-lg bg-secondary-700 border border-gray-600 hover:border-primary-400 hover:bg-secondary-600 px-4 py-2.5 text-sm text-white transition-colors"
           >
-            <span className="text-base">
-              <FaSlack size={20} />
-            </span>
+            <FaSlack size={20} />
             Sign in with Slack
           </a>
           <a
             href={`${apiBase}/auth/google${rp}`}
-            className="w-full flex items-center justify-center gap-3 rounded-lg bg-gray-900 border border-gray-700 hover:border-red-400 px-4 py-2.5 text-sm text-white transition-colors"
+            className="w-full flex items-center justify-center gap-3 rounded-lg bg-secondary-700 border border-gray-600 hover:border-primary-400 hover:bg-secondary-600 px-4 py-2.5 text-sm text-white transition-colors"
           >
-            <span className="text-base">
-              <FaGoogle size={20} />
-            </span>
+            <FaGoogle size={20} />
             Sign in with Google
           </a>
           <a
             href={`${apiBase}/auth/github${rp}`}
-            className="w-full flex items-center justify-center gap-3 rounded-lg bg-gray-900 border border-gray-700 hover:border-red-400 px-4 py-2.5 text-sm text-white transition-colors"
+            className="w-full flex items-center justify-center gap-3 rounded-lg bg-secondary-700 border border-gray-600 hover:border-primary-400 hover:bg-secondary-600 px-4 py-2.5 text-sm text-white transition-colors"
           >
-            <span className="text-base">
-              <FaGithub size={20} />
-            </span>
+            <FaGithub size={20} />
             Sign in with GitHub
           </a>
           <a
             href={`${apiBase}/auth/steam${rp}`}
-            className="w-full flex items-center justify-center gap-3 rounded-lg bg-gray-900 border border-gray-700 hover:border-red-400 px-4 py-2.5 text-sm text-white transition-colors"
+            className="w-full flex items-center justify-center gap-3 rounded-lg bg-secondary-700 border border-gray-600 hover:border-primary-400 hover:bg-secondary-600 px-4 py-2.5 text-sm text-white transition-colors"
           >
-            <span className="text-base">
-              <FaSteam size={20} />
-            </span>
+            <FaSteam size={20} />
             Sign in with Steam
           </a>
           <Link
             to={emailTo}
-            className="w-full flex items-center justify-center gap-3 rounded-lg bg-gray-900 border border-gray-700 hover:border-red-400 px-4 py-2.5 text-sm text-white transition-colors"
+            className="w-full flex items-center justify-center gap-3 rounded-lg bg-secondary-700 border border-gray-600 hover:border-primary-400 hover:bg-secondary-600 px-4 py-2.5 text-sm text-white transition-colors"
           >
-            <span className="text-base">
-              <KeySquare />
-            </span>
-            Continue with Email
+            <KeySquare size={20} />
+            Sign in with Email
           </Link>
         </div>
 
-        <p className="text-center text-sm text-gray-500">
+        <p className="text-center text-sm text-secondary-300">
           Don't have an account?{" "}
-          <Link to="/signup" className="text-red-400 hover:text-red-300 transition-colors">
+          <Link to="/signup" className="text-primary-400 hover:text-primary-300 transition-colors">
             Sign up
           </Link>
         </p>
