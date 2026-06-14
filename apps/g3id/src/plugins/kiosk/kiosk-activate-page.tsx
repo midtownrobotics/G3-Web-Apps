@@ -45,16 +45,16 @@ export function KioskActivatePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4">
+    <div className="min-h-screen bg-secondary-900 flex items-center justify-center px-4">
       <div className="w-full max-w-md space-y-8">
         <div className="text-center">
           <h1 className="text-4xl font-bold text-white mb-2">Activate Kiosk</h1>
-          <p className="text-gray-400">Enter the 6-digit code from your admin</p>
+          <p className="text-secondary-200">Enter the 6-digit code from your admin</p>
         </div>
 
         <form onSubmit={handleActivate} className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-200 mb-2">
               Activation Code
             </label>
             <input
@@ -64,16 +64,16 @@ export function KioskActivatePage() {
               placeholder="000000"
               value={code}
               onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              className="w-full px-4 py-3 text-center text-2xl tracking-widest rounded-lg bg-gray-900 border border-gray-700 text-white placeholder-gray-600 focus:outline-none focus:border-red-400"
+              className="w-full px-4 py-3 text-center text-2xl tracking-widest rounded-lg bg-secondary-700 border border-gray-600 text-white placeholder-gray-500 focus:outline-none focus:border-primary-400"
             />
           </div>
 
-          {error && <p className="text-red-400 text-center text-sm">{error}</p>}
+          {error && <p className="text-primary-400 text-center text-sm">{error}</p>}
 
           <button
             type="submit"
             disabled={loading || code.length !== 6}
-            className="w-full py-3 px-4 rounded-lg bg-red-600 hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold transition-colors"
+            className="w-full py-3 px-4 rounded-lg bg-primary-600 hover:bg-primary-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold transition-colors"
           >
             {loading ? "Activating..." : "Activate Device"}
           </button>

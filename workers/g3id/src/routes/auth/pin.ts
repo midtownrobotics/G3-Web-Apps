@@ -32,7 +32,7 @@ export const pinAuthRouter = new Hono<AppEnv>()
       .get();
 
     if (!userPin) {
-      return c.json({ error: "Invalid PIN." }, 401);
+      return c.json({ error: "Invalid PIN." }, 400);
     }
 
     const user = await db

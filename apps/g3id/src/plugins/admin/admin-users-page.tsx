@@ -29,7 +29,7 @@ function relativeTime(ts: number): string {
 const STATUS_STYLES: Record<string, string> = {
   pending: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
   active: "bg-green-500/20 text-green-300 border-green-500/30",
-  rejected: "bg-red-500/20 text-red-300 border-red-500/30",
+  rejected: "bg-primary-500/20 text-primary-300 border-primary-500/30",
 };
 
 function ProviderIcon({ provider }: { provider: string }) {
@@ -38,15 +38,15 @@ function ProviderIcon({ provider }: { provider: string }) {
     case "google":
       return <FaGoogle className={`${cls} text-blue-400`} title="Google" />;
     case "slack":
-      return <FaSlack className={`${cls} text-purple-400`} title="Slack" />;
+      return <FaSlack className={`${cls} text-primary-400`} title="Slack" />;
     case "github":
-      return <FaGithub className={`${cls} text-gray-300`} title="GitHub" />;
+      return <FaGithub className={`${cls} text-gray-200`} title="GitHub" />;
     case "steam":
       return <FaSteam className={`${cls} text-cyan-400`} title="Steam" />;
     case "local":
       return <FaKey className={`${cls} text-yellow-400`} title="Password" />;
     default:
-      return <span className="text-xs text-gray-500">{provider}</span>;
+      return <span className="text-xs text-secondary-300">{provider}</span>;
   }
 }
 
@@ -200,16 +200,16 @@ export function AdminUsersPage() {
 
   return (
     <main className="flex-1 px-4 py-8 max-w-2xl mx-auto w-full">
-      <div className="mb-6 flex gap-4 border-b border-gray-800">
+      <div className="mb-6 flex gap-4 border-b border-secondary-600">
         <Link
           to="/admin/users"
-          className="py-2 px-4 text-white font-medium border-b-2 border-red-400"
+          className="py-2 px-4 text-white font-medium border-b-2 border-primary-400"
         >
           Users
         </Link>
         <Link
           to="/admin/kiosk"
-          className="py-2 px-4 text-gray-400 hover:text-white transition-colors"
+          className="py-2 px-4 text-secondary-200 hover:text-white transition-colors"
         >
           Kiosk Devices
         </Link>
@@ -226,8 +226,8 @@ export function AdminUsersPage() {
             onClick={() => setFilter(f)}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors capitalize ${
               filter === f
-                ? "bg-red-500 text-white"
-                : "bg-gray-900 text-gray-400 hover:text-white border border-gray-700"
+                ? "bg-primary-500 text-white"
+                : "bg-secondary-700 text-secondary-200 hover:text-white border border-gray-600"
             }`}
           >
             {f} <span className="opacity-60">({countFor(f)})</span>
@@ -236,15 +236,15 @@ export function AdminUsersPage() {
       </div>
 
       {loading && (
-        <div className="flex justify-center py-16 text-gray-500">
+        <div className="flex justify-center py-16 text-secondary-300">
           <Loader2 size={24} className="animate-spin" />
         </div>
       )}
 
-      {error && <p className="text-sm text-red-400">{error}</p>}
+      {error && <p className="text-sm text-primary-400">{error}</p>}
 
       {!loading && !error && filtered.length === 0 && (
-        <p className="text-sm text-gray-500 text-center py-16">
+        <p className="text-sm text-secondary-300 text-center py-16">
           No {filter === "all" ? "" : filter} users.
         </p>
       )}
@@ -254,12 +254,12 @@ export function AdminUsersPage() {
           {filtered.map((user) => (
             <div
               key={user.id}
-              className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden"
+              className="bg-secondary-700 border border-secondary-600 rounded-lg overflow-hidden"
             >
               {/* Main row */}
               <div className="px-4 py-3 flex items-center gap-3 flex-wrap">
                 {/* Avatar */}
-                <div className="w-9 h-9 rounded-full bg-gray-800 flex items-center justify-center text-sm font-semibold text-gray-300 shrink-0">
+                <div className="w-9 h-9 rounded-full bg-primary-500 flex items-center justify-center text-sm font-semibold text-white shrink-0">
                   {user.displayName.charAt(0).toUpperCase()}
                 </div>
 
@@ -268,12 +268,12 @@ export function AdminUsersPage() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-white font-semibold">{firstName(user.displayName)}</span>
                     {user.isAdmin === 1 && (
-                      <span className="text-xs px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-primary-500/20 text-primary-300 border border-primary-500/30">
                         Admin
                       </span>
                     )}
                     <span
-                      className={`text-xs px-2 py-0.5 rounded-full border capitalize ${STATUS_STYLES[user.status] ?? "bg-gray-800 text-gray-400"}`}
+                      className={`text-xs px-2 py-0.5 rounded-full border capitalize ${STATUS_STYLES[user.status] ?? "bg-gray-700 text-secondary-200"}`}
                     >
                       {user.status}
                     </span>
@@ -284,11 +284,11 @@ export function AdminUsersPage() {
                       <ProviderIcon key={identity.provider} provider={identity.provider} />
                     ))}
                     <span className="text-xs text-gray-600">·</span>
-                    <span className="text-xs text-gray-500" title="Last login">
+                    <span className="text-xs text-secondary-300" title="Last login">
                       {user.lastLoginAt ? relativeTime(user.lastLoginAt) : "never logged in"}
                     </span>
                     <span className="text-xs text-gray-600">·</span>
-                    <span className="text-xs text-gray-500" title="Joined">
+                    <span className="text-xs text-secondary-300" title="Joined">
                       joined {relativeTime(user.createdAt)}
                     </span>
                   </div>
@@ -313,7 +313,7 @@ export function AdminUsersPage() {
                         type="button"
                         disabled={approving.has(user.id) || rejecting.has(user.id)}
                         onClick={() => handleReject(user.id)}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-700 hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-colors flex items-center gap-1"
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary-700 hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-colors flex items-center gap-1"
                       >
                         {rejecting.has(user.id) ? (
                           <Loader2 size={11} className="animate-spin" />
@@ -330,7 +330,7 @@ export function AdminUsersPage() {
                       onClick={() =>
                         user.isAdmin ? handleDemote(user.id) : handlePromote(user.id)
                       }
-                      className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-800 hover:bg-purple-900 hover:text-purple-300 disabled:opacity-50 disabled:cursor-not-allowed text-gray-400 transition-colors flex items-center gap-1"
+                      className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-700 hover:bg-primary-900 hover:text-primary-300 disabled:opacity-50 disabled:cursor-not-allowed text-secondary-200 transition-colors flex items-center gap-1"
                     >
                       {promoting.has(user.id) ? (
                         <Loader2 size={11} className="animate-spin" />
@@ -349,7 +349,7 @@ export function AdminUsersPage() {
                         type="button"
                         disabled={deleting.has(user.id)}
                         onClick={() => handleDelete(user.id)}
-                        className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-800 hover:bg-red-900 hover:text-red-300 disabled:opacity-50 disabled:cursor-not-allowed text-gray-400 transition-colors flex items-center gap-1"
+                        className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-700 hover:bg-primary-900 hover:text-primary-300 disabled:opacity-50 disabled:cursor-not-allowed text-secondary-200 transition-colors flex items-center gap-1"
                       >
                         {deleting.has(user.id) ? (
                           <Loader2 size={11} className="animate-spin" />
@@ -368,7 +368,7 @@ export function AdminUsersPage() {
                           setMergeTargetId("");
                         }
                       }}
-                      className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors"
+                      className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-700 hover:bg-gray-600 text-gray-200 transition-colors"
                     >
                       {mergingUserId === user.id ? "Cancel" : "Merge"}
                     </button>
@@ -378,12 +378,12 @@ export function AdminUsersPage() {
 
               {/* Merge panel */}
               {mergingUserId === user.id && (
-                <div className="px-4 py-3 border-t border-gray-800 flex items-center gap-3">
-                  <p className="text-xs text-gray-400 shrink-0">Merge into:</p>
+                <div className="px-4 py-3 border-t border-secondary-600 flex items-center gap-3">
+                  <p className="text-xs text-secondary-200 shrink-0">Merge into:</p>
                   <select
                     value={mergeTargetId}
                     onChange={(e) => setMergeTargetId(e.target.value)}
-                    className="flex-1 rounded-lg bg-gray-800 border border-gray-700 px-3 py-1.5 text-sm text-white focus:outline-none focus:border-red-400"
+                    className="flex-1 rounded-lg bg-gray-700 border border-gray-600 px-3 py-1.5 text-sm text-white focus:outline-none focus:border-primary-400"
                   >
                     <option value="">Select a user…</option>
                     {users
@@ -402,7 +402,7 @@ export function AdminUsersPage() {
                     type="button"
                     disabled={!mergeTargetId || mergeLoading}
                     onClick={() => handleMerge(user.id)}
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500 hover:bg-red-400 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-colors flex items-center gap-1.5 shrink-0"
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary-500 hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-colors flex items-center gap-1.5 shrink-0"
                   >
                     {mergeLoading && <Loader2 size={11} className="animate-spin" />}
                     Confirm merge

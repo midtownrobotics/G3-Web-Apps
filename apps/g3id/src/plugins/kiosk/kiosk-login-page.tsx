@@ -36,6 +36,11 @@ export function KioskLoginPage() {
       });
 
       if (!res.ok) {
+        if (res.status === 401) {
+          localStorage.removeItem("kiosk_token");
+          navigate("/kiosk/activate");
+          return;
+        }
         const data = (await res.json()) as { error?: string };
         setError(data.error ?? "Invalid PIN");
         setPin("");
@@ -69,62 +74,60 @@ export function KioskLoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4">
-      <div className="w-full max-w-xs space-y-6">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold text-white mb-1">Enter PIN</h1>
+    <div className="flex-1 bg-secondary-900 flex items-start justify-center px-4 pt-8">
+      <div className="w-full max-w-xs space-y-3">
+        <div className="text-center mb-2">
+          <h1 className="text-3xl font-bold text-white">Enter PIN</h1>
         </div>
 
-        <div className="space-y-6">
-          <div className="flex justify-center gap-3">
-            {[0, 1, 2].map((i) => (
-              <div
-                key={i}
-                className="w-16 h-16 rounded-lg bg-gray-900 border-2 border-gray-700 flex items-center justify-center"
-              >
-                <span className="text-3xl font-bold text-white">
-                  {pin[i] ? "●" : "○"}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          {error && (
-            <p className="text-red-400 text-center text-sm font-medium">{error}</p>
-          )}
-
-          <div className="grid grid-cols-3 gap-2">
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-              <button
-                key={num}
-                type="button"
-                onClick={() => addDigit(num.toString())}
-                disabled={loading || pin.length >= 3}
-                className="h-16 rounded-lg bg-gray-900 hover:bg-gray-800 disabled:opacity-50 border border-gray-700 text-white text-2xl font-bold transition-colors active:bg-gray-700"
-              >
-                {num}
-              </button>
-            ))}
-
-            <button
-              type="button"
-              onClick={() => addDigit("0")}
-              disabled={loading || pin.length >= 3}
-              className="col-span-3 h-14 rounded-lg bg-gray-900 hover:bg-gray-800 disabled:opacity-50 border border-gray-700 text-white text-xl font-bold transition-colors active:bg-gray-700"
+        <div className="flex justify-center gap-3">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="w-16 h-16 rounded-lg bg-secondary-700 border-2 border-gray-600 flex items-center justify-center"
             >
-              0
+              <span className="text-3xl font-bold text-white">
+                {pin[i] ? "●" : "○"}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {error && (
+          <p className="text-primary-400 text-center text-sm font-medium">{error}</p>
+        )}
+
+        <div className="grid grid-cols-3 gap-2">
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+            <button
+              key={num}
+              type="button"
+              onClick={() => addDigit(num.toString())}
+              disabled={loading || pin.length >= 3}
+              className="h-16 rounded-lg bg-secondary-700 hover:bg-secondary-600 disabled:opacity-50 border border-gray-600 text-white text-2xl font-bold transition-colors active:bg-gray-700"
+            >
+              {num}
             </button>
-          </div>
+          ))}
 
           <button
             type="button"
-            onClick={removeDigit}
-            disabled={loading || pin.length === 0}
-            className="w-full h-12 rounded-lg bg-gray-800 hover:bg-gray-700 disabled:opacity-50 border border-gray-700 text-white text-sm font-semibold transition-colors active:bg-gray-600"
+            onClick={() => addDigit("0")}
+            disabled={loading || pin.length >= 3}
+            className="col-span-3 h-14 rounded-lg bg-secondary-700 hover:bg-secondary-600 disabled:opacity-50 border border-gray-600 text-white text-xl font-bold transition-colors active:bg-gray-700"
           >
-            Delete
+            0
           </button>
         </div>
+
+        <button
+          type="button"
+          onClick={removeDigit}
+          disabled={loading || pin.length === 0}
+          className="w-full h-12 rounded-lg bg-gray-700 hover:bg-gray-600 disabled:opacity-50 border border-gray-600 text-white text-sm font-semibold transition-colors active:bg-gray-600"
+        >
+          Clear
+        </button>
       </div>
     </div>
   );

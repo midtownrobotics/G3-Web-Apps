@@ -56,10 +56,25 @@ export async function regeneratePinForUser(
   const now = Math.floor(Date.now() / 1000);
   const db = createDb(env.DB);
 
-  await db
-    .update(coreUserPins)
-    .set({ pin, updatedAt: now })
-    .where(eq(coreUserPins.userId, userId));
+  const existing = await db
+    .select({ id: coreUserPins.id })
+    .from(coreUserPins)
+    .where(eq(coreUserPins.userId, userId))
+    .get();
+
+  if (existing) {
+    await db
+      .update(coreUserPins)
+      .set({ pin, updatedAt: now })
+      .where(eq(coreUserPins.userId, userId));
+  } else {
+    await db.insert(coreUserPins).values({
+      userId,
+      pin,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
 
   return pin;
 }

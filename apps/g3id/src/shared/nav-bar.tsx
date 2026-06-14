@@ -50,15 +50,15 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
 
   return (
     <>
-      <nav className="relative z-50 bg-gray-900 text-white px-6 py-4 flex items-center gap-6">
-        <span className="font-bold text-red-400 mr-4 tracking-tight">G3ID</span>
+      <nav className="relative z-50 bg-secondary-700 text-white px-6 py-4 flex items-center gap-6">
+        <span className="font-display font-bold text-primary-400 mr-4 tracking-wide text-lg">G3ID</span>
 
         <div className="hidden md:flex items-center gap-6">
           {filteredItems.map((item) => (
             <Link
               key={item.to}
               to={item.to}
-              className="text-sm text-gray-300 hover:text-red-400 transition-colors"
+              className="text-sm text-gray-200 hover:text-primary-400 transition-colors"
             >
               {item.label}
             </Link>
@@ -66,14 +66,14 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
           {isAdmin && (
             <Link
               to="/admin/users"
-              className="text-sm text-purple-400 hover:text-purple-300 transition-colors"
+              className="text-sm text-gray-200 hover:text-primary-400 transition-colors"
             >
               Admin
             </Link>
           )}
           {isLoggedIn && (
             <a
-              className="text-sm text-gray-300 hover:text-red-400 transition-colors"
+              className="text-sm text-gray-200 hover:text-primary-400 transition-colors"
               href="https://web.g3robotics.com/members"
             >
               All Apps
@@ -89,13 +89,13 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
             aria-label="Toggle menu"
           >
             <span
-              className={`block w-6 h-0.5 bg-white group-hover:bg-red-400 transition-all duration-200 ${open ? "translate-y-2 rotate-45" : ""}`}
+              className={`block w-6 h-0.5 bg-white group-hover:bg-primary-400 transition-all duration-200 ${open ? "translate-y-2 rotate-45" : ""}`}
             />
             <span
-              className={`block w-6 h-0.5 bg-white group-hover:bg-red-400 transition-all duration-200 ${open ? "opacity-0" : ""}`}
+              className={`block w-6 h-0.5 bg-white group-hover:bg-primary-400 transition-all duration-200 ${open ? "opacity-0" : ""}`}
             />
             <span
-              className={`block w-6 h-0.5 bg-white group-hover:bg-red-400 transition-all duration-200 ${open ? "-translate-y-2 -rotate-45" : ""}`}
+              className={`block w-6 h-0.5 bg-white group-hover:bg-primary-400 transition-all duration-200 ${open ? "-translate-y-2 -rotate-45" : ""}`}
             />
           </button>
         </div>
@@ -103,14 +103,14 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
 
       {open && (
         <div
-          className={`fixed inset-0 z-40 bg-gray-900 flex flex-col px-8 pt-24 gap-8 md:hidden transition-opacity duration-200 ${visible ? "opacity-100" : "opacity-0"}`}
+          className={`fixed inset-0 z-40 bg-secondary-700 flex flex-col px-8 pt-24 gap-8 md:hidden transition-opacity duration-200 ${visible ? "opacity-100" : "opacity-0"}`}
         >
           {filteredItems.map((item) => (
             <Link
               key={item.to}
               to={item.to}
               onClick={closeMenu}
-              className="text-2xl font-bold text-gray-100 hover:text-red-400 transition-colors"
+              className="text-2xl font-bold text-secondary-100 hover:text-primary-400 transition-colors"
             >
               {item.label}
             </Link>
@@ -119,14 +119,14 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
             <Link
               to="/admin/users"
               onClick={closeMenu}
-              className="text-2xl font-bold text-purple-400 hover:text-purple-300 transition-colors"
+              className="text-2xl font-bold text-secondary-100 hover:text-primary-400 transition-colors"
             >
               Admin
             </Link>
           )}
           {isLoggedIn && (
             <a
-              className="text-2xl font-bold text-gray-100 hover:text-red-400 transition-colors"
+              className="text-2xl font-bold text-secondary-100 hover:text-primary-400 transition-colors"
               href="https://web.g3robotics.com/members"
             >
               All Apps

@@ -9,7 +9,7 @@ export function App() {
 
   return (
     <BrowserRouter>
-      <div className="flex flex-col min-h-screen bg-gray-950">
+      <div className="flex flex-col min-h-screen bg-secondary-900">
         <NavBar items={navItems} />
         <RedirectInfo />
         <div className="flex flex-col flex-1">

@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull, or, gt } from "drizzle-orm";
 import { Hono } from "hono";
 import { createDb } from "../db";
 import {
@@ -269,7 +269,19 @@ export const adminRouter = new Hono<AppEnv>()
   })
   .get("/kiosk/devices", async (c) => {
     const db = createDb(c.env.DB);
-    const devices = await db.select().from(kioskDevices).all();
+    const now = Math.floor(Date.now() / 1000);
+    const fifteenMinutesAgo = now - 15 * 60;
+
+    const devices = await db
+      .select()
+      .from(kioskDevices)
+      .where(
+        or(
+          isNull(kioskDevices.revokedAt),
+          gt(kioskDevices.revokedAt, fifteenMinutesAgo),
+        ),
+      )
+      .all();
     return c.json(devices);
   })
   .delete("/kiosk/devices/:id", async (c) => {
