@@ -1,5 +1,6 @@
 import { resolveUserId } from "@g3/auth";
 import { eq } from "drizzle-orm";
+import { getCookie } from "hono/cookie";
 import { createMiddleware } from "hono/factory";
 import { createDb } from "../db";
 import { coreUsers, kioskDevices } from "../db/schema";
@@ -15,6 +16,22 @@ export const requireAuth = createMiddleware<AppEnv>(async (c, next) => {
 export const requireAdmin = createMiddleware<AppEnv>(async (c, next) => {
   const userId = await resolveUserId(c.req.header("Cookie") ?? "", c.env);
   if (!userId) return c.json({ error: "Unauthorized." }, 401);
+
+  // Reject PIN sessions from accessing admin routes
+  const sessionId = getCookie(c, "g3_session");
+  if (sessionId) {
+    const sessionData = await c.env.SESSIONS.get(sessionId);
+    if (sessionData) {
+      try {
+        const session = JSON.parse(sessionData) as { sessionType?: string };
+        if (session.sessionType === "pin") {
+          return c.json({ error: "Admin access not allowed from kiosk." }, 403);
+        }
+      } catch {
+        // Continue if session parsing fails
+      }
+    }
+  }
 
   const db = createDb(c.env.DB);
   const user = await db
