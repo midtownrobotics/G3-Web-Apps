@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { api } from "../lib/api";
 import type { PluginNavItem } from "./plugin-types";
 
 export function NavBar({ items }: { items: PluginNavItem[] }) {
+  const location = useLocation();
   const [open, setOpen] = useState(false);
   const [visible, setVisible] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
@@ -38,7 +39,7 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
         setIsAdmin(false);
       }
     });
-  }, []);
+  }, [location]);
 
   const filteredItems = items.filter((item) => {
     if (isLoggedIn === null) return false; // Loading
