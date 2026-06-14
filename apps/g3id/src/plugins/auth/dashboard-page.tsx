@@ -134,7 +134,7 @@ export function DashboardPage() {
 
   async function regeneratePin() {
     const confirmed = window.confirm(
-      "Generate a new PIN? Your old PIN will no longer work on kiosks."
+      "Generate a new PIN? Your old PIN will no longer work on kiosks.",
     );
     if (!confirmed) return;
 
@@ -255,7 +255,8 @@ export function DashboardPage() {
               {slackCode ? (
                 <div className="rounded-lg bg-gray-700 border border-gray-600 px-4 py-3 space-y-2">
                   <p className="text-xs text-secondary-200 text-center">
-                    DM this code to the <span className="text-primary-500 font-medium">G3 Slack bot</span>, or run{" "}
+                    DM this code to the{" "}
+                    <span className="text-primary-500 font-medium">G3 Slack bot</span>, or run{" "}
                     <span className="font-mono text-primary-400">/link {slackCode}</span>
                   </p>
                   <p className="font-mono text-3xl font-bold text-white text-center tracking-widest">
@@ -313,7 +314,9 @@ export function DashboardPage() {
                 {pinLoading ? "Loading..." : "View PIN"}
               </button>
             )}
-            {pinError && !pin && <p className="text-xs text-primary-400 text-center mt-2">{pinError}</p>}
+            {pinError && !pin && (
+              <p className="text-xs text-primary-400 text-center mt-2">{pinError}</p>
+            )}
           </div>
         )}
 

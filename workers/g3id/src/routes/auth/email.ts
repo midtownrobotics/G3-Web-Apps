@@ -149,7 +149,12 @@ export const emailAuthRouter = new Hono<AppEnv>()
     const identity = await db
       .select({ passwordHash: coreUserIdentities.passwordHash })
       .from(coreUserIdentities)
-      .where(and(eq(coreUserIdentities.userId, user.id!), eq(coreUserIdentities.provider, "local")))
+      .where(
+        and(
+          eq(coreUserIdentities.userId, user.id as string),
+          eq(coreUserIdentities.provider, "local"),
+        ),
+      )
       .get();
 
     if (!identity?.passwordHash) return c.json(invalidError, 401);
@@ -164,7 +169,7 @@ export const emailAuthRouter = new Hono<AppEnv>()
       return c.json({ error: "Your account is not active." }, 403);
     }
 
-    const sessionId = await createSession(user.id!, c.env);
+    const sessionId = await createSession(user.id as string, c.env);
     setCookie(c, "g3_session", sessionId, sessionCookieOptions(c.env.FRONTEND_URL));
 
     return c.json({ ok: true });
@@ -182,7 +187,7 @@ export const emailAuthRouter = new Hono<AppEnv>()
       return c.json({ error: "Password must be at least 8 characters." }, 400);
     }
 
-    const userId = c.get("userId")!;
+    const userId = c.get("userId") as string;
     const db = createDb(c.env.DB);
 
     const existing = await db
@@ -214,7 +219,7 @@ export const emailAuthRouter = new Hono<AppEnv>()
       return c.json({ error: "Not available in this environment." }, 403);
     }
 
-    const userId = c.get("userId")!;
+    const userId = c.get("userId") as string;
     const db = createDb(c.env.DB);
 
     const admin = await db

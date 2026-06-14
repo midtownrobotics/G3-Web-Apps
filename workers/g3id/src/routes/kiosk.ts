@@ -77,7 +77,7 @@ export const kioskRouter = new Hono<AppEnv>()
     const device = await db
       .select({ name: kioskDevices.name, id: kioskDevices.id })
       .from(kioskDevices)
-      .where(eq(kioskDevices.id, kioskDeviceId!))
+      .where(eq(kioskDevices.id, kioskDeviceId as number))
       .get();
 
     if (!device) {

@@ -39,7 +39,7 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
         setIsAdmin(false);
       }
     });
-  }, [location]);
+  }, []);
 
   const filteredItems = items.filter((item) => {
     if (isLoggedIn === null) return false; // Loading
@@ -51,7 +51,9 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
   return (
     <>
       <nav className="relative z-50 bg-secondary-700 text-white px-6 py-4 flex items-center gap-6">
-        <span className="font-display font-bold text-primary-400 mr-4 tracking-wide text-lg">G3ID</span>
+        <span className="font-display font-bold text-primary-400 mr-4 tracking-wide text-lg">
+          G3ID
+        </span>
 
         <div className="hidden md:flex items-center gap-6">
           {filteredItems.map((item) => (

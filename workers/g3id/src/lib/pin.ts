@@ -30,10 +30,7 @@ export async function generateUniquePin(env: AppEnv["Bindings"]): Promise<string
   throw new Error("Failed to generate unique PIN after 10 attempts");
 }
 
-export async function generatePinForUser(
-  userId: string,
-  env: AppEnv["Bindings"],
-): Promise<string> {
+export async function generatePinForUser(userId: string, env: AppEnv["Bindings"]): Promise<string> {
   const pin = await generateUniquePin(env);
   const now = Math.floor(Date.now() / 1000);
   const db = createDb(env.DB);

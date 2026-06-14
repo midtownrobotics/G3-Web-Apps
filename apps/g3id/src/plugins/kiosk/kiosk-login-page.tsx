@@ -26,11 +26,18 @@ export function KioskLoginPage() {
 
     try {
       const token = localStorage.getItem("kiosk_token");
+      if (!token) {
+        setError("No kiosk token found");
+        setPin("");
+        loadingRef.current = false;
+        setLoading(false);
+        return;
+      }
       const res = await fetch(`${apiBase}/auth/pin`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Kiosk-Token": token!,
+          "X-Kiosk-Token": token,
         },
         body: JSON.stringify({ pin: fullPin }),
       });
@@ -86,16 +93,12 @@ export function KioskLoginPage() {
               key={i}
               className="w-16 h-16 rounded-lg bg-secondary-700 border-2 border-gray-600 flex items-center justify-center"
             >
-              <span className="text-3xl font-bold text-white">
-                {pin[i] ? "●" : "○"}
-              </span>
+              <span className="text-3xl font-bold text-white">{pin[i] ? "●" : "○"}</span>
             </div>
           ))}
         </div>
 
-        {error && (
-          <p className="text-primary-400 text-center text-sm font-medium">{error}</p>
-        )}
+        {error && <p className="text-primary-400 text-center text-sm font-medium">{error}</p>}
 
         <div className="grid grid-cols-3 gap-2">
           {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (

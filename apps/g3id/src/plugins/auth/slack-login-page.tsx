@@ -99,8 +99,8 @@ export function SlackLoginPage() {
 
             <div className="space-y-1">
               <p className="text-sm text-gray-200">
-                DM this code to the <span className="text-primary-500 font-medium">G3 Slack bot</span>, or
-                run:
+                DM this code to the{" "}
+                <span className="text-primary-500 font-medium">G3 Slack bot</span>, or run:
               </p>
               <p className="font-mono text-sm text-primary-400">/signin {formattedCode}</p>
             </div>

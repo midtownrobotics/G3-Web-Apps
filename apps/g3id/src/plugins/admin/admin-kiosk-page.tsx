@@ -45,6 +45,7 @@ export function AdminKioskPage() {
     }
   }
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: loadDevices changes on every render but we only want to load once on mount
   useEffect(() => {
     loadDevices();
   }, []);
@@ -77,9 +78,9 @@ export function AdminKioskPage() {
 
   async function handleRevokeDevice(deviceId: number) {
     try {
-      const res = await api.admin.kiosk.devices[":id"].$delete(
-        { param: { id: deviceId.toString() } },
-      );
+      const res = await api.admin.kiosk.devices[":id"].$delete({
+        param: { id: deviceId.toString() },
+      });
 
       if (!res.ok) {
         alert("Failed to revoke device");
@@ -116,10 +117,11 @@ export function AdminKioskPage() {
           <h2 className="text-xl font-semibold text-white mb-4">Generate Activation Code</h2>
           <form onSubmit={handleGenerateCode} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-200 mb-2">
+              <label htmlFor="device-name" className="block text-sm font-medium text-gray-200 mb-2">
                 Device Name
               </label>
               <input
+                id="device-name"
                 type="text"
                 placeholder="e.g., Shop Register 1"
                 value={deviceName}
@@ -142,7 +144,9 @@ export function AdminKioskPage() {
           {code && (
             <div className="mt-6 bg-gray-700 border border-gray-600 rounded-lg p-4 space-y-3">
               <div>
-                <p className="text-xs text-secondary-200 mb-1">Activation Code (expires in 30 min)</p>
+                <p className="text-xs text-secondary-200 mb-1">
+                  Activation Code (expires in 30 min)
+                </p>
                 <p className="text-3xl font-mono font-bold text-primary-400 tracking-widest text-center">
                   {code.code}
                 </p>

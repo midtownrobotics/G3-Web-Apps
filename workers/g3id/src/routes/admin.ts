@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, or, gt } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, or } from "drizzle-orm";
 import { Hono } from "hono";
 import { createDb } from "../db";
 import {
@@ -236,7 +236,7 @@ export const adminRouter = new Hono<AppEnv>()
     return c.json({ message: "User demoted." });
   })
   .post("/kiosk/codes", async (c) => {
-    const userId = c.get("userId")!;
+    const userId = c.get("userId") as string;
     let body: { deviceName?: unknown };
     try {
       body = await c.req.json();
@@ -275,20 +275,15 @@ export const adminRouter = new Hono<AppEnv>()
     const devices = await db
       .select()
       .from(kioskDevices)
-      .where(
-        or(
-          isNull(kioskDevices.revokedAt),
-          gt(kioskDevices.revokedAt, fifteenMinutesAgo),
-        ),
-      )
+      .where(or(isNull(kioskDevices.revokedAt), gt(kioskDevices.revokedAt, fifteenMinutesAgo)))
       .all();
     return c.json(devices);
   })
   .delete("/kiosk/devices/:id", async (c) => {
     const id = c.req.param("id");
-    const deviceId = parseInt(id, 10);
+    const deviceId = Number.parseInt(id, 10);
 
-    if (isNaN(deviceId)) {
+    if (Number.isNaN(deviceId)) {
       return c.json({ error: "Invalid device ID." }, 400);
     }
 
@@ -305,10 +300,7 @@ export const adminRouter = new Hono<AppEnv>()
       return c.json({ error: "Device not found." }, 404);
     }
 
-    await db
-      .update(kioskDevices)
-      .set({ revokedAt: now })
-      .where(eq(kioskDevices.id, deviceId));
+    await db.update(kioskDevices).set({ revokedAt: now }).where(eq(kioskDevices.id, deviceId));
 
     return c.json({ success: true });
   });

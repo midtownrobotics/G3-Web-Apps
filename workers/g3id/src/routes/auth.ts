@@ -4,14 +4,14 @@ import { deleteCookie, getCookie } from "hono/cookie";
 import { createDb } from "../db";
 import { coreUserIdentities, coreUserPins, coreUsers } from "../db/schema";
 import { deleteCookieOptions } from "../lib/cookie";
-import { deleteSession } from "../lib/session";
 import { regeneratePinForUser } from "../lib/pin";
+import { deleteSession } from "../lib/session";
 import { requireAuth } from "../middleware/auth";
 import type { AppEnv } from "../types";
 
 export const authRouter = new Hono<AppEnv>()
   .get("/me", requireAuth, async (c) => {
-    const userId = c.get("userId")!;
+    const userId = c.get("userId") as string;
     const sessionId = getCookie(c, "g3_session");
     const db = createDb(c.env.DB);
 
@@ -74,7 +74,7 @@ export const authRouter = new Hono<AppEnv>()
     return c.json({ ok: true });
   })
   .get("/pin/me", requireAuth, async (c) => {
-    const userId = c.get("userId")!;
+    const userId = c.get("userId") as string;
     const sessionId = getCookie(c, "g3_session");
     const db = createDb(c.env.DB);
 
@@ -105,7 +105,7 @@ export const authRouter = new Hono<AppEnv>()
     return c.json({ pin: userPin.pin });
   })
   .post("/pin/regenerate", requireAuth, async (c) => {
-    const userId = c.get("userId")!;
+    const userId = c.get("userId") as string;
     const sessionId = getCookie(c, "g3_session");
 
     if (sessionId) {

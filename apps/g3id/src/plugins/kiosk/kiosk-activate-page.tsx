@@ -54,10 +54,14 @@ export function KioskActivatePage() {
 
         <form onSubmit={handleActivate} className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-gray-200 mb-2">
+            <label
+              htmlFor="activation-code"
+              className="block text-sm font-medium text-gray-200 mb-2"
+            >
               Activation Code
             </label>
             <input
+              id="activation-code"
               type="text"
               inputMode="numeric"
               maxLength={6}
