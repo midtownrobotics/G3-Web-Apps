@@ -82,8 +82,8 @@ export function SlackLoginPage() {
     <main className="flex-1 flex items-center justify-center px-4">
       <div className="w-full max-w-sm space-y-6 text-center">
         <div>
-          <h1 className="text-3xl font-bold text-white">
-            <span className="text-primary-400">G3</span>ID
+          <h1 className="text-5xl font-bold text-white">
+            <span className="text-primary-500">G3</span>ID
           </h1>
           <p className="mt-2 text-secondary-200 text-sm">Sign in with Slack</p>
         </div>
