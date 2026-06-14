@@ -21,7 +21,7 @@ export function LoginPage() {
           <h1 className="text-3xl font-bold text-white">
             Welcome to <span className="text-red-400">G3</span>ID
           </h1>
-          <p className="mt-2 text-gray-400 text-sm">Choose a sign-in method</p>
+          <p className="mt-2 text-gray-400 text-sm">Sign in with your account</p>
         </div>
         {error && <p className="text-sm text-red-400 text-center">{error}</p>}
 
@@ -30,46 +30,36 @@ export function LoginPage() {
             href={`${apiBase}/auth/slack/initiate${rp}`}
             className="w-full flex items-center justify-center gap-3 rounded-lg bg-gray-900 border border-gray-700 hover:border-red-400 px-4 py-2.5 text-sm text-white transition-colors"
           >
-            <span className="text-base">
-              <FaSlack size={20} />
-            </span>
+            <FaSlack size={20} />
             Sign in with Slack
           </a>
           <a
             href={`${apiBase}/auth/google${rp}`}
             className="w-full flex items-center justify-center gap-3 rounded-lg bg-gray-900 border border-gray-700 hover:border-red-400 px-4 py-2.5 text-sm text-white transition-colors"
           >
-            <span className="text-base">
-              <FaGoogle size={20} />
-            </span>
+            <FaGoogle size={20} />
             Sign in with Google
           </a>
           <a
             href={`${apiBase}/auth/github${rp}`}
             className="w-full flex items-center justify-center gap-3 rounded-lg bg-gray-900 border border-gray-700 hover:border-red-400 px-4 py-2.5 text-sm text-white transition-colors"
           >
-            <span className="text-base">
-              <FaGithub size={20} />
-            </span>
+            <FaGithub size={20} />
             Sign in with GitHub
           </a>
           <a
             href={`${apiBase}/auth/steam${rp}`}
             className="w-full flex items-center justify-center gap-3 rounded-lg bg-gray-900 border border-gray-700 hover:border-red-400 px-4 py-2.5 text-sm text-white transition-colors"
           >
-            <span className="text-base">
-              <FaSteam size={20} />
-            </span>
+            <FaSteam size={20} />
             Sign in with Steam
           </a>
           <Link
             to={emailTo}
             className="w-full flex items-center justify-center gap-3 rounded-lg bg-gray-900 border border-gray-700 hover:border-red-400 px-4 py-2.5 text-sm text-white transition-colors"
           >
-            <span className="text-base">
-              <KeySquare />
-            </span>
-            Continue with Email
+            <KeySquare size={20} />
+            Sign in with Email
           </Link>
         </div>
 

@@ -15,6 +15,7 @@ export type AppEnv = {
     STEAM_API_KEY: string;
     STEAM_REDIRECT_URI: string;
     FRONTEND_URL: string;
+    ENVIRONMENT?: string;
   };
   Variables: {
     userId: string;

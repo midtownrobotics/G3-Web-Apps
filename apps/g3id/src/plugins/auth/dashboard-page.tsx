@@ -1,4 +1,4 @@
-import { KeySquare, Loader2, Shield } from "lucide-react";
+import { Loader2, Shield } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { FaGithub, FaGoogle, FaSlack, FaSteam } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
@@ -29,10 +29,6 @@ export function DashboardPage() {
   const navigate = useNavigate();
   const [me, setMe] = useState<Me | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [newPassword, setNewPassword] = useState("");
-  const [passwordLoading, setPasswordLoading] = useState(false);
-  const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [passwordDone, setPasswordDone] = useState(false);
 
   const [slackCode, setSlackCode] = useState<string | null>(null);
   const [slackError, setSlackError] = useState<string | null>(null);
@@ -92,31 +88,6 @@ export function DashboardPage() {
     },
     [],
   );
-
-  async function handleSetPassword(e: React.SyntheticEvent) {
-    e.preventDefault();
-    setPasswordLoading(true);
-    setPasswordError(null);
-    const res = await api.auth.password.$post({ json: { password: newPassword } });
-    const data = (await res.json()) as { ok?: boolean; error?: string };
-    setPasswordLoading(false);
-    if (!res.ok) {
-      setPasswordError(data.error ?? "Something went wrong.");
-      return;
-    }
-    setPasswordDone(true);
-    setMe((prev) =>
-      prev
-        ? {
-            ...prev,
-            identities: [
-              ...prev.identities,
-              { provider: "local", createdAt: Math.floor(Date.now() / 1000) },
-            ],
-          }
-        : prev,
-    );
-  }
 
   async function handleLogout() {
     await api.auth.logout.$post();
@@ -250,36 +221,6 @@ export function DashboardPage() {
                 </>
               )}
             </div>
-          )}
-          {!me.identities.some((i) => i.provider === "local") && !passwordDone && (
-            <form onSubmit={handleSetPassword} className="mt-3 space-y-2">
-              <div className="flex gap-2">
-                <input
-                  type="password"
-                  autoComplete="new-password"
-                  placeholder="Set a password…"
-                  minLength={8}
-                  required
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  disabled={passwordLoading}
-                  className="flex-1 rounded-lg bg-gray-800 border border-gray-700 px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-red-400"
-                />
-                <button
-                  type="submit"
-                  disabled={passwordLoading || newPassword.length < 8}
-                  className="flex items-center gap-1.5 rounded-lg bg-gray-800 border border-gray-700 hover:border-red-400 px-3 py-2 text-sm text-gray-300 disabled:opacity-50 transition-colors"
-                >
-                  {passwordLoading ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : (
-                    <KeySquare size={14} />
-                  )}
-                  Set
-                </button>
-              </div>
-              {passwordError && <p className="text-xs text-red-400">{passwordError}</p>}
-            </form>
           )}
         </div>
 

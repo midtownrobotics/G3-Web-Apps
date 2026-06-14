@@ -208,4 +208,68 @@ export const emailAuthRouter = new Hono<AppEnv>()
     });
 
     return c.json({ ok: true });
+  })
+  .get("/dev/create-user", requireAuth, async (c) => {
+    if (c.env.ENVIRONMENT !== "development") {
+      return c.json({ error: "Not available in this environment." }, 403);
+    }
+
+    const userId = c.get("userId");
+    const db = createDb(c.env.DB);
+
+    const admin = await db
+      .select({ isAdmin: coreUsers.isAdmin })
+      .from(coreUsers)
+      .where(eq(coreUsers.id, userId))
+      .get();
+
+    if (!admin || admin.isAdmin !== 1) {
+      return c.json({ error: "Admin access required." }, 403);
+    }
+
+    const email = c.req.query("email")?.toLowerCase().trim();
+    const password = c.req.query("password");
+    const displayName = c.req.query("name") || email?.split("@")[0] || "Test User";
+
+    if (!email || !password) {
+      return c.json({ error: "email and password query params required" }, 400);
+    }
+    if (password.length < 8) {
+      return c.json({ error: "Password must be at least 8 characters." }, 400);
+    }
+
+    const existing = await db
+      .select({ id: coreUsers.id })
+      .from(coreUsers)
+      .where(eq(coreUsers.email, email))
+      .get();
+
+    if (existing) {
+      return c.json({ error: "User already exists with that email." }, 409);
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    const newUserId = newId();
+    const passwordHash = await hashPassword(password);
+
+    await db.batch([
+      db.insert(coreUsers).values({
+        id: newUserId,
+        email,
+        displayName,
+        status: "active",
+        createdAt: now,
+        updatedAt: now,
+      }),
+      db.insert(coreUserIdentities).values({
+        id: newId(),
+        userId: newUserId,
+        provider: "local",
+        passwordHash,
+        createdAt: now,
+        updatedAt: now,
+      }),
+    ]);
+
+    return c.json({ ok: true, userId: newUserId, email });
   });
