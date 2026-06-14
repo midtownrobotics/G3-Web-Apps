@@ -1,6 +1,11 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { requireAuth } from "./middleware/auth";
+import { partDefinitionsRouter } from "./routes/part-definitions";
+import { partInstanceProcessesRouter } from "./routes/part-instance-processes";
+import { partInstancesRouter } from "./routes/part-instances";
+import { processesRouter } from "./routes/processes";
+import { subsystemsRouter } from "./routes/subsystems";
 import type { AppEnv } from "./types";
 
 const base = new Hono<AppEnv>();
@@ -20,7 +25,7 @@ base.use(
       if (origin.startsWith("http://localhost:")) return origin;
       return null;
     },
-    allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization"],
     credentials: true,
   }),
@@ -35,7 +40,12 @@ const app = base
       email: c.get("userEmail"),
       displayName: c.get("userDisplayName"),
     }),
-  );
+  )
+  .route("/subsystems", subsystemsRouter)
+  .route("/processes", processesRouter)
+  .route("/part-definitions", partDefinitionsRouter)
+  .route("/part-instances", partInstancesRouter)
+  .route("/part-instance-processes", partInstanceProcessesRouter);
 
 export type ShopApp = typeof app;
 export default app;
