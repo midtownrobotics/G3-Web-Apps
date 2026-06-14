@@ -281,36 +281,37 @@ export function DashboardPage() {
         </div>
 
         {me.sessionType === "oauth" && (
-          <div className="px-5 py-4">
-            <p className="text-xs text-gray-500 uppercase tracking-wide mb-3">Kiosk PIN</p>
-            <p className="text-xs text-gray-400 mb-3">Use this PIN to access the kiosk on shop computers</p>
-            {pin && showPin ? (
-              <div className="space-y-3">
-                <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 text-center">
-                  <p className="text-xs text-gray-400 mb-2">Your PIN</p>
-                  <p className="text-3xl font-mono font-bold text-red-400 tracking-widest">{pin}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={regeneratePin}
-                  disabled={pinLoading}
-                  className="w-full px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 disabled:opacity-50 border border-gray-700 text-sm text-gray-300 transition-colors"
-                >
-                  {pinLoading ? "Regenerating..." : "Generate New PIN"}
-                </button>
-                {pinError && <p className="text-xs text-red-400 text-center">{pinError}</p>}
+          <div className="px-5 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs text-gray-500 uppercase tracking-wide">Kiosk PIN</p>
+                {pin && showPin && (
+                  <p className="text-lg font-mono font-bold text-red-400 tracking-widest mt-1">{pin}</p>
+                )}
               </div>
-            ) : (
-              <button
-                type="button"
-                onClick={fetchPin}
-                disabled={pinLoading}
-                className="w-full px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 disabled:opacity-50 border border-gray-700 text-sm text-gray-300 transition-colors"
-              >
-                {pinLoading ? "Loading..." : "View PIN"}
-              </button>
-            )}
-            {pinError && <p className="text-xs text-red-400 text-center mt-2">{pinError}</p>}
+              <div className="flex gap-2 flex-shrink-0">
+                {pin && showPin ? (
+                  <button
+                    type="button"
+                    onClick={regeneratePin}
+                    disabled={pinLoading}
+                    className="px-3 py-1 rounded text-xs bg-gray-800 hover:bg-gray-700 disabled:opacity-50 border border-gray-700 text-gray-300 transition-colors"
+                  >
+                    {pinLoading ? "..." : "New"}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={fetchPin}
+                    disabled={pinLoading}
+                    className="px-3 py-1 rounded text-xs bg-gray-800 hover:bg-gray-700 disabled:opacity-50 border border-gray-700 text-gray-300 transition-colors"
+                  >
+                    {pinLoading ? "..." : "View"}
+                  </button>
+                )}
+              </div>
+            </div>
+            {pinError && <p className="text-xs text-red-400 mt-2">{pinError}</p>}
           </div>
         )}
 
