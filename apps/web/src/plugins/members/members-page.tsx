@@ -117,7 +117,9 @@ export function MembersPage() {
                 <div
                   className={`w-16 h-16 rounded-2xl ${app.bg} flex items-center justify-center shadow-lg transition-transform duration-150 group-hover:scale-110`}
                 >
-                  <app.icon className="text-white text-3xl" />
+                  <span className="text-white text-3xl">
+                    <app.icon />
+                  </span>
                 </div>
                 <span className="text-xs text-center leading-tight transition-colors text-gray-400 group-hover:text-white">
                   {app.label}

@@ -36,15 +36,35 @@ function ProviderIcon({ provider }: { provider: string }) {
   const cls = "w-4 h-4";
   switch (provider) {
     case "google":
-      return <FaGoogle className={`${cls} text-blue-400`} title="Google" />;
+      return (
+        <span className={`${cls} text-blue-400`} title="Google">
+          <FaGoogle />
+        </span>
+      );
     case "slack":
-      return <FaSlack className={`${cls} text-primary-400`} title="Slack" />;
+      return (
+        <span className={`${cls} text-primary-400`} title="Slack">
+          <FaSlack />
+        </span>
+      );
     case "github":
-      return <FaGithub className={`${cls} text-gray-200`} title="GitHub" />;
+      return (
+        <span className={`${cls} text-gray-200`} title="GitHub">
+          <FaGithub />
+        </span>
+      );
     case "steam":
-      return <FaSteam className={`${cls} text-cyan-400`} title="Steam" />;
+      return (
+        <span className={`${cls} text-cyan-400`} title="Steam">
+          <FaSteam />
+        </span>
+      );
     case "local":
-      return <FaKey className={`${cls} text-yellow-400`} title="Password" />;
+      return (
+        <span className={`${cls} text-yellow-400`} title="Password">
+          <FaKey />
+        </span>
+      );
     default:
       return <span className="text-xs text-secondary-300">{provider}</span>;
   }
