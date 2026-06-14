@@ -75,7 +75,13 @@ export const coreSlackLinkCodes = sqliteTable(
     pollingToken: text("polling_token"),
     expiresAt: integer("expires_at").notNull(),
     used: integer("used").notNull().default(0),
+    status: text("status").notNull().default("pending"), // pending, success, failed, linked, signup_pending
+    statusMessage: text("status_message"), // error message if status is 'failed'
+    sessionId: text("session_id"), // session ID if status is 'success'
     createdAt: integer("created_at").notNull(),
   },
-  (table) => [check("core_slack_link_codes_type_check", sql`${table.type} IN ('signin', 'link')`)],
+  (table) => [
+    check("core_slack_link_codes_type_check", sql`${table.type} IN ('signin', 'link')`),
+    check("core_slack_link_codes_status_check", sql`${table.status} IN ('pending', 'success', 'failed', 'linked', 'signup_pending')`),
+  ],
 );

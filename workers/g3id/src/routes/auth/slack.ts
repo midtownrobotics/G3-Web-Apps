@@ -40,8 +40,6 @@ export const slackAuthRouter = new Hono<AppEnv>()
         createdAt: now,
       });
 
-    await c.env.SESSIONS.put(`slack_pending:${token}`, "pending", { expirationTtl: 900 });
-
     const redirectParam = redirect ? `&redirect=${encodeURIComponent(redirect)}` : "";
     return c.redirect(
       `${c.env.FRONTEND_URL}/login/slack?token=${token}&code=${code}${redirectParam}`,
@@ -67,8 +65,6 @@ export const slackAuthRouter = new Hono<AppEnv>()
         createdAt: now,
       });
 
-    await c.env.SESSIONS.put(`slack_pending:${token}`, "pending", { expirationTtl: 900 });
-
     return c.json({ code, token });
   })
   // Polling — frontend calls this every 2s to check sign-in / link status
@@ -76,35 +72,41 @@ export const slackAuthRouter = new Hono<AppEnv>()
     const token = c.req.query("token");
     if (!token) return c.json({ status: "expired" });
 
-    const value = await c.env.SESSIONS.get(`slack_pending:${token}`);
-    if (!value) return c.json({ status: "expired" });
-    if (value === "pending") return c.json({ status: "pending" });
+    const db = createDb(c.env.DB);
+    const record = await db
+      .select()
+      .from(coreSlackLinkCodes)
+      .where(eq(coreSlackLinkCodes.pollingToken, token))
+      .get();
 
-    if (value.startsWith("failed:")) {
-      return c.json({ status: "failed", message: value.slice(7) });
+    if (!record) return c.json({ status: "expired" });
+    if (record.status === "pending") return c.json({ status: "pending" });
+
+    if (record.status === "failed") {
+      return c.json({ status: "failed", message: record.statusMessage || "Unknown error" });
     }
 
-    if (value === "linked") {
-      await c.env.SESSIONS.delete(`slack_pending:${token}`);
+    if (record.status === "linked") {
       return c.json({ status: "success", action: "linked" });
     }
 
-    if (value === "signup_pending") {
-      await c.env.SESSIONS.delete(`slack_pending:${token}`);
+    if (record.status === "signup_pending") {
       return c.json({ status: "signup_pending" });
     }
 
-    // Value is a session ID — set cookie and report success
-    setCookie(c, "g3_session", value, sessionCookieOptions(c.env.FRONTEND_URL));
-    await c.env.SESSIONS.delete(`slack_pending:${token}`);
-    return c.json({ status: "success" });
+    // Status is 'success' with a session ID — set cookie and report success
+    if (record.status === "success" && record.sessionId) {
+      setCookie(c, "g3_session", record.sessionId, sessionCookieOptions(c.env.FRONTEND_URL));
+      return c.json({ status: "success" });
+    }
+
+    return c.json({ status: "expired" });
   })
   // Cancel — expire the code so it cannot be redeemed
   .delete("/slack/cancel", async (c) => {
     const token = c.req.query("token");
     if (!token) return c.json({ ok: true });
 
-    await c.env.SESSIONS.delete(`slack_pending:${token}`);
     await createDb(c.env.DB)
       .update(coreSlackLinkCodes)
       .set({ used: 1 })
