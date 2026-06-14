@@ -43,9 +43,7 @@ export function HomePage() {
             {greeting()}
             {name ? `, ${name.split(" ")[0]}` : ""}
           </h1>
-          <p className="text-steel-dark mt-2">
-            G3 Shop — production tracking and management.
-          </p>
+          <p className="text-steel-dark mt-2">G3 Shop — production tracking and management.</p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

@@ -42,8 +42,7 @@ export function AdminPage() {
 
   const defById = new Map((data?.definitions ?? []).map((d) => [d.id, d]));
   const staleInstances = (data?.instances ?? []).filter((i) => i.isStale);
-  const subsystemName = (sid: number) =>
-    data?.subsystems.find((s) => s.id === sid)?.name ?? "—";
+  const subsystemName = (sid: number) => data?.subsystems.find((s) => s.id === sid)?.name ?? "—";
 
   return (
     <main className="min-h-screen bg-mist">
@@ -71,9 +70,7 @@ export function AdminPage() {
                   <div key={inst.id} className="flex items-center gap-3 px-4 py-2.5">
                     <span className="flex-1 min-w-0 text-sm font-medium text-ink truncate">
                       {def?.name ?? `Part ${inst.partDefinitionId}`}
-                      <span className="text-steel font-normal ml-1.5">
-                        #{inst.instanceNumber}
-                      </span>
+                      <span className="text-steel font-normal ml-1.5">#{inst.instanceNumber}</span>
                     </span>
                     <span className="w-40 hidden sm:block text-sm font-mono text-steel-dark truncate">
                       {def ? `${def.onshapePartNumber} · Rev ${def.revision}` : "—"}

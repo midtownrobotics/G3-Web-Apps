@@ -167,7 +167,10 @@ export function AddPartPage() {
                     min={1}
                     value={form.quantity}
                     onChange={(e) =>
-                      setForm({ ...form, quantity: Math.max(1, Math.floor(Number(e.target.value))) })
+                      setForm({
+                        ...form,
+                        quantity: Math.max(1, Math.floor(Number(e.target.value))),
+                      })
                     }
                     className="w-full bg-paper border border-steel/40 rounded-lg px-3 py-2 text-sm text-ink focus:outline-none focus:border-crimson"
                   />

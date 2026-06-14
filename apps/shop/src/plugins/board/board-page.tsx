@@ -32,10 +32,7 @@ export function BoardPage() {
   const [banner, setBanner] = useState<string | null>(null);
 
   const rows = useMemo(() => (data ? buildInstanceRows(data) : []), [data]);
-  const loads = useMemo(
-    () => (data ? processLoads(rows, data.processes) : []),
-    [rows, data],
-  );
+  const loads = useMemo(() => (data ? processLoads(rows, data.processes) : []), [rows, data]);
 
   async function advance(row: InstanceRow, to: "doing" | "done") {
     if (!row.current) return;
@@ -73,7 +70,7 @@ export function BoardPage() {
               setView(e.target.value === "overview" ? "overview" : Number(e.target.value))
             }
             className="bg-paper border border-steel/40 rounded-lg px-3 py-2 text-sm font-semibold text-ink focus:outline-none focus:border-crimson"
-            >
+          >
             <option value="overview">Overview</option>
             {data?.processes.map((p) => (
               <option key={p.id} value={p.id}>
@@ -89,12 +86,7 @@ export function BoardPage() {
         {view === "overview" ? (
           <OverviewView rows={rows} loads={loads} onSelect={setView} processName={processName} />
         ) : (
-          <ProcessView
-            processId={view}
-            rows={rows}
-            processName={processName}
-            onAdvance={advance}
-          />
+          <ProcessView processId={view} rows={rows} processName={processName} onAdvance={advance} />
         )}
       </div>
     </main>

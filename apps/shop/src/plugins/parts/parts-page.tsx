@@ -54,8 +54,7 @@ export function PartsPage() {
 
   const qtyByDef = useMemo(() => {
     const map = new Map<number, number>();
-    for (const r of rows)
-      map.set(r.definition.id, (map.get(r.definition.id) ?? 0) + 1);
+    for (const r of rows) map.set(r.definition.id, (map.get(r.definition.id) ?? 0) + 1);
     return map;
   }, [rows]);
 
@@ -82,8 +81,7 @@ export function PartsPage() {
         r.definition.revision.toLowerCase() !== filters.revision.trim().toLowerCase()
       )
         return false;
-      if (filters.minQty > 0 && (qtyByDef.get(r.definition.id) ?? 0) < filters.minQty)
-        return false;
+      if (filters.minQty > 0 && (qtyByDef.get(r.definition.id) ?? 0) < filters.minQty) return false;
       return true;
     });
   }, [rows, search, filters, qtyByDef]);
@@ -116,7 +114,8 @@ export function PartsPage() {
       else byDef.set(r.definition.id, [r]);
     }
     const grouped = [...byDef.values()];
-    for (const g of grouped) g.sort((a, b) => a.instance.instanceNumber - b.instance.instanceNumber);
+    for (const g of grouped)
+      g.sort((a, b) => a.instance.instanceNumber - b.instance.instanceNumber);
 
     const def = (g: InstanceRow[]) => g[0].definition;
     switch (sort) {
@@ -367,10 +366,7 @@ function PartRow({
   return (
     <div className="relative flex items-center gap-3 px-3 py-2.5 hover:bg-mist/70 transition-colors">
       {row.instance.isPriority ? (
-        <span
-          className="absolute left-0 inset-y-0 w-1 bg-amber-400"
-          title="Priority part"
-        />
+        <span className="absolute left-0 inset-y-0 w-1 bg-amber-400" title="Priority part" />
       ) : null}
 
       <button

@@ -19,7 +19,10 @@ export const STATE_META: Record<InstanceState, { label: string; badge: string }>
   doing: { label: "In Progress", badge: "bg-amber-50 text-amber-700 border-amber-300" },
   waiting: { label: "Waiting", badge: "bg-mist text-steel border-steel/30" },
   complete: { label: "Complete", badge: "bg-emerald-50 text-emerald-700 border-emerald-300" },
-  "no-processes": { label: "No Processes", badge: "bg-mist text-steel border-dashed border-steel/40" },
+  "no-processes": {
+    label: "No Processes",
+    badge: "bg-mist text-steel border-dashed border-steel/40",
+  },
 };
 
 /** Join non-stale instances with their definitions and pipelines. */

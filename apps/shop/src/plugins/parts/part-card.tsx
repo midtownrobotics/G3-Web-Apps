@@ -196,9 +196,7 @@ export function PartCard({
             {row.current && (
               <p className="text-xs text-steel-dark mt-2">
                 Currently {row.state === "doing" ? "in progress" : "queued"} at{" "}
-                <span className="font-semibold text-ink">
-                  {processName(row.current.processId)}
-                </span>
+                <span className="font-semibold text-ink">{processName(row.current.processId)}</span>
                 .
               </p>
             )}
