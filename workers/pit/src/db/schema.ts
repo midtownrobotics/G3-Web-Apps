@@ -35,6 +35,7 @@ export const batteries = sqliteTable("batteries", {
     .default("Idle"),
   stateSince: integer("state_since").notNull(), // milliseconds from Date.now()
   voltage: real("voltage"),
+  useCount: integer("use_count").notNull().default(0), // times put in the robot
   createdAt: integer("created_at").notNull(),
 });
 

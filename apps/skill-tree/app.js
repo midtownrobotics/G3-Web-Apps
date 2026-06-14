@@ -10,8 +10,8 @@ import {
 // ═══════════════════════════════════════════════════════
 // LAYOUT ENGINE
 // ═══════════════════════════════════════════════════════
-let NW=164, NH=72, CG=44;
-let LANE_H=20, STUB=24, CHAN_CLEAR=8, LANE_W=10, RG_MIN=48;
+let NW=164, NH=72, CG=60; // node width / height / horizontal gap
+let LANE_H=20, STUB=24, CHAN_CLEAR=16, LANE_W=16, RG_MIN=48; // channel-routing metrics
 let RC=18; // edge corner radius — scaled with layout constants at render time
 
 // ── LAYOUT ──────────────────────────────────────────────
@@ -24,6 +24,7 @@ function layout(nodes) {
     changed = false;
     nodes.forEach(n => {
       n.prereqs.forEach(pid => {
+        if (rank[pid] === undefined) return; // prereq outside this set
         if (rank[pid] + 1 > rank[n.id]) { rank[n.id] = rank[pid] + 1; changed = true; }
       });
     });
@@ -38,84 +39,29 @@ function layout(nodes) {
   });
   const maxRank = Math.max(...nodes.map(n => rank[n.id]));
 
-  // 3. Assign x positions (centre child under avg parent)
+  // 3. Pack each rank tightly (uniform CG gap), ordered by the barycentre of
+  //    parents so children sit under their parents, then centre every rank on a
+  //    common axis. This keeps the tree compact — no large horizontal gaps
+  //    between unrelated branches or single nodes. The channel router below
+  //    handles edge routing for whatever positions this produces.
   const pos = {};
-  Object.keys(byRank).map(Number).sort((a,b)=>a-b).forEach(r => {
-    byRank[r].forEach((n, i) => {
-      const pxs = n.prereqs.map(pid => pos[pid] ? pos[pid].x + NW/2 : null).filter(x => x !== null);
-      pos[n.id] = { x: pxs.length ? pxs.reduce((a,b)=>a+b,0)/pxs.length - NW/2 : i*(NW+CG), y: 0 };
+  const ranks = Object.keys(byRank).map(Number).sort((a,b)=>a-b);
+  ranks.forEach(r => {
+    const ordered = [...byRank[r]].sort((a,b) => {
+      const ax = a.prereqs.map(p => pos[p] ? pos[p].x : null).filter(v => v !== null);
+      const bx = b.prereqs.map(p => pos[p] ? pos[p].x : null).filter(v => v !== null);
+      const am = ax.length ? ax.reduce((s,v)=>s+v,0)/ax.length : 0;
+      const bm = bx.length ? bx.reduce((s,v)=>s+v,0)/bx.length : 0;
+      return am - bm;
     });
-    const sorted = [...byRank[r]].sort((a,b) => pos[a.id].x - pos[b.id].x);
-    for (let i = 1; i < sorted.length; i++) {
-      const p = pos[sorted[i-1].id], c = pos[sorted[i].id];
-      if (c.x < p.x + NW + CG) c.x = p.x + NW + CG;
-    }
+    ordered.forEach((n, i) => { pos[n.id] = { x: i*(NW+CG), y: 0 }; });
   });
-
-  // 3b. Bottom-up recentering (single pass): center each parent over its
-  //     adjacent-rank children. When collision resolution pushes a node right,
-  //     propagate that shift to single-parent descendants only — multi-parent
-  //     nodes are owned by several parents so must not be dragged by just one.
-  Object.keys(byRank).map(Number).sort((a,b) => b-a).forEach(r => {
-    byRank[r].forEach(n => {
-      const adjKids = nodes.filter(m => m.prereqs.includes(n.id) && rank[m.id] === r + 1);
-      if (!adjKids.length) return;
-      const avgCx = adjKids.reduce((s, m) => s + pos[m.id].x + NW/2, 0) / adjKids.length;
-      pos[n.id].x = avgCx - NW/2;
-    });
-    const sorted2 = [...byRank[r]].sort((a,b) => pos[a.id].x - pos[b.id].x);
-    for (let i = 1; i < sorted2.length; i++) {
-      const prev = pos[sorted2[i-1].id], cur = pos[sorted2[i].id];
-      if (cur.x < prev.x + NW + CG) {
-        const delta = prev.x + NW + CG - cur.x;
-        cur.x += delta;
-        // Propagate to single-parent descendants only so they stay aligned
-        const q = [sorted2[i].id], seen = new Set([sorted2[i].id]);
-        while (q.length) {
-          const id = q.shift();
-          nodes.filter(m => m.prereqs.includes(id) && m.prereqs.length === 1 && !seen.has(m.id))
-               .forEach(m => { seen.add(m.id); pos[m.id].x += delta; q.push(m.id); });
-        }
-      }
-    }
+  const widthOf = r => (byRank[r].length - 1) * (NW + CG);
+  const maxWidth = Math.max(...ranks.map(widthOf));
+  ranks.forEach(r => {
+    const offset = (maxWidth - widthOf(r)) / 2;
+    byRank[r].forEach(n => { pos[n.id].x = Math.round(pos[n.id].x + offset); });
   });
-
-  // 4. Normalise: shift so leftmost node is at x=0, snap to whole pixels.
-  //    Per-rank centering is omitted — it breaks parent-child vertical
-  //    alignment and produces cusps in the connecting edges.
-  const allX = Object.values(pos).map(p => p.x);
-  const minX = Math.min(...allX);
-  Object.values(pos).forEach(p => { p.x = Math.round(p.x - minX); });
-  const cw = Math.max(...Object.values(pos).map(p => p.x)) + NW;
-
-  // 5. Stub-crossing nudge: break alignments between non-adjacent ranks
-  //    that would cause vertical stubs to overlap channel segments
-  const centerX = id => pos[id] ? pos[id].x + NW/2 : 0;
-  const hasCross = id => {
-    const n = nodes.find(n => n.id === id); if (!n) return false;
-    if (n.prereqs.some(pid => pos[pid] && Math.abs(centerX(pid) - centerX(id)) > 2)) return true;
-    if (nodes.some(m => m.prereqs.includes(id) && pos[m.id] && Math.abs(centerX(m.id) - centerX(id)) > 2)) return true;
-    return false;
-  };
-  for (let pass = 0; pass < 4; pass++) {
-    let nudged = false;
-    nodes.forEach(a => {
-      nodes.forEach(b => {
-        if (a.id === b.id || Math.abs(rank[a.id] - rank[b.id]) <= 1) return;
-        if (Math.abs(centerX(a.id) - centerX(b.id)) > 2) return;
-        if (!hasCross(a.id) && !hasCross(b.id)) return;
-        const target = rank[a.id] > rank[b.id] ? a : b;
-        pos[target.id].x += LANE_W;
-        nudged = true;
-        const grp2 = nodes.filter(n => rank[n.id] === rank[target.id]).sort((a,b) => pos[a.id].x - pos[b.id].x);
-        for (let i = 1; i < grp2.length; i++) {
-          const p = pos[grp2[i-1].id], c = pos[grp2[i].id];
-          if (c.x < p.x + NW + CG) c.x = p.x + NW + CG;
-        }
-      });
-    });
-    if (!nudged) break;
-  }
 
   // 6. Assign chanX for all non-direct edges (needed before gap sizing)
   const chanXMap = {};
@@ -127,7 +73,7 @@ function layout(nodes) {
       const x1 = sp.x + NW/2, x2 = dp.x + NW/2;
       if (Math.abs(x1 - x2) < 2) return; // direct
       const nomX = (x1 + x2) / 2;
-      // Snap away from card bodies and center-x stubs
+      // Snap away from card bodies and center-x stubs with generous buffers
       const intervals = [];
       nodes.forEach(m => {
         const mr = rank[m.id];
@@ -140,12 +86,12 @@ function layout(nodes) {
         if (mr < rank[pid] || mr > rank[n.id]) return;
         const mp = pos[m.id]; if (!mp) return;
         const cx = mp.x + NW/2;
-        intervals.push([cx - LANE_W, cx + LANE_W]);
+        intervals.push([cx - LANE_W*2, cx + LANE_W*2]); // doubled buffer
       });
-      const clear = x => !intervals.some(([a,b]) => x >= a && x <= b);
+      const clear = x => !intervals.some(([a,b]) => x > a && x < b);
       let chanX = nomX;
       if (!clear(nomX)) {
-        for (let d = 2; d < canvasW; d += 2) {
+        for (let d = LANE_W; d < canvasW; d += LANE_W) {
           if (clear(nomX - d)) { chanX = nomX - d; break; }
           if (clear(nomX + d)) { chanX = nomX + d; break; }
         }
@@ -284,25 +230,6 @@ function layout(nodes) {
            ch: Math.max(...vals.map(p => p.y)) + NH };
 }
 
-// ── HORIZONTAL LAYOUT (safety tree — serial chain, left-to-right) ──────────
-function layoutHoriz(nodes) {
-  const rank = {};
-  nodes.forEach(n => { rank[n.id] = 0; });
-  let changed = true;
-  while (changed) {
-    changed = false;
-    nodes.forEach(n => {
-      n.prereqs.forEach(pid => {
-        if (rank[pid] + 1 > rank[n.id]) { rank[n.id] = rank[pid] + 1; changed = true; }
-      });
-    });
-  }
-  const pos = {};
-  nodes.forEach(n => { pos[n.id] = { x: rank[n.id] * (NW + CG), y: 0 }; });
-  const maxRank = Math.max(...nodes.map(n => rank[n.id]));
-  return { pos, cw: maxRank * (NW + CG) + NW, ch: NH };
-}
-
 // ── EDGE LAYOUT ─────────────────────────────────────────
 // Converts track assignments into y offsets for edgePath.
 function buildEdgeLayout(nodes, pos, rank, gapHeights, rankY, gapColorings, gapSegs, chanXMap) {
@@ -354,7 +281,6 @@ function buildEdgeLayout(nodes, pos, rank, gapHeights, rankY, gapColorings, gapS
 
   return layouts;
 }
-
 
 // ── EDGE PATH ───────────────────────────────────────────
 // Converts edge layout info into an SVG path string.
@@ -419,13 +345,6 @@ function edgePath(pos, rank, cw, srcId, dstId, nodeList, edgeLayouts) {
 }
 
 
-// ── HORIZONTAL EDGE PATH (safety tree — straight horizontal lines) ──────────
-function edgePathHoriz(pos, srcId, dstId) {
-  const sp = pos[srcId], dp = pos[dstId];
-  const y = sp.y + NH / 2;
-  return `M${sp.x + NW},${y} L${dp.x},${y}`;
-}
-
 // ═══════════════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════════════
@@ -437,11 +356,29 @@ let userRole = 'student';   // 'mentor' | 'student'
 let isAdmin = false;        // G3ID site admin — can manage the mentor list
 let currentUser = null;
 let unsubStudents = null;   // Firestore listener cleanup function
+let openTree = null, openCat = null; // currently-open sub-tree overlay (tree, catId)
 
 function gst(id) { return cur && students[cur] ? (students[cur][id] || 'not-started') : 'not-started'; }
+
+// ── Category helpers ───────────────────────────────────
+function catNodesOf(tree,catId){return tree.nodes.filter(n=>n.cat===catId);}
+function catComplete(tree,catId){const ns=catNodesOf(tree,catId);return ns.length>0&&ns.every(n=>gst(n.id)==='complete');}
+function catUnlocked(tree,cat){
+  if(tree.gate==='safety'&&!sdone())return false;
+  return (cat.prereqs||[]).every(pid=>catComplete(tree,pid));
+}
+// Display state for a category box: locked | available | in-progress | complete
+function catDsp(tree,cat){
+  if(!catUnlocked(tree,cat))return'locked';
+  if(catComplete(tree,cat.id))return'complete';
+  const ns=catNodesOf(tree,cat.id);
+  return ns.some(n=>gst(n.id)!=='not-started')?'in-progress':'available';
+}
+
 function unlocked(node,tree){
-  if(tree.gate==='safety'){const st=TREES.find(t=>t.id==='safety');if(!st.nodes.every(n=>gst(n.id)==='complete'))return false;}
-  return node.prereqs.every(pid=>gst(pid)==='complete');
+  const cat=(tree.cats||[]).find(c=>c.id===node.cat);
+  if(cat&&!catUnlocked(tree,cat))return false;       // category gate
+  return node.prereqs.every(pid=>gst(pid)==='complete'); // in-category prereqs
 }
 function dsp(node,tree){const r=gst(node.id);if(!unlocked(node,tree))return'locked';return r==='not-started'?'available':r;}
 function sdone(){return TREES.find(t=>t.id==='safety').nodes.every(n=>gst(n.id)==='complete');}
@@ -697,120 +634,132 @@ function renderTrees(){
   banner.className='gate'+(sc?' ok':'');
   banner.innerHTML=sc?'✦ &nbsp;Safety complete — all trees unlocked.':'🔒 &nbsp;Complete the Safety tree (100%) to unlock all other skill trees.';
 
-  // Shared helper: add clickable node divs to a nodes-layer element
-  function addNodes(nl,tree,pos){
-    tree.nodes.forEach(node=>{
-      const p=pos[node.id];if(!p)return;
-      const ds=dsp(node,tree);
-      const isSel=selNode&&selNode.id===node.id;
-      const el=document.createElement('div');
-      el.className=`node ${ds}${node.convergence?' convergence':''}${isSel?' sel':''}`;
-      el.dataset.nodeId=node.id;
-      el.style.cssText=`left:${p.x}px;top:${p.y}px;width:${NW}px;min-height:${NH}px;`;
-      if(ds==='locked'){
-        el.innerHTML=`<div class="n-top"><div class="n-label">${node.label}</div><div class="n-lock">🔒</div></div><div class="n-sub">${node.sub}</div>`;
-      }else{
-        el.innerHTML=`<div class="n-top"><div class="n-label">${node.label}</div><div class="n-dot"></div></div><div class="n-sub">${node.sub}</div>`;
-      }
-      el.addEventListener('click',()=>openPanel(node,tree));
-      nl.appendChild(el);
-    });
-  }
-
-  // Safety tree: horizontal layout, straight horizontal edges
-  function makeSafetyBlock(tree){
-    const block=document.createElement('div');block.className='tree-block';
+  // Show the selected discipline as a tree of category boxes.
+  c.appendChild(banner);
+  c.style.width='';
+  const tree=TREES.find(t=>t.id===curTree);
+  if(tree){
+    const hdr=document.createElement('div');hdr.className='t-hdr';
     const{t,d}=tprog(tree);
-    block.innerHTML=`<div class="t-hdr"><div class="t-icon">${tree.icon}</div><div><div class="t-name">${tree.name}</div><div class="t-sub">${tree.subtitle}</div></div><div class="t-pill"><span class="d">${d}</span> / ${t}</div></div>`;
-    const{pos,cw,ch}=layoutHoriz(tree.nodes);
-    block.style.width=cw+'px';
-    const wrap=document.createElement('div');wrap.className='canvas-wrap';wrap.style.width=cw+'px';wrap.style.height=(ch+16)+'px';
-    const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
-    svg.setAttribute('width',cw);svg.setAttribute('height',ch+16);svg.classList.add('tree-svg');
-    tree.nodes.forEach(node=>{
-      node.prereqs.forEach(pid=>{
-        const fn=tree.nodes.find(n=>n.id===pid);
-        const fds=dsp(fn,tree);
-        const path=document.createElementNS('http://www.w3.org/2000/svg','path');
-        path.setAttribute('d',edgePathHoriz(pos,pid,node.id));
-        path.dataset.srcId=pid;
-        let cls='edge ';
-        if(fds==='complete')cls+='ec';else if(fds==='in-progress')cls+='ep';else if(fds==='available')cls+='ea';else cls+='el';
-        path.setAttribute('class',cls);svg.appendChild(path);
-      });
+    hdr.innerHTML=`<div class="t-icon">${tree.icon}</div><div><div class="t-name">${tree.name}</div><div class="t-sub">${tree.subtitle}</div></div><div class="t-pill"><span class="d">${d}</span> / ${t}</div>`;
+    c.appendChild(hdr);
+
+    // Category pseudo-nodes (a small tree of categories).
+    const cats=tree.cats||[];
+    const items=cats.map(cat=>{
+      const ns=catNodesOf(tree,cat.id);
+      const done=ns.filter(n=>gst(n.id)==='complete').length;
+      return {id:cat.id,label:cat.name,sub:`${done} / ${ns.length} skills`,prereqs:cat.prereqs||[]};
     });
-    wrap.appendChild(svg);
-    const nl=document.createElement('div');nl.className='nodes-layer';nl.style.cssText=`position:relative;width:${cw}px;height:${ch+16}px;`;
-    addNodes(nl,tree,pos);
-    wrap.appendChild(nl);block.appendChild(wrap);
-    return block;
-  }
-
-  // All other trees: standard vertical layout
-  function makeVertBlock(tree){
-    const block=document.createElement('div');block.className='tree-block';
-    const{t,d}=tprog(tree);
-    block.innerHTML=`<div class="t-hdr"><div class="t-icon">${tree.icon}</div><div><div class="t-name">${tree.name}</div><div class="t-sub">${tree.subtitle}</div></div><div class="t-pill"><span class="d">${d}</span> / ${t}</div></div>`;
-    const{pos,rank,cw,ch,gapHeights,rankY,gapColorings,gapSegs,chanXMap}=layout(tree.nodes);
-    block.style.width=cw+'px';
-    const edgeLayouts=buildEdgeLayout(tree.nodes,pos,rank,gapHeights,rankY,gapColorings,gapSegs,chanXMap);
-    const wrap=document.createElement('div');wrap.className='canvas-wrap';wrap.style.width=cw+'px';wrap.style.height=(ch+16)+'px';
-    const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
-    svg.setAttribute('width',cw);svg.setAttribute('height',ch+16);svg.classList.add('tree-svg');
-    tree.nodes.forEach(node=>{
-      const tp=pos[node.id];if(!tp)return;
-      node.prereqs.forEach(pid=>{
-        const fp=pos[pid];if(!fp)return;
-        const fn=tree.nodes.find(n=>n.id===pid);
-        const fds=dsp(fn,tree);
-        const d=edgePath(pos,rank,cw,pid,node.id,tree.nodes,edgeLayouts);
-        const path=document.createElementNS('http://www.w3.org/2000/svg','path');
-        path.setAttribute('d',d);path.dataset.srcId=pid;
-        let cls='edge ';
-        if(fds==='complete')cls+='ec';else if(fds==='in-progress')cls+='ep';else if(fds==='available')cls+='ea';else cls+='el';
-        if(node.convergence)cls+=' edash';
-        path.setAttribute('class',cls);svg.appendChild(path);
-      });
+    const stateMap={};cats.forEach(cat=>stateMap[cat.id]=catDsp(tree,cat));
+    const canvas=buildCanvas(items,{
+      stateOf:id=>stateMap[id],
+      onClick:item=>openSubtree(tree,item.id),
+      dataAttr:'catId',
+      extraClass:'cat-node',
     });
-    wrap.appendChild(svg);
-    const nl=document.createElement('div');nl.className='nodes-layer';nl.style.cssText=`position:relative;width:${cw}px;height:${ch+16}px;`;
-    addNodes(nl,tree,pos);
-    wrap.appendChild(nl);block.appendChild(wrap);
-    return block;
+    const holder=document.createElement('div');holder.className='cat-tree';
+    holder.appendChild(canvas);
+    c.appendChild(holder);
   }
 
-  const safetyTree=TREES.find(t=>t.id==='safety');
-  const otherTrees=TREES.filter(t=>t.id!=='safety');
-
-  if(narrow){
-    // Mobile: gate banner, then single selected tree
-    c.appendChild(banner);
-    const tree=TREES.find(t=>t.id===curTree);
-    if(tree){
-      const block=tree.id==='safety'?makeSafetyBlock(tree):makeVertBlock(tree);
-      c.appendChild(block);
-      // Fix container width so margin:auto can center it
-      c.style.width=block.style.width||'';
-    }else{
-      c.style.width='';
-    }
-  }else{
-    // Desktop: safety (horizontal) at top, gate banner, then 8 trees in a non-wrapping row
-    c.style.width='';
-    c.appendChild(makeSafetyBlock(safetyTree));
-    c.appendChild(banner);
-    const row=document.createElement('div');row.className='trees-row';
-    otherTrees.forEach(tree=>row.appendChild(makeVertBlock(tree)));
-    c.appendChild(row);
-  }
+  // If a sub-tree overlay is open, keep it in sync after a data update.
+  if(openTree)renderSubtree();
 
   // Restore scroll after DOM rebuild
   treeArea.scrollTop=scrollTop;treeArea.scrollLeft=scrollLeft;
 }
 
+// Generic canvas builder — lays out `items` (each {id,label,sub,prereqs}) and
+// renders boxes + geometric edges. `opt` supplies state lookup, click handler,
+// the dataset attribute name, and optional convergence/selection styling.
+function buildCanvas(items,opt){
+  const SVGNS='http://www.w3.org/2000/svg';
+  const{pos,rank,cw,ch,gapHeights,rankY,gapColorings,gapSegs,chanXMap}=layout(items);
+  const ids=new Set(items.map(n=>n.id));
+  const edgeLayouts=buildEdgeLayout(items,pos,rank,gapHeights,rankY,gapColorings,gapSegs,chanXMap);
+  const wrap=document.createElement('div');wrap.className='canvas-wrap';
+  wrap.style.width=cw+'px';wrap.style.height=(ch+16)+'px';
+  const svg=document.createElementNS(SVGNS,'svg');
+  svg.setAttribute('width',cw);svg.setAttribute('height',ch+16);svg.classList.add('tree-svg');
+  items.forEach(node=>{
+    node.prereqs.forEach(pid=>{
+      if(!ids.has(pid)||!pos[pid]||!pos[node.id])return;
+      const fds=opt.stateOf(pid);
+      const path=document.createElementNS(SVGNS,'path');
+      path.setAttribute('d',edgePath(pos,rank,cw,pid,node.id,items,edgeLayouts));path.dataset.srcId=pid;
+      let cls='edge ';
+      cls+=fds==='complete'?'ec':fds==='in-progress'?'ep':fds==='available'?'ea':'el';
+      if(opt.convOf&&opt.convOf(node))cls+=' edash';
+      path.setAttribute('class',cls);svg.appendChild(path);
+    });
+  });
+  wrap.appendChild(svg);
+  const nl=document.createElement('div');nl.className='nodes-layer';
+  nl.style.cssText=`position:relative;width:${cw}px;height:${ch+16}px;`;
+  items.forEach(node=>{
+    const p=pos[node.id];if(!p)return;
+    const ds=opt.stateOf(node.id);
+    const isSel=opt.selId&&opt.selId===node.id;
+    const el=document.createElement('div');
+    el.className=`node ${ds}${opt.convOf&&opt.convOf(node)?' convergence':''}${isSel?' sel':''}${opt.extraClass?' '+opt.extraClass:''}`;
+    el.dataset[opt.dataAttr]=node.id;
+    el.style.cssText=`left:${p.x}px;top:${p.y}px;width:${NW}px;min-height:${NH}px;`;
+    const icon=ds==='locked'?'<div class="n-lock">🔒</div>':'<div class="n-dot"></div>';
+    el.innerHTML=`<div class="n-top"><div class="n-label">${node.label}</div>${icon}</div><div class="n-sub">${node.sub||''}</div>`;
+    el.addEventListener('click',()=>opt.onClick(node));
+    nl.appendChild(el);
+  });
+  wrap.appendChild(nl);
+  return wrap;
+}
+
+// ── SUB-TREE OVERLAY ────────────────────────────────────
+function openSubtree(tree,catId){
+  openTree=tree;openCat=catId;
+  renderSubtree();
+  document.getElementById('subtreeOverlay').classList.add('open');
+  document.getElementById('subtreeBackdrop').classList.add('open');
+  document.body.classList.add('subtree-open');
+}
+function renderSubtree(){
+  if(!openTree||!openCat)return;
+  const tree=openTree;
+  const cat=(tree.cats||[]).find(c=>c.id===openCat);
+  if(!cat)return;
+  document.getElementById('subtreeTitle').innerHTML=`<span class="st-tag">${tree.icon} ${tree.name}</span><span class="st-name">${cat.name}</span>`;
+  const host=document.getElementById('subtreeCanvas');host.innerHTML='';
+  const catNodes=catNodesOf(tree,cat.id);
+  const canvas=buildCanvas(catNodes,{
+    stateOf:id=>{const f=findN(id);return f?dsp(f.node,tree):'locked';},
+    convOf:n=>!!n.convergence,
+    onClick:n=>openPanel(n,tree),
+    dataAttr:'nodeId',
+    selId:selNode&&selNode.id,
+  });
+  host.appendChild(canvas);
+}
+function closeSubtree(){
+  document.getElementById('subtreeOverlay').classList.remove('open');
+  document.getElementById('subtreeBackdrop').classList.remove('open');
+  document.body.classList.remove('subtree-open');
+  openTree=null;openCat=null;
+  closePanel();
+  renderTrees(); // refresh category boxes (progress / unlocks) underneath
+}
+
 // ═══════════════════════════════════════════════════════
 // PANEL
 // ═══════════════════════════════════════════════════════
+function toggleDropdown(id) {
+  const content = document.getElementById(id + 'Content');
+  if (content) {
+    content.classList.toggle('open');
+    const header = content.previousElementSibling;
+    if (header) header.classList.toggle('open');
+  }
+}
+
 function openPanel(node,tree){
   selNode=node;selTree=tree;
   const ds=dsp(node,tree),raw=gst(node.id);
@@ -819,6 +768,14 @@ function openPanel(node,tree){
   document.getElementById('pDesc').textContent=node.desc;
   const badge=document.getElementById('pBadge');badge.className='sbadge '+ds;
   document.getElementById('pSt').textContent={locked:'Locked',available:'Available','in-progress':'In Progress',complete:'Complete'}[ds];
+
+  // Open the Description and Update Progress sections by default
+  ['descContent','updateContent'].forEach(id => {
+    const content = document.getElementById(id);
+    const header = content ? content.previousElementSibling : null;
+    if (content && header) { content.classList.add('open'); header.classList.add('open'); }
+  });
+
   const psec=document.getElementById('pPreSec'),plist=document.getElementById('pPre');plist.innerHTML='';
   if(!node.prereqs.length){psec.style.display='none';}else{
     psec.style.display='block';
@@ -835,6 +792,7 @@ function openPanel(node,tree){
   document.getElementById('pFoot').textContent=node.convergence?'◈ Convergence node — all prerequisites must be complete to unlock.':'';
   document.getElementById('panel').classList.add('open');
   document.getElementById('panelOverlay').classList.add('open');
+  document.body.classList.add('detail-open');
   document.querySelectorAll('.node.sel').forEach(el=>el.classList.remove('sel'));
   const selEl=document.querySelector('[data-node-id="'+node.id+'"]');
   if(selEl)selEl.classList.add('sel');
@@ -843,7 +801,11 @@ function closePanel(){
   selNode=null;selTree=null;
   document.getElementById('panel').classList.remove('open');
   document.getElementById('panelOverlay').classList.remove('open');
+  document.body.classList.remove('detail-open');
   document.querySelectorAll('.node.sel').forEach(el=>el.classList.remove('sel'));
+  // Reset all sections to collapsed
+  document.querySelectorAll('.sec-content').forEach(el=>el.classList.remove('open'));
+  document.querySelectorAll('.sec-header').forEach(el=>el.classList.remove('open'));
 }
 function setSt(s){
   if(!selNode||userRole!=='mentor')return;
@@ -901,5 +863,6 @@ function setSt(s){
 //  attributes in index.html need globally accessible functions.)
 // ═══════════════════════════════════════════════════════
 Object.assign(window, {
-  go, onTreeSel, closePanel, setSt, doLogin, doLogout, mnAdd, mnRemove,
+  go, onTreeSel, closePanel, setSt, doLogin, doLogout, mnAdd, mnRemove, toggleDropdown,
+  closeSubtree,
 });

@@ -39,10 +39,16 @@ type NexusData = {
   matches: NexusMatch[];
 };
 
+type ContextRankings = {
+  top3: Array<{ rank: number; team: string }>;
+  context: Array<{ rank: number; team: string }>;
+};
+
 type MonitorData = {
   teamNumber: string;
   nexus: NexusData | null;
   ranking: RankingRow | null;
+  contextRankings?: ContextRankings | null;
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -120,22 +126,20 @@ function NexusSection({ nexus, teamNumber }: { nexus: NexusData; teamNumber: str
   if (!onDeck && !nowQueuing && !queuingSoon) return null;
 
   return (
-    <div className="space-y-2">
+    <div className="grid grid-cols-3 gap-2">
       {onDeck && (
         <div
-          className={`rounded-2xl p-4 border ${teamInMatch(onDeck, teamNumber) ? "bg-red-600/40 border-red-400 ring-2 ring-red-400" : "bg-red-900/30 border-red-700"}`}
+          className={`rounded-xl p-2.5 border ${teamInMatch(onDeck, teamNumber) ? "bg-red-600/40 border-red-400 ring-2 ring-red-400" : "bg-red-900/30 border-red-700"}`}
         >
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-widest text-red-300 mb-0.5">
-                On Deck {teamInMatch(onDeck, teamNumber) && "— US!"}
-              </p>
-              <p className="text-2xl font-black text-white">{onDeck.label}</p>
-            </div>
+          <div className="space-y-1">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-red-300">
+              On Deck {teamInMatch(onDeck, teamNumber) && "!"}
+            </p>
+            <p className="text-lg font-black text-white">{onDeck.label}</p>
             {onDeck.times.estimatedOnFieldTime && (
-              <div className="text-right shrink-0">
-                <p className="text-xs text-gray-400">On field in</p>
-                <p className="text-xl font-bold text-red-300 tabular-nums">
+              <div>
+                <p className="text-[10px] text-gray-400">On field in</p>
+                <p className="text-sm font-bold text-red-300 tabular-nums">
                   <Countdown targetMs={onDeck.times.estimatedOnFieldTime} />
                 </p>
               </div>
@@ -146,19 +150,17 @@ function NexusSection({ nexus, teamNumber }: { nexus: NexusData; teamNumber: str
 
       {nowQueuing && (
         <div
-          className={`rounded-2xl p-4 border ${teamInMatch(nowQueuing, teamNumber) ? "bg-yellow-600/30 border-yellow-400 ring-2 ring-yellow-400" : "bg-yellow-900/20 border-yellow-700"}`}
+          className={`rounded-xl p-2.5 border ${teamInMatch(nowQueuing, teamNumber) ? "bg-yellow-600/30 border-yellow-400 ring-2 ring-yellow-400" : "bg-yellow-900/20 border-yellow-700"}`}
         >
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-widest text-yellow-300 mb-0.5">
-                Now Queuing {teamInMatch(nowQueuing, teamNumber) && "— US!"}
-              </p>
-              <p className="text-2xl font-black text-white">{nowQueuing.label}</p>
-            </div>
+          <div className="space-y-1">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-yellow-300">
+              Now Queuing {teamInMatch(nowQueuing, teamNumber) && "!"}
+            </p>
+            <p className="text-lg font-black text-white">{nowQueuing.label}</p>
             {nowQueuing.times.estimatedOnFieldTime && (
-              <div className="text-right shrink-0">
-                <p className="text-xs text-gray-400">On field in</p>
-                <p className="text-xl font-bold text-yellow-300 tabular-nums">
+              <div>
+                <p className="text-[10px] text-gray-400">On field in</p>
+                <p className="text-sm font-bold text-yellow-300 tabular-nums">
                   <Countdown targetMs={nowQueuing.times.estimatedOnFieldTime} />
                 </p>
               </div>
@@ -169,19 +171,17 @@ function NexusSection({ nexus, teamNumber }: { nexus: NexusData; teamNumber: str
 
       {queuingSoon && (
         <div
-          className={`rounded-2xl p-4 border ${teamInMatch(queuingSoon, teamNumber) ? "bg-emerald-700/30 border-emerald-400 ring-2 ring-emerald-400" : "bg-emerald-900/20 border-emerald-800"}`}
+          className={`rounded-xl p-2.5 border ${teamInMatch(queuingSoon, teamNumber) ? "bg-emerald-700/30 border-emerald-400 ring-2 ring-emerald-400" : "bg-emerald-900/20 border-emerald-800"}`}
         >
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-widest text-emerald-300 mb-0.5">
-                Queuing Soon {teamInMatch(queuingSoon, teamNumber) && "— US!"}
-              </p>
-              <p className="text-2xl font-black text-white">{queuingSoon.label}</p>
-            </div>
+          <div className="space-y-1">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-300">
+              Queuing Soon {teamInMatch(queuingSoon, teamNumber) && "!"}
+            </p>
+            <p className="text-lg font-black text-white">{queuingSoon.label}</p>
             {queuingSoon.times.estimatedQueueTime && (
-              <div className="text-right shrink-0">
-                <p className="text-xs text-gray-400">Queue in</p>
-                <p className="text-xl font-bold text-emerald-300 tabular-nums">
+              <div>
+                <p className="text-[10px] text-gray-400">Queue in</p>
+                <p className="text-sm font-bold text-emerald-300 tabular-nums">
                   <Countdown targetMs={queuingSoon.times.estimatedQueueTime} />
                 </p>
               </div>
@@ -200,9 +200,9 @@ function UpcomingMatchesSection({
   nexus: NexusData;
   teamNumber: string;
 }) {
-  const upcoming = nexus.matches
-    .filter((m) => teamInMatch(m, teamNumber) && m.status !== "On field")
-    .slice(0, 5);
+  const upcoming = nexus.matches.filter(
+    (m) => teamInMatch(m, teamNumber) && m.status !== "On field",
+  );
 
   if (upcoming.length === 0) return null;
 
@@ -265,38 +265,98 @@ function UpcomingMatchesSection({
   );
 }
 
-function RankingSection({ ranking }: { ranking: RankingRow }) {
+function RankingSection({
+  ranking,
+  contextRankings,
+  teamNumber,
+}: {
+  ranking: RankingRow;
+  contextRankings?: ContextRankings | null;
+  teamNumber: string;
+}) {
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-      <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-3">Ranking</h2>
-      <div className="flex items-center gap-6">
-        {ranking.rank !== null && (
-          <p className="text-6xl font-black text-white leading-none">
-            <span className="text-2xl text-gray-500 font-normal">#</span>
-            {ranking.rank}
-          </p>
-        )}
-        <div className="space-y-1 text-sm">
-          <p className="text-gray-300">
-            <span className="text-green-400 font-bold">{ranking.wins}W</span>
-            {" — "}
-            <span className="text-red-400 font-bold">{ranking.losses}L</span>
-            {ranking.ties > 0 && (
-              <>
+    <div className="space-y-2">
+      <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500">Ranking</h2>
+      <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+        <div className="flex gap-6 items-start">
+          {/* Left: rank info */}
+          <div className="flex gap-6 shrink-0">
+            {ranking.rank !== null && (
+              <p className="text-6xl font-black text-white leading-none">
+                <span className="text-2xl text-gray-500 font-normal">#</span>
+                {ranking.rank}
+              </p>
+            )}
+            <div className="space-y-1 text-sm">
+              <p className="text-gray-300">
+                <span className="text-green-400 font-bold">{ranking.wins}W</span>
                 {" — "}
-                <span className="text-gray-400 font-bold">{ranking.ties}T</span>
-              </>
-            )}
-          </p>
-          <p className="text-gray-400">
-            <span className="text-white font-semibold">{ranking.rp}</span> RP
-            {ranking.epa > 0 && (
-              <>
-                {" · "}
-                <span className="text-white font-semibold">{ranking.epa.toFixed(1)}</span> EPA
-              </>
-            )}
-          </p>
+                <span className="text-red-400 font-bold">{ranking.losses}L</span>
+                {ranking.ties > 0 && (
+                  <>
+                    {" — "}
+                    <span className="text-gray-400 font-bold">{ranking.ties}T</span>
+                  </>
+                )}
+              </p>
+              <p className="text-gray-400">
+                <span className="text-white font-semibold">{ranking.rp}</span> RP
+                {ranking.epa > 0 && (
+                  <>
+                    {" · "}
+                    <span className="text-white font-semibold">{ranking.epa.toFixed(1)}</span> EPA
+                  </>
+                )}
+              </p>
+            </div>
+          </div>
+
+          {/* Right: context table if available */}
+          {contextRankings && (
+            <div className="flex-1 pl-6 border-l border-gray-700">
+              <div className="grid grid-cols-2 gap-4">
+                {/* Left: context (around us) */}
+                <div className="space-y-2">
+                  <p className="text-xs text-gray-500 font-semibold">Around Us</p>
+                  <div className="space-y-1">
+                    {contextRankings.context.map((r) => (
+                      <div
+                        key={r.team}
+                        className={`flex justify-between px-2.5 py-1.5 rounded text-sm ${
+                          r.team === teamNumber
+                            ? "bg-red-900/40 text-red-200 font-semibold"
+                            : "text-gray-300"
+                        }`}
+                      >
+                        <span>#{r.rank}</span>
+                        <span>{r.team}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Right: top 3 */}
+                <div className="space-y-2">
+                  <p className="text-xs text-gray-500 font-semibold">Top 3</p>
+                  <div className="space-y-1">
+                    {contextRankings.top3.map((r) => (
+                      <div
+                        key={r.team}
+                        className={`flex justify-between px-2.5 py-1.5 rounded text-sm ${
+                          r.team === teamNumber
+                            ? "bg-red-900/40 text-red-200 font-semibold"
+                            : "text-gray-300"
+                        }`}
+                      >
+                        <span>#{r.rank}</span>
+                        <span>{r.team}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -306,96 +366,78 @@ function RankingSection({ ranking }: { ranking: RankingRow }) {
 function BatteriesSection({ batteries }: { batteries: Battery[] }) {
   const inRobot = batteries.find((b) => b.state === "In Robot");
   const nextUp = batteries.find((b) => b.state === "Next Up");
-  const charging = batteries
+  const longestCharging = batteries
     .filter((b) => b.state === "Charging")
-    .sort((a, b) => a.stateSince - b.stateSince);
-  const idle = batteries.filter((b) => b.state === "Idle");
-  const broken = batteries.filter((b) => b.state === "Broken");
+    .sort((a, b) => a.stateSince - b.stateSince)[0];
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500">Batteries</h2>
-
-      <div className="bg-red-900/30 border border-red-700 rounded-2xl p-5">
-        <p className="text-xs font-bold uppercase tracking-widest text-red-400 mb-2">In Robot</p>
-        {inRobot ? (
-          <div className="flex items-end justify-between gap-4">
-            <div>
-              <p className="text-4xl font-black text-white">{inRobot.name}</p>
-              <p className="text-sm text-gray-400 mt-1">
-                <ElapsedTime sinceMs={inRobot.stateSince} />
-              </p>
-            </div>
-            {inRobot.voltage != null && (
-              <p
-                className={`text-3xl font-bold font-mono tabular-nums ${voltageColor(inRobot.voltage)}`}
-              >
-                {inRobot.voltage.toFixed(2)}V
-              </p>
+      <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-red-900/30 border border-red-700 rounded-xl p-3">
+            <p className="text-xs font-bold uppercase tracking-widest text-red-400 mb-2">
+              In Robot
+            </p>
+            {inRobot ? (
+              <div className="space-y-1">
+                <p className="text-xl font-black text-white">{inRobot.name}</p>
+                <p className="text-xs text-gray-400">
+                  <ElapsedTime sinceMs={inRobot.stateSince} />
+                </p>
+                {inRobot.voltage != null && (
+                  <p
+                    className={`text-lg font-bold font-mono tabular-nums ${voltageColor(inRobot.voltage)}`}
+                  >
+                    {inRobot.voltage.toFixed(2)}V
+                  </p>
+                )}
+              </div>
+            ) : (
+              <p className="text-gray-600 text-xs">No battery</p>
             )}
           </div>
-        ) : (
-          <p className="text-gray-600 text-sm">No battery in robot</p>
-        )}
-      </div>
 
-      <div className="bg-emerald-900/30 border border-emerald-600 rounded-2xl p-5">
-        <p className="text-xs font-bold uppercase tracking-widest text-emerald-400 mb-2">Next Up</p>
-        {nextUp ? (
-          <div className="flex items-end justify-between gap-4">
-            <div>
-              <p className="text-4xl font-black text-white">{nextUp.name}</p>
-              <p className="text-sm text-gray-400 mt-1">
-                <ElapsedTime sinceMs={nextUp.stateSince} />
-              </p>
-            </div>
-            {nextUp.voltage != null && (
-              <p
-                className={`text-3xl font-bold font-mono tabular-nums ${voltageColor(nextUp.voltage)}`}
-              >
-                {nextUp.voltage.toFixed(2)}V
-              </p>
+          <div className="bg-emerald-900/30 border border-emerald-600 rounded-xl p-3">
+            <p className="text-xs font-bold uppercase tracking-widest text-emerald-400 mb-2">
+              Next Up
+            </p>
+            {nextUp ? (
+              <div className="space-y-1">
+                <p className="text-xl font-black text-white">{nextUp.name}</p>
+                <p className="text-xs text-gray-400">
+                  <ElapsedTime sinceMs={nextUp.stateSince} />
+                </p>
+                {nextUp.voltage != null && (
+                  <p
+                    className={`text-lg font-bold font-mono tabular-nums ${voltageColor(nextUp.voltage)}`}
+                  >
+                    {nextUp.voltage.toFixed(2)}V
+                  </p>
+                )}
+              </div>
+            ) : (
+              <p className="text-gray-600 text-xs">None</p>
             )}
           </div>
-        ) : (
-          <p className="text-gray-600 text-sm">None designated</p>
-        )}
+
+          <div className="bg-blue-900/20 border border-blue-800 rounded-xl p-3">
+            <p className="text-xs font-bold uppercase tracking-widest text-blue-400 mb-2">
+              Charging
+            </p>
+            {longestCharging ? (
+              <div className="space-y-1">
+                <p className="text-xl font-black text-white">{longestCharging.name}</p>
+                <p className="text-xs text-gray-400 tabular-nums">
+                  <ElapsedTime sinceMs={longestCharging.stateSince} />
+                </p>
+              </div>
+            ) : (
+              <p className="text-gray-600 text-xs">None</p>
+            )}
+          </div>
+        </div>
       </div>
-
-      {charging.length > 0 && (
-        <div className="bg-blue-900/20 border border-blue-800 rounded-2xl p-4 space-y-2">
-          <p className="text-xs font-bold uppercase tracking-widest text-blue-400">Charging</p>
-          {charging.map((b) => (
-            <div key={b.id} className="flex items-center justify-between">
-              <p className="text-base font-semibold text-white">{b.name}</p>
-              <p className="text-sm text-gray-400 tabular-nums">
-                <ElapsedTime sinceMs={b.stateSince} />
-              </p>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {(idle.length > 0 || broken.length > 0) && (
-        <div className="flex flex-wrap gap-2">
-          {idle.map((b) => (
-            <span
-              key={b.id}
-              className="px-3 py-1 bg-gray-800 border border-gray-700 rounded-full text-sm text-gray-400"
-            >
-              {b.name}
-            </span>
-          ))}
-          {broken.map((b) => (
-            <span
-              key={b.id}
-              className="px-3 py-1 bg-yellow-900/30 border border-yellow-800 rounded-full text-sm text-yellow-500 line-through"
-            >
-              {b.name}
-            </span>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -559,15 +601,21 @@ export function PitMonitorPage() {
 
         {/* Main grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Left: matches + ranking */}
+          {/* Left: ranking + upcoming matches */}
           <div className="space-y-5">
+            {monitor?.ranking && (
+              <RankingSection
+                ranking={monitor.ranking}
+                contextRankings={monitor.contextRankings}
+                teamNumber={teamNumber}
+              />
+            )}
             {hasNexus && nexus && <UpcomingMatchesSection nexus={nexus} teamNumber={teamNumber} />}
-            {monitor?.ranking && <RankingSection ranking={monitor.ranking} />}
-            <BatteriesSection batteries={batteries} />
           </div>
 
-          {/* Right: checklist + issues */}
-          <div>
+          {/* Right: batteries + checklist + issues */}
+          <div className="space-y-5">
+            <BatteriesSection batteries={batteries} />
             <ChecklistSection lists={lists} issues={issues} />
           </div>
         </div>

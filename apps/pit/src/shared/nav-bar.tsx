@@ -47,6 +47,14 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
               {item.label}
             </Link>
           ))}
+          {user?.isAdmin === true && (
+            <Link
+              to="/admin"
+              className="text-sm text-gray-300 hover:text-red-400 transition-colors"
+            >
+              Settings
+            </Link>
+          )}
           <a
             className="text-sm text-gray-300 hover:text-red-400 transition-colors"
             href="https://web.g3robotics.com/members"
@@ -89,6 +97,15 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
               {item.label}
             </Link>
           ))}
+          {user?.isAdmin === true && (
+            <Link
+              to="/admin"
+              onClick={closeMenu}
+              className="text-2xl font-bold text-gray-100 hover:text-red-400 transition-colors"
+            >
+              Settings
+            </Link>
+          )}
           <a
             className="text-2xl font-bold text-gray-100 hover:text-red-400 transition-colors"
             href="https://web.g3robotics.com/members"

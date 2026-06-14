@@ -167,11 +167,18 @@ export function BatteriesPage() {
       setVoltageInput("");
     }
     const tracksVoltage = state === "In Robot" || state === "Next Up";
+    const enteringRobot = state === "In Robot" && battery.state !== "In Robot";
     setUpdatingIds((prev) => new Set(prev).add(battery.id));
     setBatteries((prev) =>
       prev.map((b) =>
         b.id === battery.id
-          ? { ...b, state, stateSince: Date.now(), ...(!tracksVoltage ? { voltage: null } : {}) }
+          ? {
+              ...b,
+              state,
+              stateSince: Date.now(),
+              ...(!tracksVoltage ? { voltage: null } : {}),
+              ...(enteringRobot ? { useCount: b.useCount + 1 } : {}),
+            }
           : b,
       ),
     );
@@ -212,6 +219,19 @@ export function BatteriesPage() {
     const res = await api.batteries[":id"].voltage.$patch({
       param: { id: String(battery.id) },
       json: { voltage },
+    });
+    if (!res.ok) {
+      setBanner(await getErrorMessage(res as unknown as Response));
+      fetchBatteries()
+        .then(setBatteries)
+        .catch(() => {});
+    }
+  }
+
+  async function handleResetUses(battery: Battery) {
+    setBatteries((prev) => prev.map((b) => (b.id === battery.id ? { ...b, useCount: 0 } : b)));
+    const res = await api.batteries[":id"]["reset-uses"].$post({
+      param: { id: String(battery.id) },
     });
     if (!res.ok) {
       setBanner(await getErrorMessage(res as unknown as Response));
@@ -376,6 +396,21 @@ export function BatteriesPage() {
                         for <ElapsedTime sinceMs={battery.stateSince} />
                       </span>
                     </p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs text-gray-500">
+                        Used in robot{" "}
+                        <span className="font-semibold text-gray-300">{battery.useCount}×</span>
+                      </span>
+                      {battery.useCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => handleResetUses(battery)}
+                          className="text-xs text-gray-600 hover:text-red-400 transition-colors underline"
+                        >
+                          reset
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
                     {/* Voltage — shown for In Robot and Next Up */}
