@@ -47,7 +47,7 @@ const app = base
   .route("/auth", steamAuthRouter)
   .route("/admin", adminRouter)
   .route("/", kioskRouter)
-  .route("/", slackRouter);
+  .route("/slack", slackRouter);
 
 export type G3IDApp = typeof app;
 export default app;
