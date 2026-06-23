@@ -19,11 +19,18 @@ export const STATE_META: Record<InstanceState, { label: string; badge: string }>
   doing: { label: "In Progress", badge: "bg-amber-50 text-amber-700 border-amber-300" },
   waiting: { label: "Waiting", badge: "bg-mist text-steel border-steel/30" },
   complete: { label: "Complete", badge: "bg-emerald-50 text-emerald-700 border-emerald-300" },
-  "no-processes": { label: "No Processes", badge: "bg-mist text-steel border-dashed border-steel/40" },
+  "no-processes": {
+    label: "No Processes",
+    badge: "bg-mist text-steel border-dashed border-steel/40",
+  },
 };
 
-/** Join non-stale instances with their definitions and pipelines. */
-export function buildInstanceRows(data: ShopData): InstanceRow[] {
+/** Join instances with their definitions and pipelines. Stale instances are
+ * excluded unless `includeStale` is set (the parts page's Stale table needs them). */
+export function buildInstanceRows(
+  data: ShopData,
+  { includeStale = false }: { includeStale?: boolean } = {},
+): InstanceRow[] {
   const defById = new Map(data.definitions.map((d) => [d.id, d]));
   const procsByInstance = new Map<number, PartInstanceProcess[]>();
   for (const p of data.instanceProcesses) {
@@ -34,7 +41,7 @@ export function buildInstanceRows(data: ShopData): InstanceRow[] {
 
   const rows: InstanceRow[] = [];
   for (const instance of data.instances) {
-    if (instance.isStale) continue;
+    if (instance.isStale && !includeStale) continue;
     const definition = defById.get(instance.partDefinitionId);
     if (!definition) continue;
     const procs = (procsByInstance.get(instance.id) ?? []).sort((a, b) => a.index - b.index);

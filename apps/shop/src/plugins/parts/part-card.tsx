@@ -1,8 +1,36 @@
 import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { api } from "../../shared/api";
 import { getErrorMessage } from "../../shared/api-error";
 import type { InstanceRow } from "../../shared/derive";
+import { processPath } from "../../shared/nav";
 import type { ShopData } from "../../shared/use-shop-data";
+import { useUserNames } from "../../shared/use-user-names";
+
+/** Advance a revision by one for convenience (A→B, Z→AA, 1→2). */
+export function advanceRevision(rev: string): string {
+  const r = rev.trim();
+  if (!r) return "A";
+  if (/^[A-Za-z]+$/.test(r)) {
+    const isUpper = r === r.toUpperCase();
+    const arr = r.toUpperCase().split("");
+    let i = arr.length - 1;
+    while (i >= 0) {
+      if (arr[i] === "Z") {
+        arr[i] = "A";
+        i--;
+      } else {
+        arr[i] = String.fromCharCode(arr[i].charCodeAt(0) + 1);
+        break;
+      }
+    }
+    if (i < 0) arr.unshift("A");
+    const out = arr.join("");
+    return isUpper ? out : out.toLowerCase();
+  }
+  if (/^\d+$/.test(r)) return String(Number(r) + 1);
+  return r;
+}
 
 export function PartCard({
   row,
@@ -15,13 +43,21 @@ export function PartCard({
   onClose: () => void;
   onChanged: () => Promise<void>;
 }) {
+  const navigate = useNavigate();
   const [banner, setBanner] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [editingDrawing, setEditingDrawing] = useState(false);
+  const [drawingDraft, setDrawingDraft] = useState(row.definition.partDrawingUrl ?? "");
+
+  const resolveName = useUserNames([row.definition.creator]);
 
   const processName = (pid: number) =>
     data.processes.find((p) => p.id === pid)?.name ?? `Process #${pid}`;
   const subsystemName =
     data.subsystems.find((s) => s.id === row.definition.subsystemId)?.name ?? "—";
+  const totalInstances = data.instances.filter(
+    (i) => i.partDefinitionId === row.definition.id,
+  ).length;
 
   async function setPriority(next: boolean) {
     setBusy(true);
@@ -37,8 +73,25 @@ export function PartCard({
     setBusy(false);
   }
 
+  async function saveDrawing(url: string | null) {
+    setBusy(true);
+    const res = await api["part-definitions"][":id"].$patch({
+      param: { id: String(row.definition.id) },
+      json: { partDrawingUrl: url },
+    });
+    if (!res.ok) {
+      setBanner(await getErrorMessage(res as unknown as Response));
+      setBusy(false);
+      return;
+    }
+    setBanner(null);
+    setEditingDrawing(false);
+    await onChanged();
+    setBusy(false);
+  }
+
   async function makeStale() {
-    if (!window.confirm("Mark this part as stale? It will disappear from the parts table.")) return;
+    if (!window.confirm("Mark this part as stale? It will move to the Stale table.")) return;
     setBusy(true);
     const res = await api["part-instances"][":id"].$patch({
       param: { id: String(row.instance.id) },
@@ -51,6 +104,28 @@ export function PartCard({
     }
     await onChanged();
     onClose();
+  }
+
+  /** Open the Add Part page pre-filled from this part for a process transfer. */
+  function transferProcesses() {
+    navigate("/parts/new", {
+      state: {
+        transferFrom: {
+          sourceInstanceId: row.instance.id,
+          onshapePartNumber: row.definition.onshapePartNumber,
+          revision: advanceRevision(row.definition.revision),
+          subsystemId: row.definition.subsystemId,
+          name: row.definition.name,
+          notes: row.definition.notes ?? "",
+          isPriority: !!row.instance.isPriority,
+          // Pipeline in order, flagged with whether each step was already done.
+          processes: row.procs.map((p) => ({
+            processId: p.processId,
+            done: p.status === "done",
+          })),
+        },
+      },
+    });
   }
 
   return (
@@ -67,7 +142,9 @@ export function PartCard({
           <div className="min-w-0">
             <h2 className="font-display text-3xl text-ink truncate">
               {row.definition.name}{" "}
-              <span className="text-steel text-2xl">#{row.instance.instanceNumber}</span>
+              <span className="text-steel text-2xl">
+                #{row.instance.instanceNumber} of {totalInstances}
+              </span>
             </h2>
             <p className="text-sm text-steel-dark font-mono">
               {row.definition.onshapePartNumber} · Rev {row.definition.revision}
@@ -114,29 +191,79 @@ export function PartCard({
               <Meta label="Name" value={row.definition.name} />
               <Meta label="Part Number" value={row.definition.onshapePartNumber} mono />
               <Meta label="Revision" value={row.definition.revision} mono />
-              <Meta label="Instance" value={`#${row.instance.instanceNumber}`} mono />
+              <Meta
+                label="Instance"
+                value={`#${row.instance.instanceNumber} of ${totalInstances}`}
+                mono
+              />
               <Meta label="Subsystem" value={subsystemName} />
               <Meta label="Notes" value={row.definition.notes || "—"} />
               <dt className="text-steel">Drawing</dt>
               <dd className="text-ink">
-                {row.definition.partDrawingUrl ? (
-                  <a
-                    href={row.definition.partDrawingUrl}
-                    target="_blank"
-                    rel="noreferrer"
+                {editingDrawing ? (
+                  <div className="space-y-2">
+                    <input
+                      type="text"
+                      value={drawingDraft}
+                      onChange={(e) => setDrawingDraft(e.target.value)}
+                      placeholder="https://…"
+                      className="w-full bg-paper border border-steel/40 rounded-lg px-2.5 py-1.5 text-sm text-ink placeholder-steel focus:outline-none focus:border-crimson"
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => saveDrawing(drawingDraft.trim() || null)}
+                        className="text-xs px-3 py-1.5 bg-crimson hover:bg-crimson-dark text-paper rounded-lg font-semibold transition-colors disabled:opacity-50"
+                      >
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => {
+                          setEditingDrawing(false);
+                          setDrawingDraft(row.definition.partDrawingUrl ?? "");
+                        }}
+                        className="text-xs px-3 py-1.5 bg-steel-tint hover:bg-steel/30 text-steel-dark rounded-lg font-medium transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : row.definition.partDrawingUrl ? (
+                  <span className="inline-flex items-center gap-3">
+                    <a
+                      href={row.definition.partDrawingUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-crimson hover:text-crimson-dark underline"
+                    >
+                      View drawing ↗
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => setEditingDrawing(true)}
+                      className="text-xs text-steel hover:text-ink underline"
+                    >
+                      Edit
+                    </button>
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setEditingDrawing(true)}
                     className="text-crimson hover:text-crimson-dark underline"
                   >
-                    View drawing ↗
-                  </a>
-                ) : (
-                  "—"
+                    + Link a drawing
+                  </button>
                 )}
               </dd>
               <Meta
                 label="Created"
                 value={new Date(row.definition.createdAt).toLocaleDateString()}
               />
-              <Meta label="Created By" value={row.definition.creator} />
+              <Meta label="Created By" value={resolveName(row.definition.creator)} />
               <dt className="text-steel">Priority</dt>
               <dd>
                 <label className="inline-flex items-center gap-2 cursor-pointer select-none">
@@ -169,20 +296,19 @@ export function PartCard({
                   return (
                     <div key={proc.id} className="flex items-center">
                       {i > 0 && <span className="w-4 h-px bg-steel/40 mx-1" />}
-                      <span
-                        title={
-                          isDone ? "Completed" : isCurrent ? "Current process" : "Still to come"
-                        }
-                        className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
+                      <Link
+                        to={processPath(proc.processId)}
+                        title={`Go to ${processName(proc.processId)} on the shop floor`}
+                        className={`text-xs font-semibold px-2.5 py-1 rounded-full border transition-colors hover:border-crimson ${
                           isCurrent
-                            ? "bg-crimson border-crimson text-paper"
+                            ? "bg-crimson border-crimson text-paper hover:bg-crimson-dark"
                             : isDone
                               ? "bg-mist border-steel/30 text-steel/70 line-through"
                               : "bg-paper border-steel/50 text-ink"
                         }`}
                       >
                         {processName(proc.processId)}
-                      </span>
+                      </Link>
                     </div>
                   );
                 })}
@@ -196,22 +322,35 @@ export function PartCard({
             {row.current && (
               <p className="text-xs text-steel-dark mt-2">
                 Currently {row.state === "doing" ? "in progress" : "queued"} at{" "}
-                <span className="font-semibold text-ink">
+                <Link
+                  to={processPath(row.current.processId)}
+                  className="font-semibold text-ink hover:text-crimson underline transition-colors"
+                >
                   {processName(row.current.processId)}
-                </span>
+                </Link>
                 .
               </p>
             )}
           </Section>
 
-          <button
-            type="button"
-            onClick={makeStale}
-            disabled={busy}
-            className="w-full py-2.5 rounded-lg border border-crimson/50 text-crimson hover:bg-crimson-tint text-sm font-semibold transition-colors disabled:opacity-50"
-          >
-            Make Stale
-          </button>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={transferProcesses}
+              disabled={busy}
+              className="w-full py-2.5 rounded-lg border border-steel/50 text-steel-dark hover:bg-steel-tint text-sm font-semibold transition-colors disabled:opacity-50"
+            >
+              Transfer Processes
+            </button>
+            <button
+              type="button"
+              onClick={makeStale}
+              disabled={busy}
+              className="w-full py-2.5 rounded-lg border border-crimson/50 text-crimson hover:bg-crimson-tint text-sm font-semibold transition-colors disabled:opacity-50"
+            >
+              Make Stale
+            </button>
+          </div>
         </div>
       </div>
     </div>

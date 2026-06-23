@@ -26,7 +26,7 @@ export function HomePage() {
   const rows = data ? buildInstanceRows(data) : [];
   const doing = rows.filter((r) => r.state === "doing").length;
   const todo = rows.filter((r) => r.state === "todo").length;
-  const active = rows.filter((r) => r.state !== "complete").length;
+  const complete = rows.filter((r) => r.state === "complete").length;
 
   const today = new Date().toLocaleDateString(undefined, {
     weekday: "long",
@@ -43,15 +43,13 @@ export function HomePage() {
             {greeting()}
             {name ? `, ${name.split(" ")[0]}` : ""}
           </h1>
-          <p className="text-steel-dark mt-2">
-            G3 Shop — production tracking and management.
-          </p>
+          <p className="text-steel-dark mt-2">G3 Shop — production tracking and management.</p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Stat label="In Progress" value={data ? doing : null} accent="text-amber-600" />
           <Stat label="Ready to Start" value={data ? todo : null} accent="text-crimson" />
-          <Stat label="Active Parts" value={data ? active : null} accent="text-ink" />
+          <Stat label="Completed Parts" value={data ? complete : null} accent="text-green-600" />
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

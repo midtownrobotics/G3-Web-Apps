@@ -68,6 +68,16 @@ export async function fetchProcessQueue(
   return res.json() as Promise<PartInstanceProcess[]>;
 }
 
+/** Resolve a batch of user IDs to display names. */
+export async function fetchUserNames(
+  ids: string[],
+): Promise<{ id: string; displayName: string }[]> {
+  if (ids.length === 0) return [];
+  const res = await api.users.$get({ query: { ids: ids.join(",") } });
+  if (!res.ok) throw new Error(`Failed to fetch user names (${res.status})`);
+  return res.json() as Promise<{ id: string; displayName: string }[]>;
+}
+
 /** The API only exposes instance processes per-process or per-instance, so
  * fan out across processes (few) rather than instances (many). */
 export async function fetchAllInstanceProcesses(

@@ -41,6 +41,17 @@ const app = base
       displayName: c.get("userDisplayName"),
     }),
   )
+  // Resolve user IDs (e.g. part creators) to display names via g3id.
+  .get("/users", requireAuth, async (c) => {
+    const ids = c.req.query("ids") ?? "";
+    const res = await c.env.G3ID.fetch(
+      new Request(`http://g3id/auth/users?ids=${encodeURIComponent(ids)}`, {
+        headers: { cookie: c.req.header("Cookie") ?? "" },
+      }),
+    );
+    if (!res.ok) return c.json({ error: "Failed to resolve users." }, 502);
+    return c.json((await res.json()) as { id: string; displayName: string }[]);
+  })
   .route("/subsystems", subsystemsRouter)
   .route("/processes", processesRouter)
   .route("/part-definitions", partDefinitionsRouter)
