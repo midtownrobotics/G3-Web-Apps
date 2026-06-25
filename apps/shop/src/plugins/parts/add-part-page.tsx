@@ -178,7 +178,7 @@ export function AddPartPage() {
           </h1>
           {transfer && (
             <p className="text-sm text-steel-dark mt-1">
-              Creating a new part from an existing one. The original will be moved to the Stale
+              Creating a new part from an existing one. The original will be moved to the Obsolete
               table once this is created.
             </p>
           )}
@@ -408,6 +408,22 @@ function TransferProcesses({
   }
   let seenKept = 0;
 
+  // Completed processes are only meaningful as a contiguous block from the start,
+  // so keeping a completed step pulls in every earlier completed step, and dropping
+  // one drops every later completed step.
+  function toggleStep(index: number, checked: boolean) {
+    const next = [...kept];
+    next[index] = checked;
+    if (steps[index].done) {
+      if (checked) {
+        for (let j = 0; j < index; j++) if (steps[j].done) next[j] = true;
+      } else {
+        for (let j = index + 1; j < steps.length; j++) if (steps[j].done) next[j] = false;
+      }
+    }
+    setKept(next);
+  }
+
   return (
     <div className="space-y-2">
       <FieldLabel label="Processes" />
@@ -432,11 +448,7 @@ function TransferProcesses({
                 <input
                   type="checkbox"
                   checked={keep}
-                  onChange={(e) => {
-                    const next = [...kept];
-                    next[i] = e.target.checked;
-                    setKept(next);
-                  }}
+                  onChange={(e) => toggleStep(i, e.target.checked)}
                   className="accent-crimson w-4 h-4"
                 />
                 <span

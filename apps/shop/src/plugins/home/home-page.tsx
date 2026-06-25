@@ -63,11 +63,7 @@ export function HomePage() {
             title="Shop Floor"
             blurb="See what each machine is working on and move parts forward."
           />
-          <QuickLink
-            to="/admin"
-            title="Admin"
-            blurb="Manage stale parts, subsystems, and shop processes."
-          />
+          <QuickLink to="/admin" title="Admin" blurb="Manage subsystems and shop processes." />
         </div>
       </div>
     </main>

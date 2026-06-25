@@ -25,8 +25,9 @@ export const STATE_META: Record<InstanceState, { label: string; badge: string }>
   },
 };
 
-/** Join instances with their definitions and pipelines. Stale instances are
- * excluded unless `includeStale` is set (the parts page's Stale table needs them). */
+/** Join instances with their definitions and pipelines. Obsolete instances
+ * (`isStale` in the API) are excluded unless `includeStale` is set — the parts
+ * page's Obsolete table needs them. */
 export function buildInstanceRows(
   data: ShopData,
   { includeStale = false }: { includeStale?: boolean } = {},

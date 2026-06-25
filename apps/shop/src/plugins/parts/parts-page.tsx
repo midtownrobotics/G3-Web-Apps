@@ -49,10 +49,10 @@ export function PartsPage() {
   const touch = useTouchDevice();
   const [selectedInstanceId, setSelectedInstanceId] = useState<number | null>(null);
 
-  // Live (non-stale) rows split into "in production" vs. fully complete; stale
-  // rows get their own table.
+  // Live (non-obsolete) rows split into "in production" vs. fully complete;
+  // obsolete rows get their own table.
   const liveRows = useMemo(() => (data ? buildInstanceRows(data) : []), [data]);
-  const staleRows = useMemo(
+  const obsoleteRows = useMemo(
     () =>
       data ? buildInstanceRows(data, { includeStale: true }).filter((r) => r.instance.isStale) : [],
     [data],
@@ -72,7 +72,7 @@ export function PartsPage() {
 
   const selectedRow =
     selectedInstanceId !== null
-      ? ([...liveRows, ...staleRows].find((r) => r.instance.id === selectedInstanceId) ?? null)
+      ? ([...liveRows, ...obsoleteRows].find((r) => r.instance.id === selectedInstanceId) ?? null)
       : null;
 
   return (
@@ -113,13 +113,13 @@ export function PartsPage() {
               emptyAll="No completed parts yet."
             />
             <PartsTable
-              title="Stale"
-              rows={staleRows}
+              title="Obsolete"
+              rows={obsoleteRows}
               data={data}
               totalByDef={totalByDef}
               touch={touch}
               onOpen={setSelectedInstanceId}
-              emptyAll="No stale parts."
+              emptyAll="No obsolete parts."
             />
           </>
         )}
@@ -397,7 +397,7 @@ function PartsTable({
           <span className="w-3.5 shrink-0" />
           <span className="flex-1 min-w-0">Part</span>
           <span className="w-44 shrink-0 hidden sm:block">Number / Rev</span>
-          <span className="w-36 shrink-0 hidden md:block">Process</span>
+          <span className="w-36 shrink-0 hidden md:block">Last process</span>
           <span className="w-28 shrink-0">Status</span>
         </div>
 
@@ -450,7 +450,11 @@ function PartRow({
   touch: boolean;
   onOpen: () => void;
 }) {
-  const meta = STATE_META[row.state];
+  // Obsolete parts read simply as "Obsolete" regardless of their pipeline state.
+  const isObsolete = !!row.instance.isStale;
+  const status = isObsolete
+    ? { label: "Obsolete", badge: "bg-steel-tint text-steel-dark border-steel/40" }
+    : STATE_META[row.state];
   return (
     // biome-ignore lint/a11y/useKeyWithClickEvents: row is a convenience target; the nested process link stays keyboard-accessible
     <div
@@ -498,11 +502,11 @@ function PartRow({
         )}
       </span>
 
-      <span className="w-28 shrink-0" title={`Status: ${meta.label}`}>
+      <span className="w-28 shrink-0" title={`Status: ${status.label}`}>
         <span
-          className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full border ${meta.badge}`}
+          className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full border ${status.badge}`}
         >
-          {meta.label}
+          {status.label}
         </span>
       </span>
     </div>

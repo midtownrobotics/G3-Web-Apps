@@ -50,6 +50,7 @@ export function PartCard({
   const [drawingDraft, setDrawingDraft] = useState(row.definition.partDrawingUrl ?? "");
 
   const resolveName = useUserNames([row.definition.creator]);
+  const isObsolete = !!row.instance.isStale;
 
   const processName = (pid: number) =>
     data.processes.find((p) => p.id === pid)?.name ?? `Process #${pid}`;
@@ -90,8 +91,8 @@ export function PartCard({
     setBusy(false);
   }
 
-  async function makeStale() {
-    if (!window.confirm("Mark this part as stale? It will move to the Stale table.")) return;
+  async function makeObsolete() {
+    if (!window.confirm("Mark this part as obsolete? It will move to the Obsolete table.")) return;
     setBusy(true);
     const res = await api["part-instances"][":id"].$patch({
       param: { id: String(row.instance.id) },
@@ -149,6 +150,11 @@ export function PartCard({
             <p className="text-sm text-steel-dark font-mono">
               {row.definition.onshapePartNumber} · Rev {row.definition.revision}
             </p>
+            {isObsolete && (
+              <span className="inline-block mt-1.5 text-[10px] font-semibold uppercase tracking-wider text-steel-dark bg-steel-tint border border-steel/40 rounded-full px-2 py-0.5">
+                Obsolete · view only
+              </span>
+            )}
           </div>
           <button
             type="button"
@@ -200,7 +206,20 @@ export function PartCard({
               <Meta label="Notes" value={row.definition.notes || "—"} />
               <dt className="text-steel">Drawing</dt>
               <dd className="text-ink">
-                {editingDrawing ? (
+                {isObsolete ? (
+                  row.definition.partDrawingUrl ? (
+                    <a
+                      href={row.definition.partDrawingUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-crimson hover:text-crimson-dark underline"
+                    >
+                      View drawing ↗
+                    </a>
+                  ) : (
+                    "—"
+                  )
+                ) : editingDrawing ? (
                   <div className="space-y-2">
                     <input
                       type="text"
@@ -270,9 +289,9 @@ export function PartCard({
                   <input
                     type="checkbox"
                     checked={!!row.instance.isPriority}
-                    disabled={busy}
+                    disabled={busy || isObsolete}
                     onChange={(e) => setPriority(e.target.checked)}
-                    className="accent-crimson w-4 h-4"
+                    className="accent-crimson w-4 h-4 disabled:opacity-50"
                   />
                   <span className="text-ink">
                     {row.instance.isPriority ? "Priority part" : "Standard"}
@@ -319,9 +338,9 @@ export function PartCard({
                 )}
               </div>
             )}
-            {row.current && (
+            {row.current && row.state === "doing" && (
               <p className="text-xs text-steel-dark mt-2">
-                Currently {row.state === "doing" ? "in progress" : "queued"} at{" "}
+                Currently in progress at{" "}
                 <Link
                   to={processPath(row.current.processId)}
                   className="font-semibold text-ink hover:text-crimson underline transition-colors"
@@ -333,7 +352,7 @@ export function PartCard({
             )}
           </Section>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div className={`grid grid-cols-1 gap-2 ${isObsolete ? "" : "sm:grid-cols-2"}`}>
             <button
               type="button"
               onClick={transferProcesses}
@@ -342,14 +361,17 @@ export function PartCard({
             >
               Transfer Processes
             </button>
-            <button
-              type="button"
-              onClick={makeStale}
-              disabled={busy}
-              className="w-full py-2.5 rounded-lg border border-crimson/50 text-crimson hover:bg-crimson-tint text-sm font-semibold transition-colors disabled:opacity-50"
-            >
-              Make Stale
-            </button>
+            {/* An already-obsolete part can't be made obsolete again — only transferred. */}
+            {!isObsolete && (
+              <button
+                type="button"
+                onClick={makeObsolete}
+                disabled={busy}
+                className="w-full py-2.5 rounded-lg border border-crimson/50 text-crimson hover:bg-crimson-tint text-sm font-semibold transition-colors disabled:opacity-50"
+              >
+                Make Obsolete
+              </button>
+            )}
           </div>
         </div>
       </div>
