@@ -115,8 +115,7 @@ PIN-based access for untrusted computers:
 **Add admin feature:**
 1. Add route to `workers/g3id/src/routes/admin.ts` (uses `requireAdmin` middleware)
 2. **Remember**: PIN sessions will get 403 "Admin access not allowed from kiosk"
-3. Add page to `apps/g3id/src/plugins/admin/`
-4. Protect via admin-only NavBar visibility
+3. Protect via admin-only NavBar visibility
 
 **Database schema change:**
 1. Create migration file: `workers/g3id/src/db/migrations/000X_description.sql`
