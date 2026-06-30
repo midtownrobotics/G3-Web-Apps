@@ -142,6 +142,68 @@ pnpm -r --if-present test    # Run available tests
 - Receives kiosk token, stores in localStorage
 - PIN login at `/kiosk/login` requires valid token in header
 
+## Development Servers
+
+**Port assignments** (configured in `.dev-ports.json` and individual vite/wrangler configs):
+
+Apps:
+- `apps/g3id` → 5173
+- `apps/shop` → 5174
+- `apps/pit` → 5175
+- `apps/web` → 5178
+- `apps/skill-tree` → 5180
+- `apps/attendance` → 5181
+
+Workers (Wrangler):
+- `workers/g3id` → 8787 (inspector: 9229)
+- `workers/shop` → 8788 (inspector: 9230)
+- `workers/pit` → 8789 (inspector: 9231)
+- `workers/skill-tree` → 8790 (inspector: 9232)
+- `workers/attendance` → 8791 (inspector: 9233)
+
+**Starting dev servers:**
+- `pnpm dev` — Start all servers and print port summary after ready
+- `pnpm dev:silent` — Start all servers without port printer
+
+**Port conflicts:**
+If you see "Address already in use" errors, kill zombie processes:
+```bash
+fuser -k 8787 8788 8789 8790 8791 9229 9230 9231 9232 9233
+# or more aggressively:
+killall -9 workerd wrangler node
+```
+
+**Adding a new port:**
+1. Update the app/worker vite.config.ts or wrangler.toml with the new port
+2. Add entry to `.dev-ports.json` in the appropriate section (apps or workers)
+3. The port printer will automatically pick it up on next `pnpm dev`
+
+## Adding New Apps and Workers
+
+**Add a new app (React frontend):**
+1. Create directory: `apps/<app-name>/`
+2. Copy structure from an existing app (e.g., `apps/web/`)
+3. Add unique port to `apps/<app-name>/vite.config.ts` (check `.dev-ports.json` for available ports)
+4. Create `apps/<app-name>/package.json` with at minimum: `name`, `type: "module"`, `dev` script
+5. Update `.dev-ports.json` with the new app and port
+6. Add to root `pnpm-workspace.yaml` if not already globbed
+
+**Add a new worker (Cloudflare backend):**
+1. Create directory: `workers/<worker-name>/`
+2. Copy structure from an existing worker (e.g., `workers/shop/`)
+3. Add unique port and inspector-port to `workers/<worker-name>/wrangler.toml`
+4. Set up D1 database bindings and KV namespace bindings in wrangler.toml
+5. Create `workers/<worker-name>/package.json` with `name` and `dev` script
+6. Update `.dev-ports.json` with the new worker, port, and inspectorPort
+7. Add to root `pnpm-workspace.yaml` if not already globbed
+8. If the worker needs to call other services, add service bindings in wrangler.toml
+
+**Key differences from other systems:**
+- Apps use Vite for dev server and build
+- Workers use Wrangler for local dev (runs actual Cloudflare workerd runtime)
+- All use Tailwind CSS v4 for styling (via `@g3/ui` package)
+- All use TypeScript; monorepo-wide `pnpm typecheck` validates all
+
 ## Deployment
 
 Workers deployed via Wrangler:

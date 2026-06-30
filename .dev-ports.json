@@ -1,0 +1,66 @@
+{
+  "apps": {
+    "g3id": {
+      "port": 5173,
+      "name": "G3ID Authentication",
+      "url": "http://localhost:5173"
+    },
+    "shop": {
+      "port": 5174,
+      "name": "Shop App",
+      "url": "http://localhost:5174"
+    },
+    "pit": {
+      "port": 5175,
+      "name": "Pit App",
+      "url": "http://localhost:5175"
+    },
+    "web": {
+      "port": 5178,
+      "name": "Web (Members Portal)",
+      "url": "http://localhost:5178"
+    },
+    "skill-tree": {
+      "port": 5180,
+      "name": "Skill Tree",
+      "url": "http://localhost:5180"
+    },
+    "attendance": {
+      "port": 5181,
+      "name": "Attendance",
+      "url": "http://localhost:5181"
+    }
+  },
+  "workers": {
+    "g3id": {
+      "port": 8787,
+      "inspectorPort": 9229,
+      "name": "G3ID Worker",
+      "url": "http://localhost:8787"
+    },
+    "shop": {
+      "port": 8788,
+      "inspectorPort": 9230,
+      "name": "Shop Worker",
+      "url": "http://localhost:8788"
+    },
+    "pit": {
+      "port": 8789,
+      "inspectorPort": 9231,
+      "name": "Pit Worker",
+      "url": "http://localhost:8789"
+    },
+    "skill-tree": {
+      "port": 8790,
+      "inspectorPort": 9232,
+      "name": "Skill Tree Worker",
+      "url": "http://localhost:8790"
+    },
+    "attendance": {
+      "port": 8791,
+      "inspectorPort": 9233,
+      "name": "Attendance Worker",
+      "url": "http://localhost:8791"
+    }
+  }
+}

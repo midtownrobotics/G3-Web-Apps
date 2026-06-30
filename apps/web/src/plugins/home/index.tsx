@@ -4,5 +4,4 @@ import { HomePage } from "./home-page";
 export const homePlugin: Plugin = {
   name: "home",
   routes: [{ path: "/", element: <HomePage /> }],
-  navItems: [{ label: "Home", to: "/", order: 0 }],
 };
