@@ -7,6 +7,11 @@ import {
   listMentors, addMentor, removeMentor,
 } from './firebase.js';
 
+// API URLs
+const isDev=window.location.hostname==='localhost'||window.location.hostname==='127.0.0.1';
+const G3ID_API=localStorage.getItem('g3id_api')||(isDev?'http://localhost:8787':'https://api.g3id.g3robotics.com');
+const SKILL_TREE_API=localStorage.getItem('skill_tree_api')||(isDev?'http://localhost:8790':'https://api.skill-tree.g3robotics.com');
+
 // ═══════════════════════════════════════════════════════
 // LAYOUT ENGINE
 // ═══════════════════════════════════════════════════════
@@ -529,11 +534,13 @@ async function renderMentors(){
   const rows=mentors.slice().sort((a,b)=>(a.displayName||a.id).localeCompare(b.displayName||b.id))
     .map(m=>`<div class="mn-row"><div class="mn-name">${m.displayName||m.id}</div><button class="mn-rm" onclick="mnRemove('${m.id}')">Remove</button></div>`).join('');
   wrap.innerHTML=`
+    <div style="margin-bottom:20px;"><button id="bulkBtn" style="background:var(--accent);border:none;color:#000;padding:8px 14px;border-radius:6px;cursor:pointer;font-weight:600;font-size:12px;">Bulk Progress Update</button></div>
     <div class="mn-add">
       <select id="mnSel"><option value="">Add a mentor…</option>${candidates.map(uid=>`<option value="${uid}">${displayNames[uid]||uid}</option>`).join('')}</select>
       <button class="mn-add-btn" onclick="mnAdd()">Add</button>
     </div>
     <div class="mn-list">${rows||'<div class="mn-empty">No mentors yet.</div>'}</div>`;
+  document.getElementById('bulkBtn')?.addEventListener('click',showBulkUpdateSection);
 }
 async function mnAdd(){
   const uid=document.getElementById('mnSel').value;
@@ -544,6 +551,259 @@ async function mnAdd(){
 async function mnRemove(uid){
   await removeMentor(uid);
   renderMentors();
+}
+
+// ═══════════════════════════════════════════════════════
+// BULK PROGRESS UPDATE
+// ═══════════════════════════════════════════════════════
+let bulkState={currentStep:1,selectedUsers:[],selectedTree:'',selectedSubtree:'',selectedSkill:'',selectedStatus:'complete'};
+
+function showBulkUpdateSection(){
+  const section=document.getElementById('bulkUpdateSection');
+  if(!section){console.error('bulkUpdateSection not found');return;}
+  section.style.display='block';
+  const btn=document.getElementById('bulkBtn');
+  if(btn)btn.style.display='none';
+  bulkState={currentStep:1,selectedUsers:[],selectedTree:'',selectedSubtree:'',selectedSkill:'',selectedStatus:'complete'};
+  bulkRenderStep();
+  bulkBuildTreeSelect();
+
+  // Attach event listeners to inputs
+  const pinInput=document.getElementById('bulkPinInput');
+  if(pinInput)pinInput.addEventListener('input',()=>{if(pinInput.value.length===3)bulkAddByPin();});
+
+  const searchInput=document.getElementById('bulkUserSearch');
+  if(searchInput)searchInput.addEventListener('input',bulkSearchUsers);
+
+  // Attach event listeners to buttons
+  document.querySelectorAll('.bulk-next-btn').forEach(btn=>btn.addEventListener('click',bulkNextStep));
+  document.querySelectorAll('.bulk-back-btn').forEach(btn=>btn.addEventListener('click',bulkPrevStep));
+  document.querySelectorAll('.bulk-apply-btn').forEach(btn=>btn.addEventListener('click',bulkApply));
+
+  // Attach event listeners to selects
+  const treeSelect=document.getElementById('bulkTreeSelect');
+  if(treeSelect)treeSelect.addEventListener('change',bulkOnTreeChange);
+  const subtreeSelect=document.getElementById('bulkSubtreeSelect');
+  if(subtreeSelect)subtreeSelect.addEventListener('change',bulkOnSubtreeChange);
+
+  // Close button - find button with ✕ symbol
+  const btns=section.querySelectorAll('button');
+  for(let b of btns){
+    if(b.textContent.includes('✕')){
+      b.addEventListener('click',closeBulkUpdateSection);
+      b.removeAttribute('onclick');
+    }
+  }
+}
+
+function closeBulkUpdateSection(){
+  const section=document.getElementById('bulkUpdateSection');
+  if(section)section.style.display='none';
+  const btn=document.getElementById('bulkBtn');
+  if(btn)btn.style.display='block';
+}
+
+function bulkRenderStep(){
+  console.log('bulkRenderStep called, rendering step:',bulkState.currentStep);
+  document.querySelectorAll('.step').forEach(s=>s.classList.remove('active'));
+  const step=document.getElementById('bulkStep'+bulkState.currentStep);
+  console.log('Step element:',step);
+  if(step)step.classList.add('active');
+  else console.error('Step element not found: bulkStep'+bulkState.currentStep);
+  if(bulkState.currentStep===1)bulkRenderUserStep();
+  else if(bulkState.currentStep===2)bulkRenderSkillStep();
+  else if(bulkState.currentStep===3)bulkRenderReviewStep();
+  const section=document.getElementById('bulkUpdateSection');
+  if(section)section.scrollIntoView({behavior:'smooth'});
+}
+
+function bulkRenderUserStep(){
+  const div=document.getElementById('bulkSelectedUsers');
+  div.innerHTML=bulkState.selectedUsers.length?bulkState.selectedUsers.map(u=>`<div class="bulk-user-tag" data-uid="${u.id}">${u.displayName}<button class="bulk-remove-user">×</button></div>`).join(''):'';
+
+  // Attach remove listeners
+  div.querySelectorAll('.bulk-remove-user').forEach((btn,idx)=>{
+    btn.addEventListener('click',()=>bulkRemoveUser(bulkState.selectedUsers[idx].id));
+  });
+}
+
+async function bulkAddByPin(){
+  const pin=document.getElementById('bulkPinInput').value.trim();
+  if(pin.length!==3)return;
+  console.log('Looking up PIN:',pin,'API:',G3ID_API);
+  try{
+    const url=`${G3ID_API}/users/by-pin/${pin}`;
+    console.log('Fetching:',url);
+    const res=await fetch(url,{credentials:'include'});
+    console.log('Response status:',res.status);
+    if(!res.ok){
+      const err=await res.text();
+      throw new Error(`HTTP ${res.status}: ${err}`);
+    }
+    const user=await res.json();
+    console.log('Found user:',user);
+    if(!bulkState.selectedUsers.find(u=>u.id===user.id)){
+      bulkState.selectedUsers.push({id:user.id,displayName:user.displayName});
+      bulkRenderUserStep();
+    }
+    document.getElementById('bulkPinInput').value='';
+  }catch(e){
+    console.error('PIN lookup error:',e);
+    alert('Error: '+e.message);
+  }
+}
+
+function bulkSearchUsers(){
+  const query=document.getElementById('bulkUserSearch').value.toLowerCase();
+  const resultsDiv=document.getElementById('bulkUserSearchResults');
+  if(!query){resultsDiv.style.display='none';return;}
+  console.log('Searching for:',query,'in',Object.keys(displayNames).length,'students');
+  const results=Object.entries(displayNames).filter(([,name])=>name.toLowerCase().includes(query)).slice(0,5);
+  console.log('Found:',results.length,'results');
+
+  // Auto-add if exactly 1 result
+  if(results.length===1){
+    const [uid,name]=results[0];
+    bulkAddUserFromSearch(uid,name);
+    return;
+  }
+
+  const html=results.map(([uid,name])=>`<button>${name}</button>`).join('');
+  resultsDiv.innerHTML=html;
+  resultsDiv.style.display=html?'block':'none';
+
+  // Attach click handlers to result buttons
+  resultsDiv.querySelectorAll('button').forEach((btn,idx)=>{
+    const [uid,name]=results[idx];
+    btn.addEventListener('click',()=>bulkAddUserFromSearch(uid,name));
+  });
+}
+
+function bulkAddUserFromSearch(uid,name){
+  if(!bulkState.selectedUsers.find(u=>u.id===uid)){
+    bulkState.selectedUsers.push({id:uid,displayName:name});
+    bulkRenderUserStep();
+  }
+  document.getElementById('bulkUserSearch').value='';
+  document.getElementById('bulkUserSearchResults').style.display='none';
+}
+
+function bulkRemoveUser(uid){
+  bulkState.selectedUsers=bulkState.selectedUsers.filter(u=>u.id!==uid);
+  bulkRenderUserStep();
+}
+
+function bulkBuildTreeSelect(){
+  const sel=document.getElementById('bulkTreeSelect');sel.innerHTML='<option value="">Choose a tree...</option>';
+  TREES.forEach(t=>{const o=document.createElement('option');o.value=t.id;o.textContent=t.icon+' '+t.name;sel.appendChild(o);});
+}
+
+function bulkOnTreeChange(){
+  bulkState.selectedTree=document.getElementById('bulkTreeSelect').value;
+  bulkState.selectedSubtree='';
+  bulkState.selectedSkill='';
+  bulkRenderSkillStep();
+}
+
+function bulkRenderSkillStep(){
+  console.log('bulkRenderSkillStep called');
+  const tree=TREES.find(t=>t.id===bulkState.selectedTree);
+  const subtreeGroup=document.getElementById('bulkSubtreeGroup');
+  const skillGroup=document.getElementById('bulkSkillGroup');
+  if(tree){
+    subtreeGroup.style.display='block';
+    const subtreeSel=document.getElementById('bulkSubtreeSelect');
+    subtreeSel.innerHTML='<option value="">Choose a category...</option>';
+    (tree.cats||[]).forEach(st=>{const o=document.createElement('option');o.value=st.id;o.textContent=st.name;subtreeSel.appendChild(o);});
+    if(bulkState.selectedSubtree){
+      subtreeSel.value=bulkState.selectedSubtree;
+      bulkRenderSkillOptions();
+    }else{skillGroup.style.display='none';}
+  }else{
+    subtreeGroup.style.display='none';
+    skillGroup.style.display='none';
+  }
+}
+
+function bulkOnSubtreeChange(){
+  console.log('bulkOnSubtreeChange called');
+  bulkState.selectedSubtree=document.getElementById('bulkSubtreeSelect').value;
+  console.log('Selected subtree:',bulkState.selectedSubtree);
+  bulkState.selectedSkill='';
+  bulkRenderSkillOptions();
+}
+
+function bulkRenderSkillOptions(){
+  const tree=TREES.find(t=>t.id===bulkState.selectedTree);
+  const skillGroup=document.getElementById('bulkSkillGroup');
+  if(tree && bulkState.selectedSubtree){
+    const skills=tree.nodes.filter(n=>n.cat===bulkState.selectedSubtree);
+    skillGroup.style.display='block';
+    const skillSel=document.getElementById('bulkSkillSelect');
+    skillSel.innerHTML='<option value="">Choose a skill...</option>';
+    skills.forEach(sk=>{const o=document.createElement('option');o.value=sk.id;o.textContent=sk.label;skillSel.appendChild(o);});
+  }else{skillGroup.style.display='none';}
+}
+
+function bulkRenderReviewStep(){
+  const tree=TREES.find(t=>t.id===bulkState.selectedTree);
+  const skill=tree?.nodes?.find(sk=>sk.id===bulkState.selectedSkill);
+  const statusText=bulkState.selectedStatus.charAt(0).toUpperCase()+bulkState.selectedStatus.slice(1);
+  const userLines=bulkState.selectedUsers.map(u=>`<div>${u.displayName}</div>`).join('');
+  document.getElementById('bulkReviewContent').innerHTML=`<div><strong>Users (${bulkState.selectedUsers.length}):</strong></div>${userLines}<div style="margin-top:10px;"><strong>Skill:</strong> ${skill?.label||'N/A'}</div><div><strong>Status:</strong> ${statusText}</div>`;
+}
+
+function bulkNextStep(){
+  console.log('bulkNextStep called, current step:',bulkState.currentStep);
+  if(bulkState.currentStep===1){
+    if(!bulkState.selectedUsers.length){alert('Please select at least one user');return;}
+    bulkState.currentStep=2;
+    console.log('Moving to step 2');
+  }else if(bulkState.currentStep===2){
+    bulkState.selectedTree=document.getElementById('bulkTreeSelect').value;
+    bulkState.selectedSubtree=document.getElementById('bulkSubtreeSelect').value;
+    bulkState.selectedSkill=document.getElementById('bulkSkillSelect').value;
+    bulkState.selectedStatus=document.getElementById('bulkStatusSelect').value;
+    console.log('Selected:',bulkState.selectedTree,bulkState.selectedSubtree,bulkState.selectedSkill);
+    if(!bulkState.selectedSkill){alert('Please select a skill');return;}
+    bulkState.currentStep=3;
+    console.log('Moving to step 3');
+  }
+  console.log('Calling bulkRenderStep');
+  bulkRenderStep();
+}
+
+function bulkPrevStep(){
+  if(bulkState.currentStep>1)bulkState.currentStep--;
+  bulkRenderStep();
+}
+
+async function bulkApply(){
+  const btn=event.target;btn.disabled=true;btn.textContent='Applying...';
+  try{
+    let success=0;
+    for(const user of bulkState.selectedUsers){
+      const res=await fetch(`${SKILL_TREE_API}/students/${user.id}`,{
+        method:'PATCH',
+        headers:{'Content-Type':'application/json'},
+        credentials:'include',
+        body:JSON.stringify({skillId:bulkState.selectedSkill,status:bulkState.selectedStatus})
+      });
+      if(res.ok)success++;
+    }
+    alert(`Updated ${success}/${bulkState.selectedUsers.length} users`);
+    bulkState.currentStep=1;
+    bulkState.selectedTree='';
+    bulkState.selectedSubtree='';
+    bulkState.selectedSkill='';
+    bulkState.selectedStatus='complete';
+    bulkRenderStep();
+  }catch(e){
+    alert('Error applying updates: '+e.message);
+  }finally{
+    btn.disabled=false;
+    btn.textContent='Apply to All Users';
+  }
 }
 
 // ── Tree selector (mobile) ─────────────────────────────

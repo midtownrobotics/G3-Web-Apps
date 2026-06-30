@@ -80,6 +80,86 @@
   <div class="ov-wrap">
     <div class="ov-title">Mentors</div>
     <div class="ov-sub">Mentors can update any student's progress. Site admins are always mentors.</div>
+
+    <!-- Bulk Progress Update Section -->
+    <div class="bulk-update-section" id="bulkUpdateSection" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <div class="section-title" style="margin:0;">Bulk Progress Update</div>
+        <button onclick="closeBulkUpdateSection()" style="background:none;border:none;color:var(--tx);font-size:20px;cursor:pointer;padding:0;">✕</button>
+      </div>
+      <div class="section-steps">
+        <div class="step" id="bulkStep1">
+          <div class="step-header">Step 1: Select Users</div>
+          <div class="step-content">
+            <div style="display:flex;gap:14px;margin-bottom:14px;">
+              <div class="bulk-form-group" style="flex:0 0 100px;">
+                <label>PIN:</label>
+                <input type="text" id="bulkPinInput" placeholder="123" maxlength="3" style="background:var(--bg-card);border:1px solid var(--border);color:var(--tx);font-family:'Rajdhani',sans-serif;font-size:13px;text-align:center;padding:8px 12px;border-radius:6px;transition:border-color 0.2s;width:100%;">
+              </div>
+              <div class="bulk-form-group" style="flex:1;">
+                <label>Search by Name:</label>
+                <div class="bulk-search-wrapper">
+                  <input type="text" id="bulkUserSearch" placeholder="Type a name...">
+                  <div id="bulkUserSearchResults" class="bulk-search-results" style="display:none"></div>
+                </div>
+              </div>
+            </div>
+            <div id="bulkSelectedUsers" class="bulk-selected-users"></div>
+            <button class="bulk-next-btn">Next: Select Skill</button>
+          </div>
+        </div>
+
+        <div class="step" id="bulkStep2">
+          <div class="step-header">Step 2: Select Skill</div>
+          <div class="step-content">
+            <div class="bulk-form-group">
+              <label>Skill Tree:</label>
+              <select id="bulkTreeSelect">
+                <option value="">Choose a tree...</option>
+              </select>
+            </div>
+            <div class="bulk-form-group" id="bulkSubtreeGroup" style="display:none">
+              <label>Category:</label>
+              <select id="bulkSubtreeSelect">
+                <option value="">Choose a category...</option>
+              </select>
+            </div>
+            <div class="bulk-form-group" id="bulkSkillGroup" style="display:none">
+              <label>Skill:</label>
+              <select id="bulkSkillSelect">
+                <option value="">Choose a skill...</option>
+              </select>
+            </div>
+            <div class="bulk-form-group">
+              <label>Status:</label>
+              <select id="bulkStatusSelect">
+                <option value="not-started">Not Started</option>
+                <option value="in-progress">In Progress</option>
+                <option value="complete" selected>Complete</option>
+              </select>
+            </div>
+            <div class="bulk-button-group">
+              <button class="bulk-back-btn">Back</button>
+              <button class="bulk-next-btn">Review & Apply</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="step" id="bulkStep3">
+          <div class="step-header">Review Changes</div>
+          <div class="step-content">
+            <div class="bulk-review">
+              <div id="bulkReviewContent"></div>
+            </div>
+            <div class="bulk-button-group">
+              <button class="bulk-back-btn">Back</button>
+              <button class="bulk-apply-btn">Apply to All Users</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div id="mnWrap"></div>
   </div>
 </div>
