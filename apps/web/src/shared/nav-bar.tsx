@@ -50,8 +50,8 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
   return (
     <>
       {/* z-50 keeps the navbar on top of the overlay so the hamburger/X stays in place */}
-      <nav className="relative z-50 bg-gray-900 text-white px-6 py-4 flex items-center gap-6">
-        <span className="font-bold text-red-400 mr-4 tracking-tight">G3 Robotics</span>
+      <nav className="relative z-50 bg-white border-b border-gray-200 px-6 py-4 flex items-center gap-6">
+        <span className="font-bold text-red-600 mr-4 tracking-tight">G3 Robotics</span>
 
         {/* Desktop links */}
         <div className="hidden md:flex items-center gap-6">
@@ -59,7 +59,7 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
             <Link
               key={item.to}
               to={item.to}
-              className="text-sm text-gray-300 hover:text-red-400 transition-colors"
+              className="text-sm text-gray-600 hover:text-red-600 transition-colors"
             >
               {item.label}
             </Link>
@@ -71,7 +71,7 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
           <div className="hidden md:block">
             {me === undefined ? null : me ? (
               <a
-                className="text-sm text-gray-300 hover:text-red-400"
+                className="text-sm text-gray-600 hover:text-red-600"
                 href="https://g3id.g3robotics.com/"
               >
                 Hello, {me.displayName}!
@@ -79,7 +79,7 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
             ) : (
               <a
                 href={G3ID_LOGIN}
-                className="flex items-center gap-2 text-sm text-gray-300 hover:text-red-400 transition-colors"
+                className="flex items-center gap-2 text-sm text-gray-600 hover:text-red-600 transition-colors"
               >
                 <p>Login</p>
                 <BsFillPersonFill />
@@ -95,13 +95,13 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
             aria-label="Toggle menu"
           >
             <span
-              className={`block w-6 h-0.5 bg-white group-hover:bg-red-400 transition-all duration-200 ${open ? "translate-y-2 rotate-45" : ""}`}
+              className={`block w-6 h-0.5 bg-gray-900 group-hover:bg-red-600 transition-all duration-200 ${open ? "translate-y-2 rotate-45" : ""}`}
             />
             <span
-              className={`block w-6 h-0.5 bg-white group-hover:bg-red-400 transition-all duration-200 ${open ? "opacity-0" : ""}`}
+              className={`block w-6 h-0.5 bg-gray-900 group-hover:bg-red-600 transition-all duration-200 ${open ? "opacity-0" : ""}`}
             />
             <span
-              className={`block w-6 h-0.5 bg-white group-hover:bg-red-400 transition-all duration-200 ${open ? "-translate-y-2 -rotate-45" : ""}`}
+              className={`block w-6 h-0.5 bg-gray-900 group-hover:bg-red-600 transition-all duration-200 ${open ? "-translate-y-2 -rotate-45" : ""}`}
             />
           </button>
         </div>
@@ -110,14 +110,14 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
       {/* Mobile full-screen menu — z-40 sits below the navbar */}
       {open && (
         <div
-          className={`fixed inset-0 z-40 bg-gray-900 flex flex-col px-8 pt-24 gap-8 md:hidden transition-opacity duration-200 ${visible ? "opacity-100" : "opacity-0"}`}
+          className={`fixed inset-0 z-40 bg-white flex flex-col px-8 pt-24 gap-8 md:hidden transition-opacity duration-200 ${visible ? "opacity-100" : "opacity-0"}`}
         >
           {visibleItems.map((item) => (
             <Link
               key={item.to}
               to={item.to}
               onClick={closeMenu}
-              className="text-2xl font-bold text-gray-100 hover:text-red-400 transition-colors"
+              className="text-2xl font-bold text-gray-900 hover:text-red-600 transition-colors"
             >
               {item.label}
             </Link>
@@ -126,7 +126,7 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
           <div className="mt-auto pb-10">
             {me === undefined ? null : me ? (
               <a
-                className="text-2xl text-gray-400 hover:text-red-400"
+                className="text-2xl text-gray-600 hover:text-red-600"
                 href="https://g3id.g3robotics.com/"
                 onClick={closeMenu}
               >
@@ -135,7 +135,7 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
             ) : (
               <a
                 href={G3ID_LOGIN}
-                className="flex items-center gap-2 text-2xl text-gray-300 hover:text-red-400 transition-colors"
+                className="flex items-center gap-2 text-2xl text-gray-600 hover:text-red-600 transition-colors"
                 onClick={closeMenu}
               >
                 <p>Login</p>
