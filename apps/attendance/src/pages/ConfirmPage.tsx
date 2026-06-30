@@ -21,7 +21,7 @@ type Status =
     }
   | { kind: "error"; message: string };
 
-const ALL_APPS_URL = "https://web.g3robotics.com/members";
+const ALL_APPS_URL = "https://web.g3robotics.com";
 const REDIRECT_SECONDS = 5;
 
 function tokenValid(w: string): boolean {

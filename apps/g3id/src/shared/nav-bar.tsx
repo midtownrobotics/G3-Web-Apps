@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { api } from "../lib/api";
 import type { PluginNavItem } from "./plugin-types";
 
 export function NavBar({ items }: { items: PluginNavItem[] }) {
-  const location = useLocation();
   const [open, setOpen] = useState(false);
   const [visible, setVisible] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
@@ -39,7 +38,7 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
         setIsAdmin(false);
       }
     });
-  }, [location]);
+  }, []);
 
   const filteredItems = items.filter((item) => {
     if (isLoggedIn === null) return false; // Loading
@@ -76,7 +75,7 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
           {isLoggedIn && (
             <a
               className="text-sm text-gray-200 hover:text-primary-400 transition-colors"
-              href="https://web.g3robotics.com/members"
+              href="https://web.g3robotics.com"
             >
               All Apps
             </a>
@@ -129,7 +128,7 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
           {isLoggedIn && (
             <a
               className="text-2xl font-bold text-secondary-100 hover:text-primary-400 transition-colors"
-              href="https://web.g3robotics.com/members"
+              href="https://web.g3robotics.com"
             >
               All Apps
             </a>

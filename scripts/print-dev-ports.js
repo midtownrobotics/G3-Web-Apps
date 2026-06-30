@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
-import fs from "fs";
-import path from "path";
-import { spawn } from "child_process";
-import { fileURLToPath } from "url";
+import { spawn } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const configPath = path.join(__dirname, "..", ".dev-ports.json");
@@ -47,23 +47,23 @@ async function waitForServers(config, timeout = 60000) {
 }
 
 function printServerInfo(config) {
-  console.log("\n" + "=".repeat(60));
+  console.log(`\n${"=".repeat(60)}`);
   console.log("  G3 Robotics Development Servers");
-  console.log("=".repeat(60) + "\n");
+  console.log(`${"=".repeat(60)}\n`);
 
   console.log("📱 Apps:");
-  Object.entries(config.apps).forEach(([key, server]) => {
+  for (const [, server] of Object.entries(config.apps)) {
     console.log(`  • ${server.name.padEnd(30)} ${server.url}`);
-  });
+  }
 
   console.log("\n⚙️  Workers:");
-  Object.entries(config.workers).forEach(([key, server]) => {
+  for (const [, server] of Object.entries(config.workers)) {
     console.log(`  • ${server.name.padEnd(30)} ${server.url}`);
-  });
+  }
 
-  console.log("\n" + "=".repeat(60));
+  console.log(`\n${"=".repeat(60)}`);
   console.log("  ✅ All servers are ready!");
-  console.log("=".repeat(60) + "\n");
+  console.log(`${"=".repeat(60)}\n`);
 }
 
 async function main() {
