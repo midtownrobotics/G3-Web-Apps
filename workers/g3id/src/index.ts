@@ -10,6 +10,7 @@ import { slackAuthRouter } from "./routes/auth/slack";
 import { steamAuthRouter } from "./routes/auth/steam";
 import { kioskRouter } from "./routes/kiosk";
 import { slackRouter } from "./routes/slack";
+import { usersRouter } from "./routes/users";
 import type { AppEnv } from "./types";
 
 const base = new Hono<AppEnv>();
@@ -46,6 +47,7 @@ const app = base
   .route("/auth", slackAuthRouter)
   .route("/auth", steamAuthRouter)
   .route("/admin", adminRouter)
+  .route("/users", usersRouter)
   .route("/", kioskRouter)
   .route("/slack", slackRouter);
 
