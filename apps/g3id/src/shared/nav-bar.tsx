@@ -39,7 +39,7 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
         setIsAdmin(false);
       }
     });
-  }, [location]);
+  }, []);
 
   const filteredItems = items.filter((item) => {
     if (isLoggedIn === null) return false; // Loading

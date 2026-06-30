@@ -52,14 +52,14 @@ function printServerInfo(config) {
   console.log(`${"=".repeat(60)}\n`);
 
   console.log("📱 Apps:");
-  Object.entries(config.apps).forEach(([key, server]) => {
+  for (const [, server] of Object.entries(config.apps)) {
     console.log(`  • ${server.name.padEnd(30)} ${server.url}`);
-  });
+  }
 
   console.log("\n⚙️  Workers:");
-  Object.entries(config.workers).forEach(([key, server]) => {
+  for (const [, server] of Object.entries(config.workers)) {
     console.log(`  • ${server.name.padEnd(30)} ${server.url}`);
-  });
+  }
 
   console.log(`\n${"=".repeat(60)}`);
   console.log("  ✅ All servers are ready!");
