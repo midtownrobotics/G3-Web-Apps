@@ -11,14 +11,16 @@ import {
   FaUserShield,
 } from "react-icons/fa";
 import { LuGitBranch } from "react-icons/lu";
+import g3Logo from "../../assets/g3.png";
 import { g3id } from "../../lib/api";
 
 type App = {
   label: string;
   href: string;
-  icon: IconType;
+  icon?: IconType;
   bg: string;
   external?: boolean;
+  logoSrc?: string;
 };
 
 const APPS: App[] = [
@@ -47,10 +49,16 @@ const APPS: App[] = [
     bg: "bg-amber-900",
   },
   {
+    label: "Public Site",
+    href: "https://www.g3robotics.com",
+    bg: "bg-gray-400",
+    logoSrc: g3Logo,
+  },
+  {
     label: "Slack",
     href: "https://g3robotics.slack.com",
     icon: FaSlack,
-    bg: "bg-purple-600",
+    bg: "bg-blue-300",
     external: true,
   },
   {
@@ -64,7 +72,7 @@ const APPS: App[] = [
     label: "Statbotics",
     href: "https://www.statbotics.io/team/1648",
     icon: FaChartLine,
-    bg: "bg-gray-400",
+    bg: "bg-purple-400",
     external: true,
   },
   {
@@ -168,9 +176,13 @@ export function HomePage() {
                 <div
                   className={`w-16 h-16 rounded-2xl ${app.bg} flex items-center justify-center shadow-lg transition-transform duration-150 group-hover:scale-110`}
                 >
-                  <span className="text-white text-3xl">
-                    <app.icon />
-                  </span>
+                  {app.logoSrc ? (
+                    <img src={app.logoSrc} alt={app.label} className="w-10 h-10 object-contain" />
+                  ) : app.icon ? (
+                    <span className="text-white text-3xl">
+                      <app.icon />
+                    </span>
+                  ) : null}
                 </div>
                 <span className="text-xs text-center leading-tight transition-colors text-gray-600 group-hover:text-gray-900">
                   {app.label}
