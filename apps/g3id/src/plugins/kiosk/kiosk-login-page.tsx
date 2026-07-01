@@ -14,9 +14,13 @@ export function KioskLoginPage() {
   useEffect(() => {
     const token = localStorage.getItem("kiosk_token");
     if (!token) {
-      navigate("/kiosk/activate");
+      const redirect = searchParams.get("redirect");
+      const path = redirect
+        ? `/kiosk/activate?redirect=${encodeURIComponent(redirect)}`
+        : "/kiosk/activate";
+      navigate(path);
     }
-  }, [navigate]);
+  }, [navigate, searchParams]);
 
   async function submitPin(fullPin: string) {
     if (loadingRef.current) return;
@@ -45,7 +49,11 @@ export function KioskLoginPage() {
       if (!res.ok) {
         if (res.status === 401) {
           localStorage.removeItem("kiosk_token");
-          navigate("/kiosk/activate");
+          const redirect = searchParams.get("redirect");
+          const path = redirect
+            ? `/kiosk/activate?redirect=${encodeURIComponent(redirect)}`
+            : "/kiosk/activate";
+          navigate(path);
           return;
         }
         const data = (await res.json()) as { error?: string };
