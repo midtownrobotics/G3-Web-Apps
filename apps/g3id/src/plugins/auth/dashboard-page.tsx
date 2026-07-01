@@ -1,4 +1,4 @@
-import { Loader2, Shield } from "lucide-react";
+import { Code2, Loader2, Shield } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { FaGithub, FaGoogle, FaSlack, FaSteam } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
@@ -283,6 +283,15 @@ export function DashboardPage() {
                 </>
               )}
             </div>
+          )}
+          {me.sessionType === "oauth" && !me.identities.some((i) => i.provider === "onshape") && (
+            <a
+              href={`${import.meta.env.VITE_API_BASE_URL}/auth/onshape`}
+              className="mt-3 w-full flex items-center justify-center gap-2 rounded-lg bg-primary-500 hover:bg-primary-600 px-4 py-2 text-sm text-white transition-colors"
+            >
+              <Code2 size={16} />
+              Connect OnShape
+            </a>
           )}
         </div>
 
