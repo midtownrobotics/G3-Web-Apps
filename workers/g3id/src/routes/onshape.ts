@@ -14,11 +14,9 @@ router.get("/token", requireAuth, async (c) => {
 
   try {
     const accessToken = await getValidOnshapeToken(userId, c.env);
-    const now = Math.floor(Date.now() / 1000);
 
     return c.json({
-      accessToken,
-      expiresAt: now + 3600, // Approximate 1 hour expiry
+      accessToken
     });
   } catch (error) {
     return c.json({ error: "OnShape account not linked" }, 404);
