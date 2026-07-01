@@ -4,7 +4,7 @@ import { cors } from "hono/cors";
 import { validator } from "hono/validator";
 import { createDb } from "./db";
 import { skillMentors, skillProgress } from "./db/schema";
-import { requireAuth } from "./middleware/auth";
+import { requireAuth, requireOAuthSession } from "./middleware/auth";
 import type { AppEnv } from "./types";
 
 const VALID_STATUSES = ["not-started", "in-progress", "complete"] as const;
@@ -105,7 +105,7 @@ const app = base
   })
 
   // List all mentors (admin only) — for the mentor-management page.
-  .get("/mentors", requireAuth, async (c) => {
+  .get("/mentors", requireAuth, requireOAuthSession, async (c) => {
     if (!c.get("userIsAdmin")) return c.json({ error: "Forbidden." }, 403);
     const db = createDb(c.env.SKILL_DB);
     const rows = await db
@@ -116,7 +116,7 @@ const app = base
   })
 
   // Add a mentor (admin only).
-  .post("/mentors/:id", requireAuth, async (c) => {
+  .post("/mentors/:id", requireAuth, requireOAuthSession, async (c) => {
     if (!c.get("userIsAdmin")) return c.json({ error: "Forbidden." }, 403);
     const targetId = c.req.param("id");
     const db = createDb(c.env.SKILL_DB);
@@ -126,7 +126,7 @@ const app = base
 
   // Remove a mentor (admin only). Site admins are re-added on their next /me,
   // so their mentorship can't be permanently revoked here.
-  .delete("/mentors/:id", requireAuth, async (c) => {
+  .delete("/mentors/:id", requireAuth, requireOAuthSession, async (c) => {
     if (!c.get("userIsAdmin")) return c.json({ error: "Forbidden." }, 403);
     const targetId = c.req.param("id");
     const db = createDb(c.env.SKILL_DB);
@@ -150,7 +150,7 @@ const app = base
   })
 
   // Update a single skill for a student — mentors only.
-  .patch("/students/:id", requireAuth, skillUpdateValidator, async (c) => {
+  .patch("/students/:id", requireAuth, requireOAuthSession, skillUpdateValidator, async (c) => {
     const targetId = c.req.param("id");
     const { skillId, status } = c.req.valid("json");
     const callerId = c.get("userId");

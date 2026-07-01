@@ -16,7 +16,7 @@ router.get("/token", requireAuth, async (c) => {
     const accessToken = await getValidOnshapeToken(userId, c.env);
 
     return c.json({
-      accessToken
+      accessToken,
     });
   } catch (error) {
     return c.json({ error: "OnShape account not linked" }, 404);
