@@ -53,6 +53,7 @@ GITHUB_CLIENT_ID = "Ov23liIzEnTs03zGJPKJ"
 GITHUB_REDIRECT_URI = "https://api.g3id.g3robotics.com/auth/github/callback"
 SLACK_TEAM_ID = "T04LF3F0D"
 STEAM_REDIRECT_URI = "https://api.g3id.g3robotics.com/auth/steam/callback"
+ONSHAPE_CLIENT_ID = "NREWPL5DFDUCQEIYYGYZ643CMR3FTTSUMI2XDWQ="
 ONSHAPE_REDIRECT_URI = "https://api.g3id.g3robotics.com/auth/onshape/callback"
 FRONTEND_URL = "https://g3id.g3robotics.com"
 
