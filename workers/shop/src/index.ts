@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { requireAuth } from "./middleware/auth";
+import { onshapeWebhooksRouter } from "./routes/onshape-webhooks";
 import { partDefinitionsRouter } from "./routes/part-definitions";
 import { partInstanceProcessesRouter } from "./routes/part-instance-processes";
 import { partInstancesRouter } from "./routes/part-instances";
@@ -41,6 +42,7 @@ const app = base
       displayName: c.get("userDisplayName"),
     }),
   )
+  .route("/onshape", onshapeWebhooksRouter)
   .route("/subsystems", subsystemsRouter)
   .route("/processes", processesRouter)
   .route("/part-definitions", partDefinitionsRouter)

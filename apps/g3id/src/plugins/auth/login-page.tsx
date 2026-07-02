@@ -1,4 +1,3 @@
-import { KeySquare } from "lucide-react";
 import { FaGithub, FaGoogle, FaSlack, FaSteam } from "react-icons/fa";
 import { Link, useSearchParams } from "react-router-dom";
 
