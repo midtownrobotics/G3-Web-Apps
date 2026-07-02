@@ -1,4 +1,5 @@
-import { Code2, Loader2, Shield } from "lucide-react";
+import { OnShapeIcon } from "@g3/ui";
+import { Loader2, Shield } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { FaGithub, FaGoogle, FaSlack, FaSteam } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
@@ -97,8 +98,13 @@ export function DashboardPage() {
   );
 
   async function handleLogout() {
-    await api.auth.logout.$post();
-    navigate("/login");
+    const res = await api.auth.logout.$post();
+    const data = (await res.json()) as { isKiosk?: boolean };
+    if (data.isKiosk) {
+      navigate("/kiosk/login");
+    } else {
+      navigate("/login");
+    }
   }
 
   async function fetchPin() {
@@ -209,7 +215,7 @@ export function DashboardPage() {
         </div>
 
         <div className="px-5 py-4">
-          <p className="text-xs text-secondary-300 uppercase tracking-wide mb-3">Sign-in methods</p>
+          <p className="text-xs text-secondary-300 uppercase tracking-wide mb-3">Linked Accounts</p>
           <div className="space-y-2">
             {me.identities.map((identity) => (
               <div key={identity.provider} className="flex items-center justify-between text-sm">
@@ -289,7 +295,7 @@ export function DashboardPage() {
               href={`${import.meta.env.VITE_API_BASE_URL}/auth/onshape`}
               className="mt-3 w-full flex items-center justify-center gap-2 rounded-lg bg-primary-500 hover:bg-primary-600 px-4 py-2 text-sm text-white transition-colors"
             >
-              <Code2 size={16} />
+              <OnShapeIcon size={16} white />
               Connect OnShape
             </a>
           )}
