@@ -86,7 +86,10 @@ router.get("/register-dev", async (c) => {
     return c.json({ success: true, ...result });
   } catch (err) {
     console.error("[OnShape Register Dev Error]", err);
-    return c.json({ error: err instanceof Error ? err.message : "Failed to register webhook" }, 500);
+    return c.json(
+      { error: err instanceof Error ? err.message : "Failed to register webhook" },
+      500,
+    );
   }
 });
 

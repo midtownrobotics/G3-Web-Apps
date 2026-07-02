@@ -1,9 +1,6 @@
 import type { AppEnv } from "../types";
 
-export const ONSHAPE_WEBHOOK_EVENTS = [
-  "onshape.revision.created",
-"onshape.workflow.transition",
-];
+export const ONSHAPE_WEBHOOK_EVENTS = ["onshape.revision.created", "onshape.workflow.transition"];
 
 export async function verifyOnshapeSignature(
   timestamp: string,
@@ -25,7 +22,11 @@ export async function verifyOnshapeSignature(
         ["sign"],
       );
 
-      const signatureBytes = await crypto.subtle.sign("HMAC", cryptoKey, new TextEncoder().encode(message));
+      const signatureBytes = await crypto.subtle.sign(
+        "HMAC",
+        cryptoKey,
+        new TextEncoder().encode(message),
+      );
 
       const base64Signature = btoa(String.fromCharCode(...new Uint8Array(signatureBytes)));
 
@@ -52,9 +53,9 @@ export async function registerOnShapeWebhook(documentId: string, env: AppEnv["Bi
   }
 
   const credentials = btoa(`${apiKey}:${apiSecret}`);
-  const webhookUrl = `https://api.shop.g3robotics.com/onshape/events`;
+  const webhookUrl = "https://api.shop.g3robotics.com/onshape/events";
 
-  const response = await fetch(`https://cad.onshape.com/api/v16/webhooks`, {
+  const response = await fetch("https://cad.onshape.com/api/v16/webhooks", {
     method: "POST",
     headers: {
       Authorization: `Basic ${credentials}`,
@@ -80,6 +81,10 @@ export async function registerOnShapeWebhook(documentId: string, env: AppEnv["Bi
   }
 
   const data = (await response.json()) as { id: string };
-  console.log("[OnShape Webhook Registered]", { documentId, webhookId: data.id, events: ONSHAPE_WEBHOOK_EVENTS });
+  console.log("[OnShape Webhook Registered]", {
+    documentId,
+    webhookId: data.id,
+    events: ONSHAPE_WEBHOOK_EVENTS,
+  });
   return data;
 }
