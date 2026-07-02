@@ -69,9 +69,25 @@ export const authRouter = new Hono<AppEnv>()
   })
   .post("/logout", async (c) => {
     const sessionId = getCookie(c, "g3_session");
-    if (sessionId) await deleteSession(sessionId, c.env);
+    let isKiosk = false;
+
+    if (sessionId) {
+      const sessionData = await c.env.SESSIONS.get(sessionId);
+      if (sessionData) {
+        try {
+          const parsed = JSON.parse(sessionData) as { sessionType?: string };
+          if (parsed.sessionType === "pin") {
+            isKiosk = true;
+          }
+        } catch {
+          // Continue with logout
+        }
+      }
+      await deleteSession(sessionId, c.env);
+    }
+
     deleteCookie(c, "g3_session", deleteCookieOptions(c.env.FRONTEND_URL));
-    return c.json({ ok: true });
+    return c.json({ ok: true, isKiosk });
   })
   .get("/pin/me", requireAuth, async (c) => {
     const userId = c.get("userId") as string;

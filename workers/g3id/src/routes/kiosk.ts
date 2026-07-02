@@ -55,20 +55,23 @@ export const kioskRouter = new Hono<AppEnv>()
 
     const token = generateToken();
 
-    await db.batch([
-      db.insert(kioskDevices).values({
+    const result = await db
+      .insert(kioskDevices)
+      .values({
         name: activation.deviceName,
         token,
         createdBy: activation.createdBy,
         createdAt: now,
-      }),
-      db
-        .update(kioskActivationCodes)
-        .set({ used: 1 })
-        .where(eq(kioskActivationCodes.id, activation.id)),
-    ]);
+      })
+      .returning({ id: kioskDevices.id });
 
-    return c.json({ token });
+    await db
+      .update(kioskActivationCodes)
+      .set({ used: 1 })
+      .where(eq(kioskActivationCodes.id, activation.id));
+
+    const deviceId = result[0]?.id;
+    return c.json({ token, deviceId });
   })
   .get("/kiosk/verify", requireKioskToken, async (c) => {
     const kioskDeviceId = c.get("kioskDeviceId");

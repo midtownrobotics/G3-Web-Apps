@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -39,8 +39,11 @@ export function KioskActivatePage() {
         return;
       }
 
-      const data = (await res.json()) as { token: string };
+      const data = (await res.json()) as { token: string; deviceId?: number };
       localStorage.setItem("kiosk_token", data.token);
+      if (data.deviceId) {
+        localStorage.setItem("kiosk_device_id", data.deviceId.toString());
+      }
       const redirect = searchParams.get("redirect");
       const path = redirect
         ? `/kiosk/login?redirect=${encodeURIComponent(redirect)}`
@@ -90,6 +93,13 @@ export function KioskActivatePage() {
           >
             {loading ? "Activating..." : "Activate Device"}
           </button>
+
+          <Link
+            to="/"
+            className="block text-center py-3 px-4 rounded-lg bg-secondary-700 hover:bg-secondary-600 text-white font-semibold transition-colors"
+          >
+            Cancel
+          </Link>
         </form>
       </div>
     </div>
