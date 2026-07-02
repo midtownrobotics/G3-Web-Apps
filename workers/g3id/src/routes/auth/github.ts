@@ -140,8 +140,6 @@ export const githubAuthRouter = new Hono<AppEnv>()
     }
 
     const sub = githubUser.id;
-    const email = githubUser.email.toLowerCase();
-    const name = githubUser.name;
 
     const db = createDb(c.env.DB);
     const now = Math.floor(Date.now() / 1000);
@@ -211,32 +209,8 @@ export const githubAuthRouter = new Hono<AppEnv>()
       return c.redirect(redirectTo ?? app("/dashboard"));
     }
 
-    // No GitHub identity — block email collision
-    const emailTaken = await db
-      .select({ id: coreUsers.id })
-      .from(coreUsers)
-      .where(eq(coreUsers.email, email))
-      .get();
-
-    if (emailTaken) {
-      return err(
-        "An account with this email already exists. Sign in with your existing method and add GitHub as a sign-in option from your account settings.",
-      );
-    }
-
-    // Brand new user — create pending account
-    const userId = newId();
-    await db.batch([
-      db.insert(coreUsers).values({
-        id: userId,
-        email,
-        displayName: name,
-        status: "pending",
-        createdAt: now,
-        updatedAt: now,
-      }),
-      db.insert(coreUserIdentities).values({ ...identityValues, userId }),
-    ]);
-
-    return c.redirect(app("/signup/pending"));
+    // No GitHub identity found — account must already exist
+    return err(
+      "No account found with this GitHub account. Sign up with Slack or contact an administrator.",
+    );
   });

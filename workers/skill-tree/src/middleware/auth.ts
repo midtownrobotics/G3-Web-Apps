@@ -8,15 +8,25 @@ export const requireAuth = createMiddleware<AppEnv>(async (c, next) => {
     }),
   );
   if (!res.ok) return c.json({ error: "Unauthorized." }, 401);
-  const { id, isAdmin, email, displayName } = (await res.json()) as {
+  const { id, isAdmin, email, displayName, sessionType } = (await res.json()) as {
     id: string;
     isAdmin: boolean;
     email: string;
     displayName: string;
+    sessionType: "oauth" | "pin";
   };
   c.set("userId", id);
   c.set("userIsAdmin", isAdmin);
   c.set("userEmail", email);
   c.set("userDisplayName", displayName);
+  c.set("sessionType", sessionType);
+  await next();
+});
+
+export const requireOAuthSession = createMiddleware<AppEnv>(async (c, next) => {
+  const sessionType = c.get("sessionType") as string | undefined;
+  if (sessionType === "pin") {
+    return c.json({ error: "Mentor actions not allowed from kiosk mode." }, 403);
+  }
   await next();
 });

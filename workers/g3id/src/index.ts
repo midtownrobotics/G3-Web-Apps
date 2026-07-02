@@ -5,10 +5,12 @@ import { authRouter } from "./routes/auth";
 import { emailAuthRouter } from "./routes/auth/email";
 import { githubAuthRouter } from "./routes/auth/github";
 import { googleAuthRouter } from "./routes/auth/google";
+import { onshapeAuthRouter } from "./routes/auth/onshape";
 import { pinAuthRouter } from "./routes/auth/pin";
 import { slackAuthRouter } from "./routes/auth/slack";
 import { steamAuthRouter } from "./routes/auth/steam";
 import { kioskRouter } from "./routes/kiosk";
+import { onshapeRouter } from "./routes/onshape";
 import { slackRouter } from "./routes/slack";
 import { usersRouter } from "./routes/users";
 import type { AppEnv } from "./types";
@@ -43,11 +45,13 @@ const app = base
   .route("/auth", emailAuthRouter)
   .route("/auth", githubAuthRouter)
   .route("/auth", googleAuthRouter)
+  .route("/auth", onshapeAuthRouter)
   .route("/auth", pinAuthRouter)
   .route("/auth", slackAuthRouter)
   .route("/auth", steamAuthRouter)
   .route("/admin", adminRouter)
   .route("/users", usersRouter)
+  .route("/onshape", onshapeRouter)
   .route("/", kioskRouter)
   .route("/slack", slackRouter);
 

@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
 
 export function KioskActivatePage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -12,9 +13,13 @@ export function KioskActivatePage() {
   useEffect(() => {
     const savedToken = localStorage.getItem("kiosk_token");
     if (savedToken) {
-      navigate("/kiosk/login");
+      const redirect = searchParams.get("redirect");
+      const path = redirect
+        ? `/kiosk/login?redirect=${encodeURIComponent(redirect)}`
+        : "/kiosk/login";
+      navigate(path);
     }
-  }, [navigate]);
+  }, [navigate, searchParams]);
 
   async function handleActivate(e: React.FormEvent) {
     e.preventDefault();
@@ -34,9 +39,16 @@ export function KioskActivatePage() {
         return;
       }
 
-      const data = (await res.json()) as { token: string };
+      const data = (await res.json()) as { token: string; deviceId?: number };
       localStorage.setItem("kiosk_token", data.token);
-      navigate("/kiosk/login");
+      if (data.deviceId) {
+        localStorage.setItem("kiosk_device_id", data.deviceId.toString());
+      }
+      const redirect = searchParams.get("redirect");
+      const path = redirect
+        ? `/kiosk/login?redirect=${encodeURIComponent(redirect)}`
+        : "/kiosk/login";
+      navigate(path);
     } catch (err) {
       setError("Failed to activate device");
     } finally {
@@ -81,6 +93,13 @@ export function KioskActivatePage() {
           >
             {loading ? "Activating..." : "Activate Device"}
           </button>
+
+          <Link
+            to="/"
+            className="block text-center py-3 px-4 rounded-lg bg-secondary-700 hover:bg-secondary-600 text-white font-semibold transition-colors"
+          >
+            Cancel
+          </Link>
         </form>
       </div>
     </div>

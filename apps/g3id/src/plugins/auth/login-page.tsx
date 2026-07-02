@@ -1,4 +1,3 @@
-import { KeySquare } from "lucide-react";
 import { FaGithub, FaGoogle, FaSlack, FaSteam } from "react-icons/fa";
 import { Link, useSearchParams } from "react-router-dom";
 
@@ -10,9 +9,6 @@ export function LoginPage() {
   const redirect = searchParams.get("redirect") ?? "";
 
   const rp = redirect ? `?redirect=${encodeURIComponent(redirect)}` : "";
-  const emailTo = redirect
-    ? `/login/email?redirect=${encodeURIComponent(redirect)}`
-    : "/login/email";
 
   return (
     <main className="flex-1 flex items-center justify-center px-4 bg-secondary-900">
@@ -54,13 +50,6 @@ export function LoginPage() {
             <FaSteam size={20} />
             Sign in with Steam
           </a>
-          <Link
-            to={emailTo}
-            className="w-full flex items-center justify-center gap-3 rounded-lg bg-secondary-700 border border-gray-600 hover:border-primary-400 hover:bg-secondary-600 px-4 py-2.5 text-sm text-white transition-colors"
-          >
-            <KeySquare size={20} />
-            Sign in with Email
-          </Link>
         </div>
 
         <p className="text-center text-sm text-secondary-300">

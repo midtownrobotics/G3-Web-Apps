@@ -14,6 +14,9 @@ export type AppEnv = {
     SLACK_TEAM_ID: string;
     STEAM_API_KEY: string;
     STEAM_REDIRECT_URI: string;
+    ONSHAPE_CLIENT_ID: string;
+    ONSHAPE_CLIENT_SECRET: string;
+    ONSHAPE_REDIRECT_URI: string;
     FRONTEND_URL: string;
     ENVIRONMENT?: string;
   };

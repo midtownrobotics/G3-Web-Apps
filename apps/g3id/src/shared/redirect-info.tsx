@@ -3,18 +3,21 @@ import { useSearchParams } from "react-router-dom";
 export function RedirectInfo() {
   const [searchParams] = useSearchParams();
   const redirect = searchParams.get("redirect");
-  const domain = redirect ? new URL(redirect).host : "";
 
   if (!redirect) return null;
+
+  const url = new URL(redirect);
+  const subdomain = url.host.split(".")[0];
+  const appName = subdomain.charAt(0).toUpperCase() + subdomain.slice(1);
 
   return (
     <div className="bg-gray-500 text-white px-6 py-1 text-center">
       <span>
-        After login, you will be redirected to{" "}
+        Logging into{" "}
         <a className="text-blue-300 underline" href={redirect}>
-          {domain}
-        </a>
-        .
+          {appName}
+        </a>{" "}
+        Software
       </span>
     </div>
   );

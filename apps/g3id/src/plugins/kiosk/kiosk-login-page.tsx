@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -14,9 +14,13 @@ export function KioskLoginPage() {
   useEffect(() => {
     const token = localStorage.getItem("kiosk_token");
     if (!token) {
-      navigate("/kiosk/activate");
+      const redirect = searchParams.get("redirect");
+      const path = redirect
+        ? `/kiosk/activate?redirect=${encodeURIComponent(redirect)}`
+        : "/kiosk/activate";
+      navigate(path);
     }
-  }, [navigate]);
+  }, [navigate, searchParams]);
 
   async function submitPin(fullPin: string) {
     if (loadingRef.current) return;
@@ -45,7 +49,11 @@ export function KioskLoginPage() {
       if (!res.ok) {
         if (res.status === 401) {
           localStorage.removeItem("kiosk_token");
-          navigate("/kiosk/activate");
+          const redirect = searchParams.get("redirect");
+          const path = redirect
+            ? `/kiosk/activate?redirect=${encodeURIComponent(redirect)}`
+            : "/kiosk/activate";
+          navigate(path);
           return;
         }
         const data = (await res.json()) as { error?: string };
@@ -131,6 +139,13 @@ export function KioskLoginPage() {
         >
           Clear
         </button>
+
+        <Link
+          to="/kiosk/remove"
+          className="block text-center text-xs text-secondary-400 hover:text-secondary-300 transition-colors mt-2"
+        >
+          Remove Device
+        </Link>
       </div>
     </div>
   );

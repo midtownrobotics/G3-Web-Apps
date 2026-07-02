@@ -11,65 +11,6 @@ import { requireAuth } from "../../middleware/auth";
 import type { AppEnv } from "../../types";
 
 export const emailAuthRouter = new Hono<AppEnv>()
-  .post("/signup/email", async (c) => {
-    let body: { name?: unknown; email?: unknown; password?: unknown };
-    try {
-      body = await c.req.json();
-    } catch {
-      return c.json({ error: "Invalid request body." }, 400);
-    }
-
-    const name = typeof body.name === "string" ? body.name.trim() : "";
-    const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
-    const password = typeof body.password === "string" ? body.password : "";
-
-    if (!name || !email || !password) {
-      return c.json({ error: "Name, email, and password are required." }, 400);
-    }
-    if (password.length < 8) {
-      return c.json({ error: "Password must be at least 8 characters." }, 400);
-    }
-
-    const db = createDb(c.env.DB);
-
-    const existing = await db
-      .select({ id: coreUsers.id })
-      .from(coreUsers)
-      .where(eq(coreUsers.email, email))
-      .get();
-
-    if (existing) {
-      return c.json({ error: "An account with that email already exists." }, 409);
-    }
-
-    const now = Math.floor(Date.now() / 1000);
-    const userId = newId();
-    const passwordHash = await hashPassword(password);
-
-    await db.batch([
-      db.insert(coreUsers).values({
-        id: userId,
-        email,
-        displayName: name,
-        status: "pending",
-        createdAt: now,
-        updatedAt: now,
-      }),
-      db.insert(coreUserIdentities).values({
-        id: newId(),
-        userId,
-        provider: "local",
-        passwordHash,
-        createdAt: now,
-        updatedAt: now,
-      }),
-    ]);
-
-    return c.json(
-      { message: "Account created. You'll be notified when your account is approved." },
-      201,
-    );
-  })
   .post("/login/email", async (c) => {
     let body: { email?: unknown; password?: unknown };
     try {
