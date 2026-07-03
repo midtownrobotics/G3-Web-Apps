@@ -38,3 +38,7 @@ migrations_dir = "src/db/migrations"
 
 [env.production.vars]
 FRONTEND_URL = "https://shop.g3robotics.com"
+
+[observability.logs]
+enabled = true
+invocation_logs = true
