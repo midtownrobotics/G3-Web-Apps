@@ -1,5 +1,10 @@
 import { Hono } from "hono";
-import { registerOnShapeWebhook, verifyOnshapeSignature } from "../lib/onshape-webhook";
+import {
+  registerOnShapeWebhook,
+  verifyOnshapeSignature,
+  processRevisionEvent,
+  processReleaseEvent,
+} from "../lib/onshape-webhook";
 import type { AppEnv } from "../types";
 
 const router = new Hono<AppEnv>();
@@ -44,8 +49,56 @@ router.post("/events", async (c) => {
     return c.json({ ok: true });
   }
 
-  const webhookData = body;
-  console.log(webhookData);
+  const webhookData = body as {
+    event?: string;
+    elementType?: number;
+    elementId?: string;
+    partNumber?: string;
+    releaseId?: string;
+    versionId?: string;
+    objectType?: string;
+    objectId?: string;
+    timestamp?: string;
+  };
+
+  if (typeof webhookData !== "object" || !webhookData || !webhookData.event) {
+    return c.json({ ok: true });
+  }
+
+  console.log("[OnShape Webhook]", webhookData.event, webhookData);
+
+  if (webhookData.event === "webhook.register" || webhookData.event === "webhook.ping") {
+    return c.json({ ok: true });
+  }
+
+  if (webhookData.event === "onshape.revision.created") {
+    const { elementType, elementId, partNumber, releaseId, versionId } = webhookData;
+    if (
+      typeof elementType === "number" &&
+      elementId &&
+      partNumber &&
+      releaseId &&
+      versionId
+    ) {
+      c.executionCtx.waitUntil(
+        processRevisionEvent(elementId, elementType, partNumber, releaseId, versionId, c.env.SHOP_DB),
+      );
+    }
+    return c.json({ ok: true });
+  }
+
+  if (
+    webhookData.event === "onshape.workflow.transition" &&
+    webhookData.objectType === "RELEASE"
+  ) {
+    const { objectId: releaseId, timestamp } = webhookData;
+    if (releaseId && timestamp) {
+      c.executionCtx.waitUntil(
+        processReleaseEvent(releaseId, timestamp, c.env.SHOP_DB),
+      );
+    }
+    return c.json({ ok: true });
+  }
 
   return c.json({ ok: true });
 });
