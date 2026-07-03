@@ -44,33 +44,9 @@ router.post("/events", async (c) => {
     return c.json({ ok: true });
   }
 
-  const webhookData = body as { webhook?: { eventType?: string } };
-  const eventType = webhookData.webhook?.eventType;
+  const webhookData = body;
+  console.log(webhookData);
 
-  if (eventType === "webhook.register" || eventType === "webhook.ping") {
-    console.log("[OnShape Webhook] Registration ping received");
-    return c.json({ ok: true });
-  }
-
-  if (eventType === "onshape.revision.created") {
-    c.executionCtx.waitUntil(
-      (async () => {
-        console.log("[OnShape Webhook] Processing revision.created event", webhookData);
-      })(),
-    );
-    return c.json({ ok: true });
-  }
-
-  if (eventType === "onshape.workflow.transition") {
-    c.executionCtx.waitUntil(
-      (async () => {
-        console.log("[OnShape Webhook] Processing workflow.transition event", webhookData);
-      })(),
-    );
-    return c.json({ ok: true });
-  }
-
-  console.log("[OnShape Webhook] Ignoring event type", eventType);
   return c.json({ ok: true });
 });
 
