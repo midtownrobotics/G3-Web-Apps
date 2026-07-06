@@ -1,9 +1,9 @@
 import { Hono } from "hono";
 import {
+  processReleaseEvent,
+  processRevisionEvent,
   registerOnShapeWebhook,
   verifyOnshapeSignature,
-  processRevisionEvent,
-  processReleaseEvent,
 } from "../lib/onshape-webhook";
 import type { AppEnv } from "../types";
 
@@ -73,29 +73,25 @@ router.post("/events", async (c) => {
 
   if (webhookData.event === "onshape.revision.created") {
     const { elementType, elementId, partNumber, releaseId, versionId } = webhookData;
-    if (
-      typeof elementType === "number" &&
-      elementId &&
-      partNumber &&
-      releaseId &&
-      versionId
-    ) {
+    if (typeof elementType === "number" && elementId && partNumber && releaseId && versionId) {
       c.executionCtx.waitUntil(
-        processRevisionEvent(elementId, elementType, partNumber, releaseId, versionId, c.env.SHOP_DB),
+        processRevisionEvent(
+          elementId,
+          elementType,
+          partNumber,
+          releaseId,
+          versionId,
+          c.env.SHOP_DB,
+        ),
       );
     }
     return c.json({ ok: true });
   }
 
-  if (
-    webhookData.event === "onshape.workflow.transition" &&
-    webhookData.objectType === "RELEASE"
-  ) {
+  if (webhookData.event === "onshape.workflow.transition" && webhookData.objectType === "RELEASE") {
     const { objectId: releaseId, timestamp } = webhookData;
     if (releaseId && timestamp) {
-      c.executionCtx.waitUntil(
-        processReleaseEvent(releaseId, timestamp, c.env.SHOP_DB),
-      );
+      c.executionCtx.waitUntil(processReleaseEvent(releaseId, timestamp, c.env.SHOP_DB));
     }
     return c.json({ ok: true });
   }
@@ -117,7 +113,8 @@ router.get("/register", async (c) => {
   if (!match || !match[1] || !match[2] || !match[3]) {
     return c.json(
       {
-        error: "Invalid URL format. Expected: https://cad.onshape.com/documents/[DOCID]/w/[WORKSPACE]/e/[MAIN ASSEMBLY]",
+        error:
+          "Invalid URL format. Expected: https://cad.onshape.com/documents/[DOCID]/w/[WORKSPACE]/e/[MAIN ASSEMBLY]",
       },
       400,
     );
@@ -139,19 +136,13 @@ router.get("/register", async (c) => {
     });
 
     if (!metadataResponse.ok) {
-      return c.json(
-        { error: `Failed to fetch element metadata: ${metadataResponse.status}` },
-        400,
-      );
+      return c.json({ error: `Failed to fetch element metadata: ${metadataResponse.status}` }, 400);
     }
 
     const metadata = (await metadataResponse.json()) as { elementType?: number };
 
     if (metadata.elementType !== 1) {
-      return c.json(
-        { error: "Element is not an assembly (elementType must be 1)" },
-        400,
-      );
+      return c.json({ error: "Element is not an assembly (elementType must be 1)" }, 400);
     }
 
     const result = await registerOnShapeWebhook(documentId, c.env);
