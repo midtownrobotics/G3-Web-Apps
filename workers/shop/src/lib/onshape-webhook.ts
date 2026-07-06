@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "../db/schema";
 import type { AppEnv } from "../types";
@@ -106,49 +106,25 @@ export async function processRevisionEvent(
   const isDrawing = elementType === 2;
   const isPart = elementType === 0;
 
-  const existingParts = await database
-    .select()
-    .from(schema.onshapeParts)
-    .where(
-      and(
-        eq(schema.onshapeParts.onshapeReleaseId, onshapeReleaseId),
-        eq(schema.onshapeParts.partNumber, partNumber),
-      ),
-    )
-    .limit(1);
+  const updateData: { entityId?: string; partDrawingEntityId?: string; versionId: string } = {
+    versionId,
+  };
 
-  if (existingParts.length > 0) {
-    const update: { entityId?: string; partDrawingEntityId?: string; versionId?: string } = {};
-    if (isPart) update.entityId = elementId;
-    if (isDrawing) update.partDrawingEntityId = elementId;
-    update.versionId = versionId;
+  if (isPart) updateData.entityId = elementId;
+  if (isDrawing) updateData.partDrawingEntityId = elementId;
 
-    if (Object.keys(update).length > 0) {
-      await database
-        .update(schema.onshapeParts)
-        .set(update)
-        .where(eq(schema.onshapeParts.id, existingParts[0].id));
-    }
-  } else {
-    const newPart: {
-      onshapeReleaseId: string;
-      partNumber: string;
-      versionId: string;
-      entityId?: string;
-      partDrawingEntityId?: string;
-      createdAt: number;
-    } = {
+  await database
+    .insert(schema.onshapeParts)
+    .values({
       onshapeReleaseId,
       partNumber,
-      versionId,
+      ...updateData,
       createdAt: now,
-    };
-
-    if (isPart) newPart.entityId = elementId;
-    if (isDrawing) newPart.partDrawingEntityId = elementId;
-
-    await database.insert(schema.onshapeParts).values(newPart);
-  }
+    })
+    .onConflictDoUpdate({
+      target: [schema.onshapeParts.onshapeReleaseId, schema.onshapeParts.partNumber],
+      set: updateData,
+    });
 
   console.log("[OnShape Webhook] Updated part", {
     partNumber,
