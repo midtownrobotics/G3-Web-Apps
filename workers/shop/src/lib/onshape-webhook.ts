@@ -1,3 +1,6 @@
+import { and, eq } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/d1";
+import * as schema from "../db/schema";
 import type { AppEnv } from "../types";
 
 export const ONSHAPE_WEBHOOK_EVENTS = ["onshape.revision.created", "onshape.workflow.transition"];
@@ -87,4 +90,113 @@ export async function registerOnShapeWebhook(documentId: string, env: AppEnv["Bi
     events: ONSHAPE_WEBHOOK_EVENTS,
   });
   return data;
+}
+
+export async function processRevisionEvent(
+  elementId: string,
+  elementType: number,
+  partNumber: string,
+  onshapeReleaseId: string,
+  versionId: string,
+  db: D1Database,
+): Promise<void> {
+  const database = drizzle(db, { schema });
+  const now = Math.floor(Date.now() / 1000);
+
+  const isDrawing = elementType === 2;
+  const isPart = elementType === 0;
+
+  const existingParts = await database
+    .select()
+    .from(schema.onshapeParts)
+    .where(
+      and(
+        eq(schema.onshapeParts.onshapeReleaseId, onshapeReleaseId),
+        eq(schema.onshapeParts.partNumber, partNumber),
+      ),
+    )
+    .limit(1);
+
+  if (existingParts.length > 0) {
+    const update: { entityId?: string; partDrawingEntityId?: string; versionId?: string } = {};
+    if (isPart) update.entityId = elementId;
+    if (isDrawing) update.partDrawingEntityId = elementId;
+    update.versionId = versionId;
+
+    if (Object.keys(update).length > 0) {
+      await database
+        .update(schema.onshapeParts)
+        .set(update)
+        .where(eq(schema.onshapeParts.id, existingParts[0].id));
+    }
+  } else {
+    const newPart: {
+      onshapeReleaseId: string;
+      partNumber: string;
+      versionId: string;
+      entityId?: string;
+      partDrawingEntityId?: string;
+      createdAt: number;
+    } = {
+      onshapeReleaseId,
+      partNumber,
+      versionId,
+      createdAt: now,
+    };
+
+    if (isPart) newPart.entityId = elementId;
+    if (isDrawing) newPart.partDrawingEntityId = elementId;
+
+    await database.insert(schema.onshapeParts).values(newPart);
+  }
+
+  console.log("[OnShape Webhook] Updated part", {
+    partNumber,
+    onshapeReleaseId,
+    versionId,
+    elementType,
+  });
+}
+
+export async function processReleaseEvent(
+  releaseId: string,
+  timestamp: string,
+  db: D1Database,
+): Promise<void> {
+  const database = drizzle(db, { schema });
+  const now = Math.floor(Date.now() / 1000);
+
+  const release = await database
+    .insert(schema.onshapeReleases)
+    .values({
+      releaseId,
+      timestamp,
+      createdAt: now,
+    })
+    .returning({ id: schema.onshapeReleases.id });
+
+  const releaseRowId = release[0]?.id;
+  if (!releaseRowId) {
+    console.error("[OnShape] Failed to create release row");
+    return;
+  }
+
+  const existingParts = await database
+    .select()
+    .from(schema.onshapeParts)
+    .where(eq(schema.onshapeParts.onshapeReleaseId, releaseId));
+
+  for (const part of existingParts) {
+    if (!part.releaseId) {
+      await database
+        .update(schema.onshapeParts)
+        .set({ releaseId: releaseRowId })
+        .where(eq(schema.onshapeParts.id, part.id));
+    }
+  }
+
+  console.log("[OnShape Webhook] Processed release", {
+    releaseId,
+    partCount: existingParts.length,
+  });
 }
