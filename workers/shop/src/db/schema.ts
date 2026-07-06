@@ -84,14 +84,18 @@ export const onshapeReleases = sqliteTable("onshape_releases", {
   createdAt: integer("created_at").notNull(),
 });
 
-export const onshapeParts = sqliteTable("onshape_parts", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  entityId: text("entity_id"),
-  partDrawingEntityId: text("part_drawing_entity_id"),
-  onshapeReleaseId: text("onshape_release_id").notNull(),
-  releaseId: integer("release_id").references(() => onshapeReleases.id),
-  partNumber: text("part_number").notNull(),
-  versionId: text("version_id"),
-  quantity: integer("quantity"),
-  createdAt: integer("created_at").notNull(),
-});
+export const onshapeParts = sqliteTable(
+  "onshape_parts",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    entityId: text("entity_id"),
+    partDrawingEntityId: text("part_drawing_entity_id"),
+    onshapeReleaseId: text("onshape_release_id").notNull(),
+    releaseId: integer("release_id").references(() => onshapeReleases.id),
+    partNumber: text("part_number").notNull(),
+    versionId: text("version_id"),
+    quantity: integer("quantity"),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [unique().on(t.onshapeReleaseId, t.partNumber)],
+);

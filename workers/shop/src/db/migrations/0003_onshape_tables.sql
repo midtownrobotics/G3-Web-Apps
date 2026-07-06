@@ -14,5 +14,6 @@ CREATE TABLE onshape_parts (
   part_number TEXT NOT NULL,
   version_id TEXT,
   quantity INTEGER,
-  created_at INTEGER NOT NULL
+  created_at INTEGER NOT NULL,
+  UNIQUE (onshape_release_id, part_number)
 );
