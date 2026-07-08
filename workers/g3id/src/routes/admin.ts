@@ -9,7 +9,7 @@ import {
   kioskActivationCodes,
   kioskDevices,
 } from "../db/schema";
-import { sendDM } from "../lib/slack-api";
+import { sendDM } from "@g3/slack";
 import { requireAdmin } from "../middleware/auth";
 import type { AppEnv } from "../types";
 

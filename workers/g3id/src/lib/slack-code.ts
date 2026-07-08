@@ -4,7 +4,7 @@ import { coreSlackLinkCodes, coreUserIdentities, coreUsers } from "../db/schema"
 import type { AppEnv } from "../types";
 import { newId } from "./id";
 import { createSession } from "./session";
-import { getUserInfo } from "./slack-api";
+import { getUserInfo } from "@g3/slack";
 
 type HandleResult = { success: boolean; message: string };
 

@@ -52,7 +52,7 @@ const app = base
   .route("/admin", adminRouter)
   .route("/users", usersRouter)
   .route("/onshape", onshapeRouter)
-  .route("/", kioskRouter)
+  .route("/", kioskRouter)  
   .route("/slack", slackRouter);
 
 export type G3IDApp = typeof app;
