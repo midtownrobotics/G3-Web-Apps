@@ -1,1 +1,1 @@
-CREATE UNIQUE INDEX idx_onshape_parts_release_part ON onshape_parts(onshape_release_id, part_number);
+-- Migration 0004 removed - constraint added via table recreation in 0005

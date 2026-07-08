@@ -59,6 +59,7 @@ router.post("/events", async (c) => {
     objectType?: string;
     objectId?: string;
     timestamp?: string;
+    transitionName?: string;
   };
 
   if (typeof webhookData !== "object" || !webhookData || !webhookData.event) {
@@ -88,7 +89,7 @@ router.post("/events", async (c) => {
     return c.json({ ok: true });
   }
 
-  if (webhookData.event === "onshape.workflow.transition" && webhookData.objectType === "RELEASE") {
+  if (webhookData.event === "onshape.workflow.transition" && webhookData.objectType === "RELEASE" && webhookData.transitionName === "RELEASE") {
     const { objectId: releaseId, timestamp } = webhookData;
     if (releaseId && timestamp) {
       c.executionCtx.waitUntil(processReleaseEvent(releaseId, timestamp, c.env.SHOP_DB));
