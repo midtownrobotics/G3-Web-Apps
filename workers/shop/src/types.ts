@@ -9,6 +9,8 @@ export type AppEnv = {
     ONSHAPE_COMPANY_ID: string;
     ONSHAPE_WEBHOOK_KEY_PRIMARY: string;
     ONSHAPE_WEBHOOK_KEY_SECONDARY: string;
+    SLACK_BOT_TOKEN: string;
+    SLACK_SIGNING_SECRET: string;
   };
   Variables: {
     userId: string;

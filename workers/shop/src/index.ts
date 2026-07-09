@@ -7,6 +7,7 @@ import { partInstanceProcessesRouter } from "./routes/part-instance-processes";
 import { partInstancesRouter } from "./routes/part-instances";
 import { processesRouter } from "./routes/processes";
 import { subsystemsRouter } from "./routes/subsystems";
+import { sendMessage } from "@g3/slack";
 import type { AppEnv } from "./types";
 
 const base = new Hono<AppEnv>();
@@ -47,7 +48,13 @@ const app = base
   .route("/processes", processesRouter)
   .route("/part-definitions", partDefinitionsRouter)
   .route("/part-instances", partInstancesRouter)
-  .route("/part-instance-processes", partInstanceProcessesRouter);
+  .route("/part-instance-processes", partInstanceProcessesRouter)
+  .get("/slack-test", async (c) => {
+    c.executionCtx.waitUntil(
+      sendMessage("C09QYMTSGKT", "test but now from shop sw worker", c.env)
+    )
+    return c.text("200", 200);
+  });
 
 export type ShopApp = typeof app;
 export default app;

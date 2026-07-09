@@ -367,6 +367,9 @@ importers:
       '@g3/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@g3/slack':
+        specifier: workspace:*
+        version: link:../../packages/slack
       drizzle-orm:
         specifier: ^0.44.0
         version: 0.44.7(@cloudflare/workers-types@4.20260517.1)
