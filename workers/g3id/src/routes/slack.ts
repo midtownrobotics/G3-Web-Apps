@@ -1,6 +1,6 @@
+import { sendDM, verifySlackSignature } from "@g3/slack";
 import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
-import { sendDM, verifySlackSignature } from "@g3/slack";
 import { createDb } from "../db";
 import { coreSlackLinkCodes } from "../db/schema";
 import { handleSlackCode } from "../lib/slack-code";
@@ -116,5 +116,5 @@ export const slackRouter = new Hono<AppEnv>()
       ),
     );
 
-    return c.text("", 200); 
+    return c.text("", 200);
   });

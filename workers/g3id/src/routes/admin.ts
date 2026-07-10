@@ -1,3 +1,4 @@
+import { sendDM } from "@g3/slack";
 import { and, desc, eq, gt, isNull, or } from "drizzle-orm";
 import { Hono } from "hono";
 import { createDb } from "../db";
@@ -9,7 +10,6 @@ import {
   kioskActivationCodes,
   kioskDevices,
 } from "../db/schema";
-import { sendDM } from "@g3/slack";
 import { requireAdmin } from "../middleware/auth";
 import type { AppEnv } from "../types";
 

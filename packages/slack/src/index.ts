@@ -3,11 +3,7 @@ export type SlackBindings = {
   SLACK_SIGNING_SECRET?: string;
 };
 
-export async function sendDM(
-  slackUserId: string,
-  message: string,
-  env: SlackBindings,
-) {
+export async function sendDM(slackUserId: string, message: string, env: SlackBindings) {
   await sendMessage(slackUserId, message, env);
 }
 
