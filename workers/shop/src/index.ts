@@ -1,3 +1,4 @@
+import { sendMessage } from "@g3/slack";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { requireAuth } from "./middleware/auth";
@@ -7,7 +8,6 @@ import { partInstanceProcessesRouter } from "./routes/part-instance-processes";
 import { partInstancesRouter } from "./routes/part-instances";
 import { processesRouter } from "./routes/processes";
 import { subsystemsRouter } from "./routes/subsystems";
-import { sendMessage } from "@g3/slack";
 import type { AppEnv } from "./types";
 
 const base = new Hono<AppEnv>();
@@ -50,9 +50,7 @@ const app = base
   .route("/part-instances", partInstancesRouter)
   .route("/part-instance-processes", partInstanceProcessesRouter)
   .get("/slack-test", async (c) => {
-    c.executionCtx.waitUntil(
-      sendMessage("C09QYMTSGKT", "test but now from shop sw worker", c.env)
-    )
+    c.executionCtx.waitUntil(sendMessage("C09QYMTSGKT", "test but now from shop sw worker", c.env));
     return c.text("200", 200);
   });
 

@@ -75,14 +75,7 @@ router.post("/events", async (c) => {
     const { elementType, elementId, partNumber, releaseId, versionId } = webhookData;
     if (typeof elementType === "number" && elementId && partNumber && releaseId && versionId) {
       c.executionCtx.waitUntil(
-        processRevisionEvent(
-          elementId,
-          elementType,
-          partNumber,
-          releaseId,
-          versionId,
-          c.env
-        ),
+        processRevisionEvent(elementId, elementType, partNumber, releaseId, versionId, c.env),
       );
     }
     return c.json({ ok: true });

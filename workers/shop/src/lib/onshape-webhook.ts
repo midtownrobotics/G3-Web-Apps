@@ -1,8 +1,8 @@
+import { sendMessage } from "@g3/slack";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "../db/schema";
 import type { AppEnv } from "../types";
-import { sendMessage } from "@g3/slack";
 
 export const ONSHAPE_WEBHOOK_EVENTS = ["onshape.revision.created", "onshape.workflow.transition"];
 
@@ -99,7 +99,7 @@ export async function processRevisionEvent(
   partNumber: string,
   onshapeReleaseId: string,
   versionId: string,
-  env: AppEnv["Bindings"]
+  env: AppEnv["Bindings"],
 ): Promise<void> {
   const database = drizzle(env.SHOP_DB, { schema });
   const now = Math.floor(Date.now() / 1000);
@@ -172,7 +172,7 @@ export async function processReleaseEvent(
     }
   }
 
-  await new Promise(resolve => setTimeout(resolve, 5000));
+  await new Promise((resolve) => setTimeout(resolve, 5000));
 
   // Query parts for this release
   const parts = await database
@@ -188,7 +188,7 @@ export async function processReleaseEvent(
   // Build Slack message
   const releaseLink = `<https://cad.onshape.com/documents?releasepackage=${releaseId}|${releaseId}>`;
   const message = [
-    `🎉 *New release candidate approved!*`,
+    "🎉 *New release candidate approved!*",
     `Release: ${releaseLink}`,
     `Time: <!date^${Math.floor(new Date(timestamp).getTime() / 1000)}^{date_num} {time_secs}|${timestamp}>`,
     `Parts: ${parts.length}`,
@@ -205,11 +205,7 @@ export async function processReleaseEvent(
     }),
   ].join("\n");
 
-  await sendMessage(
-    "C09QYMTSGKT",
-    message,
-    env
-  );
+  await sendMessage("C09QYMTSGKT", message, env);
 
   console.log("[OnShape Webhook] Processed release", {
     releaseId,
