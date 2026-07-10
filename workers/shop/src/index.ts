@@ -1,3 +1,4 @@
+import { sendMessage } from "@g3/slack";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { requireAuth } from "./middleware/auth";
@@ -47,7 +48,11 @@ const app = base
   .route("/processes", processesRouter)
   .route("/part-definitions", partDefinitionsRouter)
   .route("/part-instances", partInstancesRouter)
-  .route("/part-instance-processes", partInstanceProcessesRouter);
+  .route("/part-instance-processes", partInstanceProcessesRouter)
+  .get("/slack-test", async (c) => {
+    c.executionCtx.waitUntil(sendMessage("C09QYMTSGKT", "test but now from shop sw worker", c.env));
+    return c.text("200", 200);
+  });
 
 export type ShopApp = typeof app;
 export default app;

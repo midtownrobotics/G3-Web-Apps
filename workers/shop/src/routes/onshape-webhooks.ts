@@ -76,14 +76,7 @@ router.post("/events", async (c) => {
     const { elementType, elementId, partNumber, releaseId, versionId } = webhookData;
     if (typeof elementType === "number" && elementId && partNumber && releaseId && versionId) {
       c.executionCtx.waitUntil(
-        processRevisionEvent(
-          elementId,
-          elementType,
-          partNumber,
-          releaseId,
-          versionId,
-          c.env.SHOP_DB,
-        ),
+        processRevisionEvent(elementId, elementType, partNumber, releaseId, versionId, c.env),
       );
     }
     return c.json({ ok: true });
@@ -92,7 +85,7 @@ router.post("/events", async (c) => {
   if (webhookData.event === "onshape.workflow.transition" && webhookData.objectType === "RELEASE" && webhookData.transitionName === "RELEASE") {
     const { objectId: releaseId, timestamp } = webhookData;
     if (releaseId && timestamp) {
-      c.executionCtx.waitUntil(processReleaseEvent(releaseId, timestamp, c.env.SHOP_DB));
+      c.executionCtx.waitUntil(processReleaseEvent(releaseId, timestamp, c.env));
     }
     return c.json({ ok: true });
   }

@@ -1,3 +1,4 @@
+import { sendMessage } from "@g3/slack";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "../db/schema";
@@ -98,9 +99,9 @@ export async function processRevisionEvent(
   partNumber: string,
   onshapeReleaseId: string,
   versionId: string,
-  db: D1Database,
+  env: AppEnv["Bindings"],
 ): Promise<void> {
-  const database = drizzle(db, { schema });
+  const database = drizzle(env.SHOP_DB, { schema });
   const now = Math.floor(Date.now() / 1000);
 
   const isDrawing = elementType === 2;
@@ -137,9 +138,9 @@ export async function processRevisionEvent(
 export async function processReleaseEvent(
   releaseId: string,
   timestamp: string,
-  db: D1Database,
+  env: AppEnv["Bindings"],
 ): Promise<void> {
-  const database = drizzle(db, { schema });
+  const database = drizzle(env.SHOP_DB, { schema });
   const now = Math.floor(Date.now() / 1000);
 
   const release = await database
@@ -171,8 +172,43 @@ export async function processReleaseEvent(
     }
   }
 
+  await new Promise((resolve) => setTimeout(resolve, 5000));
+
+  // Query parts for this release
+  const parts = await database
+    .select()
+    .from(schema.onshapeParts)
+    .where(eq(schema.onshapeParts.releaseId, releaseRowId));
+
+  // Get document ID from KV storage
+  const configStr = await env.SESSIONS.get("onshape-config:document");
+  const config = configStr ? (JSON.parse(configStr) as { documentId?: string }) : {};
+  const docId = config.documentId || "unknown";
+
+  // Build Slack message
+  const releaseLink = `<https://cad.onshape.com/documents?releasepackage=${releaseId}|${releaseId}>`;
+  const message = [
+    "🎉 *New release candidate approved!*",
+    `Release: ${releaseLink}`,
+    `Time: <!date^${Math.floor(new Date(timestamp).getTime() / 1000)}^{date_num} {time_secs}|${timestamp}>`,
+    `Parts: ${parts.length}`,
+    ...parts.map((part) => {
+      const partLink = part.entityId
+        ? `\n    • <https://cad.onshape.com/documents/${docId}/v/${part.versionId}/e/${part.entityId}|OnShape Part Link>`
+        : "";
+      const drawingLink = part.partDrawingEntityId
+        ? `\n    • <https://cad.onshape.com/documents/${docId}/v/${part.versionId}/e/${part.partDrawingEntityId}|OnShape Drawing Link>`
+        : "";
+      return `
+• *${part.partNumber}*${part.quantity ? ` x${part.quantity}` : ""}
+    • <https://shop.g3robotics.com/part?p=${part.partNumber}|Shop SW Link>${partLink}${drawingLink}`;
+    }),
+  ].join("\n");
+
+  await sendMessage("C09QYMTSGKT", message, env);
+
   console.log("[OnShape Webhook] Processed release", {
     releaseId,
-    partCount: existingParts.length,
+    partCount: parts.length,
   });
 }
