@@ -192,16 +192,16 @@ export async function processReleaseEvent(
     `Release: ${releaseLink}`,
     `Time: <!date^${Math.floor(new Date(timestamp).getTime() / 1000)}^{date_num} {time_secs}|${timestamp}>`,
     `Parts: ${parts.length}`,
-    "",
-    "*Part Details:*",
     ...parts.map((part) => {
       const partLink = part.entityId
-        ? `<https://cad.onshape.com/documents/${docId}/v/${part.versionId}/e/${part.entityId}|Part>`
-        : "_No part_";
+        ? `\n    • <https://cad.onshape.com/documents/${docId}/v/${part.versionId}/e/${part.entityId}|OnShape Part Link>`
+        : "";
       const drawingLink = part.partDrawingEntityId
-        ? `<https://cad.onshape.com/documents/${docId}/v/${part.versionId}/e/${part.partDrawingEntityId}|Drawing>`
-        : "_No drawing_";
-      return `• *${part.partNumber}* — ${partLink} ${drawingLink}${part.quantity ? ` (Qty: ${part.quantity})` : ""}`;
+        ? `\n    • <https://cad.onshape.com/documents/${docId}/v/${part.versionId}/e/${part.partDrawingEntityId}|OnShape Drawing Link>`
+        : "";
+      return `
+• *${part.partNumber}*${part.quantity ? ` x${part.quantity}` : ""}
+    • <https://shop.g3robotics.com/part?p=${part.partNumber}|Shop SW Link>${partLink}${drawingLink}`;
     }),
   ].join("\n");
 
