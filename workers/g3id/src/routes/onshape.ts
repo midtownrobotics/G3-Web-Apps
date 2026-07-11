@@ -23,28 +23,17 @@ router.get("/token", requireAuth, async (c) => {
   }
 });
 
-router.post("/proxy", requireAuth, async (c) => {
+router.get("/proxy/:url", requireAuth, async (c) => {
   const userId = c.get("userId");
 
   if (typeof userId !== "string") {
     return c.json({ error: "Invalid user context" }, 400);
   }
 
-  const body = (await c.req.json()) as {
-    path: string;
-    method?: string;
-    body?: unknown;
-  };
-
-  if (!body.path) {
-    return c.json({ error: "Missing path" }, 400);
-  }
+  const url = c.req.param().url;
 
   try {
-    const result = await onshapeRequest(userId, body.path, c.env, {
-      method: body.method,
-      body: body.body,
-    });
+    const result = await onshapeRequest(userId, url, c.env);
 
     return c.json(result);
   } catch (error) {
