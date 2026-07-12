@@ -122,7 +122,7 @@ export function DrawingUploadPage() {
                   </p>
                 </div>
                 <a
-                  href={drawing.r2Url}
+                  href={`/api/drawings/${drawing.id}/download`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-blue-600 hover:text-blue-800 font-medium"

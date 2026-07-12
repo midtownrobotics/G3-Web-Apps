@@ -28,32 +28,38 @@ router.post("/upload", async (c) => {
 
     // Upload to R2
     const arrayBuffer = await fileObj.arrayBuffer();
+    console.log("[Drawing Upload] Uploading to R2", { r2Key, size: arrayBuffer.byteLength });
     await c.env.DRAWINGS.put(r2Key, arrayBuffer, {
       httpMetadata: {
         contentType: "application/pdf",
       },
     });
-
-    // Generate R2 public URL
-    const r2Url = `https://drawings.shop.g3robotics.com/${r2Key}`;
+    console.log("[Drawing Upload] Successfully uploaded to R2");
 
     // Store in database
     const db = drizzle(c.env.SHOP_DB, { schema });
     const now = Math.floor(Date.now() / 1000);
 
-    await db.insert(schema.drawings).values({
-      partNumber,
-      filename: fileObj.name,
-      r2Url,
-      r2Key,
-      fileSize: fileObj.size,
-      uploadedBy: uploadedBy || "unknown",
-      createdAt: now,
-    });
+    const result = await db
+      .insert(schema.drawings)
+      .values({
+        partNumber,
+        filename: fileObj.name,
+        r2Key,
+        fileSize: fileObj.size,
+        uploadedBy: uploadedBy || "unknown",
+        createdAt: now,
+      })
+      .returning({ id: schema.drawings.id });
+
+    const drawingId = result[0]?.id;
+    if (!drawingId) {
+      throw new Error("Failed to get drawing ID");
+    }
 
     return c.json({
       success: true,
-      url: r2Url,
+      id: drawingId,
       filename: fileObj.name,
       partNumber,
     });
@@ -82,6 +88,45 @@ router.get("/list/:partNumber", async (c) => {
     console.error("[Drawing List Error]", err);
     return c.json(
       { error: err instanceof Error ? err.message : "Failed to list drawings" },
+      500,
+    );
+  }
+});
+
+router.get("/:drawingId/download", async (c) => {
+  try {
+    const drawingId = parseInt(c.req.param("drawingId"), 10);
+    const db = drizzle(c.env.SHOP_DB, { schema });
+
+    const drawing = await db
+      .select()
+      .from(schema.drawings)
+      .where(eq(schema.drawings.id, drawingId))
+      .get();
+
+    if (!drawing) {
+      return c.json({ error: "Drawing not found" }, 404);
+    }
+
+    // Fetch file from R2
+    const file = await c.env.DRAWINGS.get(drawing.r2Key);
+    if (!file) {
+      return c.json({ error: "File not found in storage" }, 404);
+    }
+
+    // Stream the file with proper headers
+    const arrayBuffer = await file.arrayBuffer();
+    return c.newResponse(arrayBuffer, {
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="${drawing.filename}"`,
+        "Cache-Control": "private, max-age=3600",
+      },
+    });
+  } catch (err) {
+    console.error("[Drawing Download Error]", err);
+    return c.json(
+      { error: err instanceof Error ? err.message : "Failed to download drawing" },
       500,
     );
   }

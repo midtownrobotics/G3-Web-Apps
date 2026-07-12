@@ -16,6 +16,12 @@ database_name = "g3-shop-local"
 database_id = "00000000-0000-0000-0000-000000000001"
 migrations_dir = "src/db/migrations"
 
+[[r2_buckets]]
+binding = "DRAWINGS"
+bucket_name = "g3-bucket"
+jurisdiction = "nam"
+preview_bucket_name = "g3-bucket-preview"
+
 [vars]
 FRONTEND_URL = "http://localhost:5174"
 
@@ -35,6 +41,11 @@ binding = "SHOP_DB"
 database_name = "g3-shop-prod"
 database_id = "4e69e7bc-85ce-4f32-859a-40ef6a21ab2a"
 migrations_dir = "src/db/migrations"
+
+[[env.production.r2_buckets]]
+binding = "DRAWINGS"
+bucket_name = "g3-bucket"
+jurisdiction = "nam"
 
 [env.production.vars]
 FRONTEND_URL = "https://shop.g3robotics.com"

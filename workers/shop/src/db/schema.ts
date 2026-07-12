@@ -104,7 +104,6 @@ export const drawings = sqliteTable("drawings", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   partNumber: text("part_number").notNull(),
   filename: text("filename").notNull(),
-  r2Url: text("r2_url").notNull(),
   r2Key: text("r2_key").notNull(),
   fileSize: integer("file_size"),
   uploadedBy: text("uploaded_by"),
