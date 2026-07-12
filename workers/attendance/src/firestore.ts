@@ -223,7 +223,17 @@ export class Firestore {
   }
 
 
+  async listCollection(collectionPath: string): Promise<DocSnapshot[]> {
+    const url = `${this.base}/${collectionPath}`;
+    const res = await fetch(url, { headers: await this.headers() });
+    const data = (await res.json()) as { documents?: FirestoreDoc[] };
 
+    return (data.documents ?? []).map(doc => ({
+      id: getSafeId(doc.name),
+      path: getSafePath(doc.name),
+      data: fieldsToObj(doc.fields ?? {}),
+    }));
+  }
 
 
   async collectionGroupQuery(

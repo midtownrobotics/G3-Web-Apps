@@ -149,7 +149,60 @@ const app = base
 
     return c.json({ ok: true, durationMs, totalHours: totalMs / 3_600_000 });
   })
+  // Attendance summary — admin only. One row per member: current status,
+  // last sign-in, and total hours for the current year.
+  .get("/admin/summary", requireAuth, async (c) => {
+    if (!c.get("userIsAdmin")) return c.json({ error: "Forbidden." }, 403);
 
+    const fs = db(c.env);
+    const year = String(new Date().getFullYear());
+    const [members, openSessions] = await Promise.all([
+      fs.listCollection("members"),
+      fs.collectionGroupQuery("sessions", [{ field: "status", op: "EQUAL", value: "open" }]),
+    ]);
+
+    const signedInIds = new Set(
+      openSessions
+        .map((s) => s.path.split("/")[1])
+        .filter((id): id is string => Boolean(id)),
+    );
+
+    const summaries = await Promise.all(
+      members.map(async (member) => {
+        const memberId = member.id;
+        const sessionsPath = `members/${memberId}/sessions`;
+
+        const [lastSessions, totals] = await Promise.all([
+          fs.query(sessionsPath, [{ field: "status", op: "EQUAL", value: "completed" }], {
+            field: "signOut",
+            dir: "DESCENDING",
+          }, 1),
+          fs.getDoc(`members/${memberId}/totals/${year}`),
+        ]);
+
+        const lastSignInRaw = lastSessions[0]?.data?.signIn;
+        const lastSignIn =
+          lastSignInRaw instanceof Date
+            ? lastSignInRaw.toISOString()
+            : lastSignInRaw
+              ? new Date(lastSignInRaw as string).toISOString()
+              : null;
+
+        return {
+          id: memberId,
+          displayName: (member.data.displayName as string) ?? memberId,
+          email: (member.data.email as string) ?? "",
+          signedIn: signedInIds.has(memberId),
+          lastSignIn,
+          totalHours: (totals?.data?.totalHours as number) ?? 0,
+        };
+      }),
+    );
+
+    summaries.sort((a, b) => a.displayName.localeCompare(b.displayName));
+
+    return c.json({ year, members: summaries });
+  })
   // Who's currently signed in — any logged-in user can view.
   .get("/status", requireAuth, async (c) => {
     const fs = db(c.env);
