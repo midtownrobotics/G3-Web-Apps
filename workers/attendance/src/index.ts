@@ -162,9 +162,7 @@ const app = base
     ]);
 
     const signedInIds = new Set(
-      openSessions
-        .map((s) => s.path.split("/")[1])
-        .filter((id): id is string => Boolean(id)),
+      openSessions.map((s) => s.path.split("/")[1]).filter((id): id is string => Boolean(id)),
     );
 
     const summaries = await Promise.all(
@@ -173,10 +171,15 @@ const app = base
         const sessionsPath = `members/${memberId}/sessions`;
 
         const [lastSessions, totals] = await Promise.all([
-          fs.query(sessionsPath, [{ field: "status", op: "EQUAL", value: "completed" }], {
-            field: "signOut",
-            dir: "DESCENDING",
-          }, 1),
+          fs.query(
+            sessionsPath,
+            [{ field: "status", op: "EQUAL", value: "completed" }],
+            {
+              field: "signOut",
+              dir: "DESCENDING",
+            },
+            1,
+          ),
           fs.getDoc(`members/${memberId}/totals/${year}`),
         ]);
 
