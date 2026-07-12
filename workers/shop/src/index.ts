@@ -1,6 +1,8 @@
+import { sendMessage } from "@g3/slack";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { requireAuth } from "./middleware/auth";
+import { onshapeWebhooksRouter } from "./routes/onshape-webhooks";
 import { partDefinitionsRouter } from "./routes/part-definitions";
 import { partInstanceProcessesRouter } from "./routes/part-instance-processes";
 import { partInstancesRouter } from "./routes/part-instances";
@@ -52,11 +54,16 @@ const app = base
     if (!res.ok) return c.json({ error: "Failed to resolve users." }, 502);
     return c.json((await res.json()) as { id: string; displayName: string }[]);
   })
+  .route("/onshape", onshapeWebhooksRouter)
   .route("/subsystems", subsystemsRouter)
   .route("/processes", processesRouter)
   .route("/part-definitions", partDefinitionsRouter)
   .route("/part-instances", partInstancesRouter)
-  .route("/part-instance-processes", partInstanceProcessesRouter);
+  .route("/part-instance-processes", partInstanceProcessesRouter)
+  .get("/slack-test", async (c) => {
+    c.executionCtx.waitUntil(sendMessage("C09QYMTSGKT", "test but now from shop sw worker", c.env));
+    return c.text("200", 200);
+  });
 
 export type ShopApp = typeof app;
 export default app;

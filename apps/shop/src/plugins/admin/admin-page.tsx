@@ -37,6 +37,10 @@ export function AdminPage() {
 
   if (loading) return <PageLoading />;
 
+  const defById = new Map((data?.definitions ?? []).map((d) => [d.id, d]));
+  const staleInstances = (data?.instances ?? []).filter((i) => i.isStale);
+  const subsystemName = (sid: number) => data?.subsystems.find((s) => s.id === sid)?.name ?? "—";
+
   return (
     <main className="min-h-screen bg-mist">
       <div className="max-w-4xl mx-auto px-6 py-8 space-y-5">
@@ -45,7 +49,58 @@ export function AdminPage() {
         {error && <ErrorBanner message={error} />}
         {banner && <ErrorBanner message={banner} />}
 
-        {/* Shop Settings */}
+        {/* Section 1: Part Management */}
+        <Section title="Part Management">
+          {staleInstances.length === 0 ? (
+            <p className="text-sm text-steel">No stale parts. Everything is current.</p>
+          ) : (
+            <div className="border border-steel/25 rounded-lg divide-y divide-steel/15">
+              <div className="flex items-center gap-3 px-4 py-2 bg-mist text-xs font-semibold uppercase tracking-wider text-steel">
+                <span className="flex-1">Part</span>
+                <span className="w-40 hidden sm:block">Number / Rev</span>
+                <span className="w-28 hidden md:block">Subsystem</span>
+                <span className="w-44 text-right">Actions</span>
+              </div>
+              {staleInstances.map((inst) => {
+                const def = defById.get(inst.partDefinitionId);
+                return (
+                  <div key={inst.id} className="flex items-center gap-3 px-4 py-2.5">
+                    <span className="flex-1 min-w-0 text-sm font-medium text-ink truncate">
+                      {def?.name ?? `Part ${inst.partDefinitionId}`}
+                      <span className="text-steel font-normal ml-1.5">#{inst.instanceNumber}</span>
+                    </span>
+                    <span className="w-40 hidden sm:block text-sm font-mono text-steel-dark truncate">
+                      {def ? `${def.onshapePartNumber} · Rev ${def.revision}` : "—"}
+                    </span>
+                    <span className="w-28 hidden md:block text-sm text-steel-dark truncate">
+                      {def ? subsystemName(def.subsystemId) : "—"}
+                    </span>
+                    <span className="w-44 flex justify-end gap-2 shrink-0">
+                      <button
+                        type="button"
+                        disabled
+                        title="Coming soon"
+                        className="text-xs px-2.5 py-1.5 rounded-lg border border-steel/40 text-steel cursor-not-allowed"
+                      >
+                        Archive
+                      </button>
+                      <button
+                        type="button"
+                        disabled
+                        title="Coming soon"
+                        className="text-xs px-2.5 py-1.5 rounded-lg border border-steel/40 text-steel cursor-not-allowed"
+                      >
+                        Transfer Processes
+                      </button>
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Section>
+
+        {/* Section 2: Shop Settings */}
         <Section title="Shop Settings">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <NameList

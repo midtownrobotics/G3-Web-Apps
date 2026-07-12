@@ -340,7 +340,7 @@ export function PartCard({
             )}
             {row.current && row.state === "doing" && (
               <p className="text-xs text-steel-dark mt-2">
-                Currently in progress at{" "}
+                Currently {row.state === "doing" ? "in progress" : "queued"} at{" "}
                 <Link
                   to={processPath(row.current.processId)}
                   className="font-semibold text-ink hover:text-crimson underline transition-colors"

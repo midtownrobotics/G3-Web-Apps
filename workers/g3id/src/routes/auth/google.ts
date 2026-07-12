@@ -97,8 +97,6 @@ export const googleAuthRouter = new Hono<AppEnv>()
 
     const payload = decodeJwtPayload(tokens.id_token);
     const sub = payload.sub as string;
-    const email = (payload.email as string).toLowerCase();
-    const name = payload.name as string;
 
     const db = createDb(c.env.DB);
     const now = Math.floor(Date.now() / 1000);
@@ -172,32 +170,8 @@ export const googleAuthRouter = new Hono<AppEnv>()
       return c.redirect(redirectTo ?? app("/dashboard"));
     }
 
-    // No Google identity — check if email already belongs to an existing account.
-    const emailTaken = await db
-      .select({ id: coreUsers.id })
-      .from(coreUsers)
-      .where(eq(coreUsers.email, email))
-      .get();
-
-    if (emailTaken) {
-      return err(
-        "An account with this email already exists. Sign in with your existing method and add Google as a sign-in option from your account settings.",
-      );
-    }
-
-    // Brand new user — create pending account
-    const userId = newId();
-    await db.batch([
-      db.insert(coreUsers).values({
-        id: userId,
-        email,
-        displayName: name,
-        status: "pending",
-        createdAt: now,
-        updatedAt: now,
-      }),
-      db.insert(coreUserIdentities).values({ ...identityValues, userId }),
-    ]);
-
-    return c.redirect(app("/signup/pending"));
+    // No Google identity found — account must already exist
+    return err(
+      "No account found with this Google account. Sign up with Slack or contact an administrator.",
+    );
   });

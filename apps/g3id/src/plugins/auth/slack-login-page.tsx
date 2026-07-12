@@ -82,35 +82,35 @@ export function SlackLoginPage() {
     <main className="flex-1 flex items-center justify-center px-4">
       <div className="w-full max-w-sm space-y-6 text-center">
         <div>
-          <h1 className="text-3xl font-bold text-white">
-            <span className="text-red-400">G3</span>ID
+          <h1 className="text-5xl font-bold text-white">
+            <span className="text-primary-500">G3</span>ID
           </h1>
-          <p className="mt-2 text-gray-400 text-sm">Sign in with Slack</p>
+          <p className="mt-2 text-secondary-200 text-sm">Sign in with Slack</p>
         </div>
 
         {!isTerminal && (
           <>
-            <div className="bg-gray-900 border border-gray-800 rounded-xl px-8 py-6">
-              <p className="text-xs text-gray-500 uppercase tracking-wide mb-3">Your code</p>
+            <div className="bg-secondary-700 border border-secondary-600 rounded-xl px-8 py-6">
+              <p className="text-xs text-secondary-300 uppercase tracking-wide mb-3">Your code</p>
               <p className="text-5xl font-mono font-bold text-white tracking-widest">
                 {formattedCode}
               </p>
             </div>
 
             <div className="space-y-1">
-              <p className="text-sm text-gray-300">
-                DM this code to the <span className="text-white font-medium">G3 Slack bot</span>, or
-                run:
+              <p className="text-sm text-gray-200">
+                DM this code to the{" "}
+                <span className="text-primary-500 font-medium">G3 Slack bot</span>, or run:
               </p>
-              <p className="font-mono text-sm text-red-400">/signin {formattedCode}</p>
+              <p className="font-mono text-sm text-primary-400">/signin {formattedCode}</p>
             </div>
 
-            <div className="flex items-center justify-center gap-2 text-sm text-gray-500 mb-2">
+            <div className="flex items-center justify-center gap-2 text-sm text-secondary-300 mb-2">
               <Loader2 size={16} className="animate-spin" />
               Waiting for Slack confirmation…
             </div>
 
-            <div className="flex justify-center text-sm text-gray-500 mt-0">
+            <div className="flex justify-center text-sm text-secondary-300 mt-0">
               Be patient: this can take up to a minute after the code is sent on slower networks.
             </div>
           </>
@@ -118,13 +118,13 @@ export function SlackLoginPage() {
 
         {isTerminal && (
           <div className="space-y-4">
-            <p className="text-sm text-red-400">
+            <p className="text-sm text-primary-400">
               {pollStatus.status === "expired" ? "This code has expired." : pollStatus.message}
             </p>
             <button
               type="button"
               onClick={() => navigate("/login")}
-              className="w-full rounded-lg bg-red-500 hover:bg-red-400 text-white font-semibold py-2.5 text-sm transition-colors"
+              className="w-full rounded-lg bg-primary-500 hover:bg-primary-600 text-white font-semibold py-2.5 text-sm transition-colors"
             >
               Try again
             </button>
@@ -135,7 +135,7 @@ export function SlackLoginPage() {
           <button
             type="button"
             onClick={handleCancel}
-            className="text-sm text-gray-500 hover:text-red-400 transition-colors"
+            className="text-sm text-secondary-300 hover:text-primary-400 transition-colors"
           >
             ← Go back
           </button>

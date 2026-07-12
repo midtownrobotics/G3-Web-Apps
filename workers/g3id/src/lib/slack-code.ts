@@ -1,10 +1,10 @@
+import { getUserInfo } from "@g3/slack";
 import { and, eq } from "drizzle-orm";
 import { createDb } from "../db";
 import { coreSlackLinkCodes, coreUserIdentities, coreUsers } from "../db/schema";
 import type { AppEnv } from "../types";
 import { newId } from "./id";
 import { createSession } from "./session";
-import { getUserInfo } from "./slack-api";
 
 type HandleResult = { success: boolean; message: string };
 
@@ -62,19 +62,22 @@ export async function handleSlackCode(opts: {
   // Mark used immediately to prevent races
   await db.update(coreSlackLinkCodes).set({ used: 1 }).where(eq(coreSlackLinkCodes.id, record.id));
 
-  const updateKV = async (value: string) => {
-    if (record.pollingToken) {
-      await env.SESSIONS.put(`slack_pending:${record.pollingToken}`, value, {
-        expirationTtl: 900,
-      });
-    }
+  const updateStatus = async (status: string, message?: string, sessionId?: string) => {
+    await db
+      .update(coreSlackLinkCodes)
+      .set({
+        status: status as "pending" | "success" | "failed" | "linked" | "signup_pending",
+        statusMessage: message,
+        sessionId,
+      })
+      .where(eq(coreSlackLinkCodes.id, record.id));
   };
 
   // --- Link flow ---
   if (type === "link") {
     const userId = record.userId;
     if (!userId) {
-      await updateKV("failed:Invalid code.");
+      await updateStatus("failed", "Invalid code.");
       return { success: false, message: "❌ Invalid code." };
     }
 
@@ -91,11 +94,11 @@ export async function handleSlackCode(opts: {
 
     if (existingIdentity) {
       if (existingIdentity.userId === userId) {
-        await updateKV("linked");
+        await updateStatus("linked");
         return { success: true, message: "✅ Your Slack account is already linked to your G3ID." };
       }
       const msg = "This Slack account is already linked to a different G3ID account.";
-      await updateKV(`failed:${msg}`);
+      await updateStatus("failed", msg);
       return { success: false, message: `❌ ${msg}` };
     }
 
@@ -109,7 +112,7 @@ export async function handleSlackCode(opts: {
       updatedAt: ts,
     });
 
-    await updateKV("linked");
+    await updateStatus("linked");
     return { success: true, message: "✅ Slack account linked successfully to your G3ID." };
   }
 
@@ -134,12 +137,12 @@ export async function handleSlackCode(opts: {
         user?.status === "pending"
           ? "Your account is awaiting admin approval."
           : "Your account is not active.";
-      await updateKV(`failed:${msg}`);
+      await updateStatus("failed", msg);
       return { success: false, message: `❌ ${msg}` };
     }
 
     const sessionId = await createSession(user.id, env);
-    await updateKV(sessionId);
+    await updateStatus("success", undefined, sessionId);
     return {
       success: true,
       message:
@@ -153,7 +156,7 @@ export async function handleSlackCode(opts: {
   if (!slackUser.email) {
     const msg =
       "Your Slack account has no email. Please sign up at g3id.g3robotics.com with email first, then link Slack from your account settings.";
-    await updateKV(`failed:${msg}`);
+    await updateStatus("failed", msg);
     return { success: false, message: `❌ ${msg}` };
   }
 
@@ -168,7 +171,7 @@ export async function handleSlackCode(opts: {
   if (existingUser) {
     const msg =
       "An account with your email already exists. Sign in with your existing method and link Slack from your account settings.";
-    await updateKV(`failed:${msg}`);
+    await updateStatus("failed", msg);
     return { success: false, message: `❌ ${msg}` };
   }
 
@@ -193,6 +196,6 @@ export async function handleSlackCode(opts: {
     }),
   ]);
 
-  await updateKV("signup_pending");
+  await updateStatus("signup_pending");
   return { success: true, message: "✅ Account created! Your account is pending admin approval." };
 }

@@ -6,6 +6,7 @@ export type Battery = {
   state: BatteryState;
   stateSince: number; // ms timestamp
   voltage: number | null;
+  useCount: number;
   createdAt: number;
 };
 

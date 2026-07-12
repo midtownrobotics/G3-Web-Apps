@@ -1,0 +1,1 @@
+-- Migration 0004 removed - constraint added via table recreation in 0005

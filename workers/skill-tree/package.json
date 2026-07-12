@@ -1,0 +1,26 @@
+{
+  "name": "@g3/worker-skill-tree",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "wrangler dev --port 8790 --inspector-port 9232",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "db:migrate:local": "wrangler d1 migrations apply SKILL_DB --local",
+    "db:migrate:prod": "wrangler d1 migrations apply SKILL_DB --env production --remote"
+  },
+  "dependencies": {
+    "@g3/auth": "workspace:*",
+    "drizzle-orm": "^0.44.0",
+    "hono": "^4.7.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250516.0",
+    "drizzle-kit": "^0.31.0",
+    "typescript": "^5.8.0",
+    "wrangler": "^4.14.0"
+  }
+}

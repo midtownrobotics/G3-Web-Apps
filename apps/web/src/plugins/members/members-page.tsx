@@ -9,6 +9,7 @@ import {
   FaTrophy,
   FaUserShield,
 } from "react-icons/fa";
+import { LuGitBranch } from "react-icons/lu";
 
 type App = {
   label: string;
@@ -43,6 +44,12 @@ const APPS: App[] = [
     icon: FaHardHat,
     bg: "bg-yellow-600",
   },
+  {
+    label: "Skill Tree",
+    href: "https://skilltree.g3robotics.com",
+    icon: LuGitBranch,
+    bg: "bg-amber-900",
+  },
   // {
   //   label: "Scouting",
   //   href: "https://scouting.g3robotics.com",
@@ -67,7 +74,7 @@ const APPS: App[] = [
     label: "Statbotics",
     href: "https://www.statbotics.io/team/1648",
     icon: FaChartLine,
-    bg: "bg-emerald-600",
+    bg: "bg-gray-400",
     external: true,
   },
   {
@@ -110,7 +117,9 @@ export function MembersPage() {
                 <div
                   className={`w-16 h-16 rounded-2xl ${app.bg} flex items-center justify-center shadow-lg transition-transform duration-150 group-hover:scale-110`}
                 >
-                  <app.icon className="text-white text-3xl" />
+                  <span className="text-white text-3xl">
+                    <app.icon />
+                  </span>
                 </div>
                 <span className="text-xs text-center leading-tight transition-colors text-gray-400 group-hover:text-white">
                   {app.label}

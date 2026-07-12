@@ -17,12 +17,15 @@ binding = "RATE_LIMIT"
 id = "45e7485d5f0e4f2abf76bd6400e64897"
 
 [vars]
+ENVIRONMENT = "development"
 GOOGLE_CLIENT_ID = "26070176131-lom1rtgi2tmahrd12md7452oieha1vbl.apps.googleusercontent.com"
-GOOGLE_REDIRECT_URI = "http://localhost:5173/api/auth/google/callback"
+GOOGLE_REDIRECT_URI = "http://loc1alhost:5173/api/auth/google/callback"
 GITHUB_CLIENT_ID = "Ov23liIzEnTs03zGJPKJ"
 GITHUB_REDIRECT_URI = "http://localhost:5173/api/auth/github/callback"
 SLACK_TEAM_ID = "T04LF3F0D"
 STEAM_REDIRECT_URI = "http://localhost:5173/api/auth/steam/callback"
+ONSHAPE_CLIENT_ID = "NREWPL5DFDUCQEIYYGYZ643CMR3FTTSUMI2XDWQ="
+ONSHAPE_REDIRECT_URI = "http://localhost:5173/api/auth/onshape/callback"
 FRONTEND_URL = "http://localhost:5173"
 
 [env.production]
@@ -43,12 +46,15 @@ binding = "RATE_LIMIT"
 id = "d36a0313dd774bf78bacd76250ec085a"
 
 [env.production.vars]
+ENVIRONMENT = "production"
 GOOGLE_CLIENT_ID = "26070176131-lom1rtgi2tmahrd12md7452oieha1vbl.apps.googleusercontent.com"
 GOOGLE_REDIRECT_URI = "https://api.g3id.g3robotics.com/auth/google/callback"
 GITHUB_CLIENT_ID = "Ov23liIzEnTs03zGJPKJ"
 GITHUB_REDIRECT_URI = "https://api.g3id.g3robotics.com/auth/github/callback"
 SLACK_TEAM_ID = "T04LF3F0D"
 STEAM_REDIRECT_URI = "https://api.g3id.g3robotics.com/auth/steam/callback"
+ONSHAPE_CLIENT_ID = "NREWPL5DFDUCQEIYYGYZ643CMR3FTTSUMI2XDWQ="
+ONSHAPE_REDIRECT_URI = "https://api.g3id.g3robotics.com/auth/onshape/callback"
 FRONTEND_URL = "https://g3id.g3robotics.com"
 
 [observability]

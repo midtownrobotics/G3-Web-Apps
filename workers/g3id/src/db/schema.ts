@@ -75,7 +75,51 @@ export const coreSlackLinkCodes = sqliteTable(
     pollingToken: text("polling_token"),
     expiresAt: integer("expires_at").notNull(),
     used: integer("used").notNull().default(0),
+    status: text("status").notNull().default("pending"), // pending, success, failed, linked, signup_pending
+    statusMessage: text("status_message"), // error message if status is 'failed'
+    sessionId: text("session_id"), // session ID if status is 'success'
     createdAt: integer("created_at").notNull(),
   },
-  (table) => [check("core_slack_link_codes_type_check", sql`${table.type} IN ('signin', 'link')`)],
+  (table) => [
+    check("core_slack_link_codes_type_check", sql`${table.type} IN ('signin', 'link')`),
+    check(
+      "core_slack_link_codes_status_check",
+      sql`${table.status} IN ('pending', 'success', 'failed', 'linked', 'signup_pending')`,
+    ),
+  ],
 );
+
+export const coreUserPins = sqliteTable("core_user_pins", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: text("user_id")
+    .notNull()
+    .unique()
+    .references(() => coreUsers.id),
+  pin: text("pin").notNull().unique(),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+export const kioskDevices = sqliteTable("kiosk_devices", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  token: text("token").notNull().unique(),
+  createdBy: text("created_by")
+    .notNull()
+    .references(() => coreUsers.id),
+  createdAt: integer("created_at").notNull(),
+  lastUsedAt: integer("last_used_at"),
+  revokedAt: integer("revoked_at"),
+});
+
+export const kioskActivationCodes = sqliteTable("kiosk_activation_codes", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  code: text("code").notNull().unique(),
+  createdBy: text("created_by")
+    .notNull()
+    .references(() => coreUsers.id),
+  deviceName: text("device_name").notNull(),
+  expiresAt: integer("expires_at").notNull(),
+  used: integer("used").notNull().default(0),
+  createdAt: integer("created_at").notNull(),
+});

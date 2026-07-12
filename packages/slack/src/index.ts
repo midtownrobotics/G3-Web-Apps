@@ -1,23 +1,36 @@
-import type { AppEnv } from "../types";
+export type SlackBindings = {
+  SLACK_BOT_TOKEN: string;
+  SLACK_SIGNING_SECRET?: string;
+};
 
-export async function sendDM(
-  slackUserId: string,
+export async function sendDM(slackUserId: string, message: string, env: SlackBindings) {
+  await sendMessage(slackUserId, message, env);
+}
+
+export async function sendMessage(
+  channel: string,
   message: string,
-  env: AppEnv["Bindings"],
+  env: SlackBindings,
 ): Promise<void> {
-  await fetch("https://slack.com/api/chat.postMessage", {
+  const res = await fetch("https://slack.com/api/chat.postMessage", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${env.SLACK_BOT_TOKEN}`,
     },
-    body: JSON.stringify({ channel: slackUserId, text: message }),
+    body: JSON.stringify({ channel, text: message, unfurl_links: false, unfurl_media: false }),
   });
+
+  const data = (await res.json()) as { ok?: boolean; error?: string };
+  if (!data.ok) {
+    console.error("[Slack API Error]", { channel, message, error: data.error });
+    throw new Error(`Slack API error: ${data.error}`);
+  }
 }
 
 export async function getUserInfo(
   slackUserId: string,
-  env: AppEnv["Bindings"],
+  env: SlackBindings,
 ): Promise<{ email: string | null; displayName: string }> {
   const res = await fetch(`https://slack.com/api/users.info?user=${slackUserId}`, {
     headers: { Authorization: `Bearer ${env.SLACK_BOT_TOKEN}` },
@@ -36,7 +49,7 @@ export async function getUserInfo(
 export async function verifySlackSignature(
   request: Request,
   rawBody: string,
-  env: AppEnv["Bindings"],
+  env: SlackBindings,
 ): Promise<boolean> {
   const signature = request.headers.get("X-Slack-Signature");
   const timestamp = request.headers.get("X-Slack-Request-Timestamp");
