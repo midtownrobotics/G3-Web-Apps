@@ -41,6 +41,25 @@ export type Blueprint = {
 
 export type ProcessStatus = "waiting" | "todo" | "doing" | "done";
 
+export type ActionType = "started" | "completed";
+
+export type Action = {
+  id: number;
+  userId: string;
+  partInstanceId: number;
+  processId: number;
+  action: ActionType;
+  createdAt: number;
+};
+
+export type KioskPresence = {
+  id: number;
+  kioskDeviceId: number;
+  deviceName: string;
+  userId: string;
+  updatedAt: number;
+};
+
 export type PartInstanceProcess = {
   id: number;
   partInstanceId: number;

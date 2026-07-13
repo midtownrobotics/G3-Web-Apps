@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { api } from "../../shared/api";
 import { getErrorMessage } from "../../shared/api-error";
+import { enableKioskMode } from "../../shared/kiosk";
 import { ErrorBanner, PageLoading } from "../../shared/ui";
 import { useShopData } from "../../shared/use-shop-data";
+import { ActionsLog } from "./actions-log";
 
 export function AdminPage() {
   const { data, loading, error, refresh } = useShopData();
@@ -37,10 +39,6 @@ export function AdminPage() {
 
   if (loading) return <PageLoading />;
 
-  const defById = new Map((data?.definitions ?? []).map((d) => [d.id, d]));
-  const staleInstances = (data?.instances ?? []).filter((i) => i.isStale);
-  const subsystemName = (sid: number) => data?.subsystems.find((s) => s.id === sid)?.name ?? "—";
-
   return (
     <main className="min-h-screen bg-mist">
       <div className="max-w-4xl mx-auto px-6 py-8 space-y-5">
@@ -49,54 +47,12 @@ export function AdminPage() {
         {error && <ErrorBanner message={error} />}
         {banner && <ErrorBanner message={banner} />}
 
-        {/* Section 1: Part Management */}
-        <Section title="Part Management">
-          {staleInstances.length === 0 ? (
-            <p className="text-sm text-steel">No stale parts. Everything is current.</p>
+        {/* Section 1: Actions Log */}
+        <Section title="Actions Log">
+          {data ? (
+            <ActionsLog data={data} />
           ) : (
-            <div className="border border-steel/25 rounded-lg divide-y divide-steel/15">
-              <div className="flex items-center gap-3 px-4 py-2 bg-mist text-xs font-semibold uppercase tracking-wider text-steel">
-                <span className="flex-1">Part</span>
-                <span className="w-40 hidden sm:block">Number / Rev</span>
-                <span className="w-28 hidden md:block">Subsystem</span>
-                <span className="w-44 text-right">Actions</span>
-              </div>
-              {staleInstances.map((inst) => {
-                const def = defById.get(inst.partDefinitionId);
-                return (
-                  <div key={inst.id} className="flex items-center gap-3 px-4 py-2.5">
-                    <span className="flex-1 min-w-0 text-sm font-medium text-ink truncate">
-                      {def?.name ?? `Part ${inst.partDefinitionId}`}
-                      <span className="text-steel font-normal ml-1.5">#{inst.instanceNumber}</span>
-                    </span>
-                    <span className="w-40 hidden sm:block text-sm font-mono text-steel-dark truncate">
-                      {def ? `${def.onshapePartNumber} · Rev ${def.revision}` : "—"}
-                    </span>
-                    <span className="w-28 hidden md:block text-sm text-steel-dark truncate">
-                      {def ? subsystemName(def.subsystemId) : "—"}
-                    </span>
-                    <span className="w-44 flex justify-end gap-2 shrink-0">
-                      <button
-                        type="button"
-                        disabled
-                        title="Coming soon"
-                        className="text-xs px-2.5 py-1.5 rounded-lg border border-steel/40 text-steel cursor-not-allowed"
-                      >
-                        Archive
-                      </button>
-                      <button
-                        type="button"
-                        disabled
-                        title="Coming soon"
-                        className="text-xs px-2.5 py-1.5 rounded-lg border border-steel/40 text-steel cursor-not-allowed"
-                      >
-                        Transfer Processes
-                      </button>
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+            <p className="text-sm text-steel">Loading shop data…</p>
           )}
         </Section>
 
@@ -125,12 +81,67 @@ export function AdminPage() {
           </div>
         </Section>
 
-        {/* Section 3: Admin Settings */}
+        {/* Section 3: Kiosk Mode */}
+        <Section title="Kiosk Mode" defaultOpen={false}>
+          <KioskModeSettings />
+        </Section>
+
+        {/* Section 4: Admin Settings */}
         <Section title="Admin Settings" defaultOpen={false}>
           <p className="text-sm text-steel">Nothing here yet.</p>
         </Section>
       </div>
     </main>
+  );
+}
+
+function KioskModeSettings() {
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  return (
+    <div className="space-y-3 max-w-xl">
+      <p className="text-sm text-steel-dark">
+        Kiosk mode turns this device into a shared shop-floor station. It logs out the current
+        account, sends the device through G3ID kiosk activation, and users then sign in with their
+        3-digit PIN. Name the kiosk after a machine (e.g. a process like “Mill”) and the app will
+        auto-open that machine's queue and show machine-specific stats.
+      </p>
+      {confirming ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-medium text-ink">
+            You'll be logged out on this device. Continue?
+          </span>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              setBusy(true);
+              enableKioskMode();
+            }}
+            className="px-3.5 py-2 bg-crimson hover:bg-crimson-dark text-paper text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
+          >
+            {busy ? "Switching…" : "Yes, enable kiosk mode"}
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setConfirming(false)}
+            className="px-3.5 py-2 bg-steel-tint hover:bg-steel/30 text-steel-dark text-sm font-medium rounded-lg transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setConfirming(true)}
+          className="px-3.5 py-2 bg-crimson hover:bg-crimson-dark text-paper text-sm font-semibold rounded-lg transition-colors"
+        >
+          Enable Kiosk Mode on This Device
+        </button>
+      )}
+    </div>
   );
 }
 

@@ -85,6 +85,49 @@ export function processLoads(rows: InstanceRow[], processes: Process[]): Process
   });
 }
 
+/** Find the process a kiosk device is stationed at, by name (case-insensitive). */
+export function matchMachineProcess(
+  processes: Process[],
+  machineName: string | null | undefined,
+): Process | null {
+  if (!machineName) return null;
+  const wanted = machineName.trim().toLowerCase();
+  return processes.find((p) => p.name.trim().toLowerCase() === wanted) ?? null;
+}
+
+/** Status for a single machine based on how much work it has queued. */
+export function machineMood(todo: number, doing: number): ShopMood {
+  if (todo === 0 && doing === 0) {
+    return { label: "Idle", blurb: "No parts queued for this machine.", tone: "calm" };
+  }
+  if (doing === 0) {
+    if (todo >= 5) {
+      return {
+        label: "Backing Up",
+        blurb: `${todo} parts are waiting and nothing is running.`,
+        tone: "warn",
+      };
+    }
+    return {
+      label: "Ready",
+      blurb: `${todo} part${todo === 1 ? " is" : "s are"} ready to start.`,
+      tone: "steady",
+    };
+  }
+  if (todo >= 5) {
+    return {
+      label: "Slammed",
+      blurb: `${doing} running with ${todo} more waiting — this machine is the bottleneck.`,
+      tone: "hot",
+    };
+  }
+  return {
+    label: "Running",
+    blurb: `${doing} in progress, ${todo} up next.`,
+    tone: "steady",
+  };
+}
+
 export type ShopMood = {
   label: string;
   blurb: string;

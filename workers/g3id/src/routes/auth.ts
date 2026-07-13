@@ -2,7 +2,7 @@ import { eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import { deleteCookie, getCookie } from "hono/cookie";
 import { createDb } from "../db";
-import { coreUserIdentities, coreUserPins, coreUsers } from "../db/schema";
+import { coreUserIdentities, coreUserPins, coreUsers, kioskDevices } from "../db/schema";
 import { deleteCookieOptions } from "../lib/cookie";
 import { regeneratePinForUser } from "../lib/pin";
 import { deleteSession } from "../lib/session";
@@ -59,12 +59,23 @@ export const authRouter = new Hono<AppEnv>()
 
     const isAdmin = sessionType === "pin" ? false : user.isAdmin === 1;
 
+    let kioskDeviceName: string | undefined;
+    if (kioskDeviceId) {
+      const device = await db
+        .select({ name: kioskDevices.name })
+        .from(kioskDevices)
+        .where(eq(kioskDevices.id, kioskDeviceId))
+        .get();
+      kioskDeviceName = device?.name;
+    }
+
     return c.json({
       ...user,
       identities,
       isAdmin,
       sessionType,
       ...(kioskDeviceId && { kioskDeviceId }),
+      ...(kioskDeviceName && { kioskDeviceName }),
     });
   })
   // Resolve a batch of user IDs to public display names. Used by other services

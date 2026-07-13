@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../../shared/api";
 import { getErrorMessage } from "../../shared/api-error";
@@ -6,14 +6,19 @@ import {
   type InstanceRow,
   type ShopMood,
   buildInstanceRows,
+  matchMachineProcess,
   partLabel,
   processLoads,
   shopMood,
 } from "../../shared/derive";
+import { fetchKioskPresence } from "../../shared/getters";
 import { processPath } from "../../shared/nav";
+import type { KioskPresence } from "../../shared/types";
 import { ErrorBanner, PageLoading } from "../../shared/ui";
+import { useKiosk } from "../../shared/use-auth";
 import { useShopData } from "../../shared/use-shop-data";
 import { useTouchDevice } from "../../shared/use-touch";
+import { useUserNames } from "../../shared/use-user-names";
 import { PartCard } from "../parts/part-card";
 
 const MOOD_TONES: Record<ShopMood["tone"], string> = {
@@ -29,20 +34,51 @@ const LOAD_STYLES = {
   high: "bg-crimson-tint border-crimson/40",
 };
 
+// Auto-open the kiosk's machine only once per app load, so the overview stays reachable.
+let kioskAutoOpened = false;
+
 export function BoardPage() {
   const { data, loading, error, refresh } = useShopData();
   const navigate = useNavigate();
   const params = useParams();
-  const touch = useTouchDevice();
+  const kiosk = useKiosk();
+  // Kiosks are tablets — always use the finger-friendly layout there.
+  const touch = useTouchDevice() || kiosk.active;
 
   // The active view comes from the URL: /board = overview, /board/process/:id.
   const view: number | "overview" = params.processId ? Number(params.processId) : "overview";
 
   const [banner, setBanner] = useState<string | null>(null);
   const [selectedInstanceId, setSelectedInstanceId] = useState<number | null>(null);
+  const [presence, setPresence] = useState<KioskPresence[]>([]);
 
   const rows = useMemo(() => (data ? buildInstanceRows(data) : []), [data]);
   const loads = useMemo(() => (data ? processLoads(rows, data.processes) : []), [rows, data]);
+
+  // A kiosk named after a machine opens straight to that machine's queue.
+  useEffect(() => {
+    if (!kiosk.active || kioskAutoOpened || !data || params.processId) return;
+    const machine = matchMachineProcess(data.processes, kiosk.machineName);
+    kioskAutoOpened = true;
+    if (machine) navigate(processPath(machine.id), { replace: true });
+  }, [kiosk.active, kiosk.machineName, data, params.processId, navigate]);
+
+  // Who is logged in at each kiosk, refreshed alongside the heartbeat cadence.
+  useEffect(() => {
+    let cancelled = false;
+    const load = () =>
+      fetchKioskPresence()
+        .then((rows) => {
+          if (!cancelled) setPresence(rows);
+        })
+        .catch(() => {});
+    load();
+    const id = setInterval(load, 60 * 1000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
 
   async function advance(row: InstanceRow, to: "doing" | "done") {
     if (!row.current) return;
@@ -122,6 +158,7 @@ export function BoardPage() {
             processName={processName}
             touch={touch}
             onOpenPart={setSelectedInstanceId}
+            presence={presence}
           />
         ) : (
           <ProcessView
@@ -155,16 +192,25 @@ function OverviewView({
   processName,
   touch,
   onOpenPart,
+  presence,
 }: {
   rows: InstanceRow[];
   loads: ReturnType<typeof processLoads>;
   processName: (pid: number) => string;
   touch: boolean;
   onOpenPart: (instanceId: number) => void;
+  presence: KioskPresence[];
 }) {
   const mood = shopMood(loads);
   const inProgress = rows.filter((r) => r.state === "doing");
   const notStarted = sortPriorityFirst(rows.filter((r) => r.state === "todo"));
+
+  const resolveName = useUserNames(presence.map((p) => p.userId));
+  // Kiosks are matched to machines by name, same rule as the kiosk auto-open.
+  const peopleAt = (processName: string) =>
+    presence
+      .filter((p) => p.deviceName.trim().toLowerCase() === processName.trim().toLowerCase())
+      .map((p) => resolveName(p.userId));
 
   return (
     <div className="space-y-6">
@@ -200,6 +246,14 @@ function OverviewView({
               <p className="text-xs text-steel-dark mt-2">
                 {load.doing} running · {load.todo} to do
               </p>
+              {peopleAt(load.process.name).length > 0 && (
+                <p
+                  className="text-xs text-emerald-700 mt-1.5 truncate"
+                  title={`At this machine: ${peopleAt(load.process.name).join(", ")}`}
+                >
+                  👤 {peopleAt(load.process.name).join(", ")}
+                </p>
+              )}
             </Link>
           ))}
         </div>

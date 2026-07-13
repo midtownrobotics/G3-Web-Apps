@@ -130,16 +130,11 @@ export function PartCard({
   }
 
   return (
-    // biome-ignore lint/a11y/useKeyWithClickEvents: backdrop click-to-close convenience; the close button is the accessible control
-    <div
-      className="fixed inset-0 z-50 bg-ink/50 flex items-center justify-center p-4"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div className="bg-paper rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+    // Full-screen takeover — close via the X button in the corner.
+    <div className="fixed inset-0 z-50 bg-paper overflow-y-auto">
+      <div className="max-w-3xl mx-auto">
         {/* Header */}
-        <div className="flex items-start justify-between gap-3 px-5 pt-5">
+        <div className="sticky top-0 bg-paper border-b border-steel/20 flex items-start justify-between gap-3 px-5 py-4">
           <div className="min-w-0">
             <h2 className="font-display text-3xl text-ink truncate">
               {row.definition.name}{" "}
@@ -160,13 +155,13 @@ export function PartCard({
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="text-steel hover:text-ink text-xl leading-none p-1 shrink-0"
+            className="text-steel hover:text-ink text-3xl leading-none p-2 shrink-0"
           >
             ✕
           </button>
         </div>
 
-        <div className="px-5 pb-5 pt-4 space-y-4">
+        <div className="px-5 pb-8 pt-4 space-y-4">
           {banner && (
             <p className="text-crimson-dark text-sm bg-crimson-tint border border-crimson/30 rounded-lg px-3 py-2">
               {banner}

@@ -1,8 +1,14 @@
-/** Send the user to g3id login, preserving where they were so they return after auth. */
+import { g3idUrl, isKioskDevice, redirectToKioskLogin } from "./kiosk";
+
+/** Send the user to g3id login, preserving where they were so they return after auth.
+ * Kiosk devices go to the PIN pad instead of the normal login page. */
 export function redirectToLogin(): void {
-  const g3idUrl = import.meta.env.VITE_G3ID_URL || "http://localhost:5174";
+  if (isKioskDevice()) {
+    redirectToKioskLogin();
+    return;
+  }
   const redirect = encodeURIComponent(window.location.href);
-  window.location.href = `${g3idUrl}/login?redirect=${redirect}`;
+  window.location.href = `${g3idUrl()}/login?redirect=${redirect}`;
 }
 
 export async function getErrorMessage(res: Response): Promise<string> {
