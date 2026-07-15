@@ -118,7 +118,7 @@ export function DrawingUploadPage() {
               <p className="text-sm text-gray-600">Cached from OnShape</p>
             </div>
             <a
-              href={`/api/drawings/view/${partNumber}`}
+              href={`/api/onshape/drawings/view/${partNumber}`}
               target="_blank"
               rel="noopener noreferrer"
               className="text-blue-600 hover:text-blue-800 font-medium"
