@@ -1,10 +1,16 @@
 import { Hono } from "hono";
-import { exportDrawingAsPDF, getDrawingExportParams } from "../lib/onshape-export";
+import {
+  drawingExistsInR2,
+  exportDrawingAsPDF,
+  getDrawingExportParams,
+  retrieveDrawingFromR2,
+  storeDrawingInR2,
+} from "../lib/onshape-export";
 import type { AppEnv } from "../types";
 
 const router = new Hono<AppEnv>();
 
-router.get("/drawings/export/:partNumber", async (c) => {
+router.get("/drawings/view/:partNumber", async (c) => {
   try {
     const partNumber = c.req.param("partNumber");
 
@@ -12,20 +18,34 @@ router.get("/drawings/export/:partNumber", async (c) => {
       return c.json({ error: "Missing required parameter: partNumber" }, 400);
     }
 
-    const params = await getDrawingExportParams(partNumber, c.env);
-    const pdfBuffer = await exportDrawingAsPDF(params.documentId, params.versionId, params.drawingEntityId, c.env);
+    let pdfBuffer: ArrayBuffer;
+
+    // Check if drawing exists in R2
+    const exists = await drawingExistsInR2(partNumber, c.env);
+
+    if (exists) {
+      console.log("[OnShape Export] Drawing found in R2, retrieving", { partNumber });
+      pdfBuffer = await retrieveDrawingFromR2(partNumber, c.env);
+    } else {
+      console.log("[OnShape Export] Drawing not in R2, exporting from OnShape", { partNumber });
+      // Get export params and export from OnShape
+      const params = await getDrawingExportParams(partNumber, c.env);
+      pdfBuffer = await exportDrawingAsPDF(params.documentId, params.versionId, params.drawingEntityId, c.env);
+      // Store in R2 for future requests
+      await storeDrawingInR2(partNumber, pdfBuffer, c.env);
+    }
 
     return c.newResponse(pdfBuffer, {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": "attachment; filename=drawing.pdf",
-        "Cache-Control": "private, max-age=3600",
+        "Content-Disposition": "inline; filename=drawing.pdf",
+        "Cache-Control": "public, max-age=86400",
       },
     });
   } catch (err) {
     console.error("[OnShape Export Route Error]", err);
     return c.json(
-      { error: err instanceof Error ? err.message : "Failed to export drawing" },
+      { error: err instanceof Error ? err.message : "Failed to retrieve drawing" },
       500,
     );
   }

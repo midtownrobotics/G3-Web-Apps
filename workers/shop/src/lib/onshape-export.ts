@@ -3,6 +3,46 @@ import { drizzle } from "drizzle-orm/d1";
 import * as schema from "../db/schema";
 import type { AppEnv } from "../types";
 
+export async function drawingExistsInR2(
+  partNumber: string,
+  env: AppEnv["Bindings"],
+): Promise<boolean> {
+  const r2Key = `drawings/${partNumber}.pdf`;
+  try {
+    const obj = await env.DRAWINGS.head(r2Key);
+    return obj !== null;
+  } catch {
+    return false;
+  }
+}
+
+export async function retrieveDrawingFromR2(
+  partNumber: string,
+  env: AppEnv["Bindings"],
+): Promise<ArrayBuffer> {
+  const r2Key = `drawings/${partNumber}.pdf`;
+  const obj = await env.DRAWINGS.get(r2Key);
+  if (!obj) {
+    throw new Error(`Drawing not found in R2: ${partNumber}`);
+  }
+  return obj.arrayBuffer();
+}
+
+export async function storeDrawingInR2(
+  partNumber: string,
+  pdfBuffer: ArrayBuffer,
+  env: AppEnv["Bindings"],
+): Promise<string> {
+  const r2Key = `drawings/${partNumber}.pdf`;
+  await env.DRAWINGS.put(r2Key, pdfBuffer, {
+    httpMetadata: {
+      contentType: "application/pdf",
+    },
+  });
+  console.log("[OnShape Export] Stored drawing in R2", { partNumber, r2Key, size: pdfBuffer.byteLength });
+  return r2Key;
+}
+
 export async function getDrawingExportParams(
   partNumber: string,
   env: AppEnv["Bindings"],
