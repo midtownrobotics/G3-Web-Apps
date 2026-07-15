@@ -77,6 +77,29 @@ export const partInstanceProcesses = sqliteTable(
   (t) => [unique().on(t.partInstanceId, t.index)],
 );
 
+/** Audit log of who moved which part instance through which process. */
+export const actions = sqliteTable("actions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: text("user_id").notNull(),
+  partInstanceId: integer("part_instance_id")
+    .notNull()
+    .references(() => partInstances.id),
+  processId: integer("process_id")
+    .notNull()
+    .references(() => processes.id),
+  action: text("action", { enum: ["started", "completed"] }).notNull(),
+  createdAt: integer("created_at").notNull(),
+});
+
+/** Who is currently logged in at each kiosk device (heartbeat-refreshed). */
+export const kioskPresence = sqliteTable("kiosk_presence", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  kioskDeviceId: integer("kiosk_device_id").notNull().unique(),
+  deviceName: text("device_name").notNull(),
+  userId: text("user_id").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
 export const onshapeReleases = sqliteTable("onshape_releases", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   releaseId: text("release_id").notNull().unique(),

@@ -1,7 +1,17 @@
 import { adminPlugin } from "./plugins/admin";
 import { boardPlugin } from "./plugins/board";
 import { drawingsPlugin } from "./plugins/drawings";
+import { bomPlugin } from "./plugins/bom";
 import { homePlugin } from "./plugins/home";
+import { leaderboardPlugin } from "./plugins/leaderboard";
 import { partsPlugin } from "./plugins/parts";
 
-export const plugins = [homePlugin, partsPlugin, boardPlugin, adminPlugin, drawingsPlugin];
+export const plugins = [
+  homePlugin,
+  partsPlugin,
+  boardPlugin,
+  adminPlugin,
+  leaderboardPlugin,
+  drawingsPlugin,
+  bomPlugin,
+];

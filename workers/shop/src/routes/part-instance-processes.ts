@@ -4,6 +4,7 @@ import { createShopDb } from "../db";
 import { partInstanceProcesses } from "../db/schema";
 import { requireAuth } from "../middleware/auth";
 import type { AppEnv } from "../types";
+import { recordAction } from "./actions";
 
 export const partInstanceProcessesRouter = new Hono<AppEnv>()
   .get("/", requireAuth, async (c) => {
@@ -71,6 +72,13 @@ export const partInstanceProcessesRouter = new Hono<AppEnv>()
         .where(eq(partInstanceProcesses.id, next.id));
     }
 
+    await recordAction(db, {
+      userId: c.get("userId"),
+      partInstanceId,
+      processId,
+      action: "completed",
+    });
+
     return c.json(row);
   })
   .post("/:partInstanceId/processes/:processId/doing", requireAuth, async (c) => {
@@ -91,5 +99,13 @@ export const partInstanceProcessesRouter = new Hono<AppEnv>()
       .get();
 
     if (!row) return c.json({ error: "Part instance process not found." }, 404);
+
+    await recordAction(db, {
+      userId: c.get("userId"),
+      partInstanceId,
+      processId,
+      action: "started",
+    });
+
     return c.json(row);
   });
