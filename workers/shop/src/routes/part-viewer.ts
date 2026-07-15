@@ -18,8 +18,8 @@ router.get("/parts/:partNumber/drawing", async (c) => {
     const db = drizzle(c.env.SHOP_DB, { schema });
     const part = await db
       .select()
-      .from(schema.onshapeParts)
-      .where(eq(schema.onshapeParts.partNumber, partNumber))
+      .from(schema.partDefinitions)
+      .where(eq(schema.partDefinitions.onshapePartNumber, partNumber))
       .get();
 
     if (!part) {
