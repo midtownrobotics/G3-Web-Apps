@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+import { PDFViewer } from "./pdf-viewer";
 
 interface ErrorState {
   error: string;
@@ -113,107 +114,111 @@ export function PartViewerPage() {
     );
   }
 
-  if (errorState) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-100 p-4">
-        <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full">
-          <div className="text-red-600 text-5xl mb-4 text-center">📋</div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">{errorState.error}</h1>
-          <p className="text-gray-600 mb-6 leading-relaxed">{errorState.details}</p>
-          <div className="text-sm text-gray-500 bg-gray-50 p-3 rounded">
-            Part Number: <span className="font-mono font-bold">{partNumber}</span>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="w-full h-screen bg-white flex flex-col">
-      <div className="bg-gray-50 border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-        <h1 className="text-xl font-bold text-gray-900">
-          Drawing for Part <span className="font-mono text-primary-600">{partNumber}</span>
-        </h1>
-        {!showUploadForm && (
-          <button
-            onClick={() => setShowUploadForm(true)}
-            className="text-sm bg-primary-600 text-white px-3 py-1 rounded hover:bg-primary-700"
-          >
-            Upload Drawing
-          </button>
-        )}
-      </div>
+
+
+      {pdfUrl && !showUploadForm && (
+        <>
+          <div className="bg-gray-50 border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+            <h1 className="text-lg font-bold text-gray-900">
+              Drawing for Part <span className="font-mono text-primary-600">{partNumber}</span>
+            </h1>
+            <button
+              onClick={() => setShowUploadForm(true)}
+              className="bg-primary-600 text-white px-4 py-2 rounded hover:bg-primary-700 font-medium text-sm"
+            >
+              Replace Drawing
+            </button>
+          </div>
+          <PDFViewer url={pdfUrl} title={`Drawing for ${partNumber}`} />
+        </>
+      )}
 
       {showUploadForm && (
-        <div className="bg-blue-50 border-b border-blue-200 px-6 py-4">
-          <form onSubmit={handleUpload} className="space-y-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">PDF File</label>
-              <input
-                type="file"
-                accept=".pdf"
-                onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
-                className="block w-full text-sm border border-gray-300 rounded p-2"
-                disabled={uploading}
-              />
-              {uploadFile && <p className="text-sm text-gray-600 mt-1">Selected: {uploadFile.name}</p>}
-            </div>
-
-            <div className="flex gap-2">
+        <div className="flex items-center justify-center flex-1 p-4">
+          <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-900">Upload Drawing</h2>
               <button
-                type="submit"
-                disabled={!uploadFile || uploading}
-                className="text-sm bg-primary-600 text-white px-4 py-2 rounded hover:bg-primary-700 disabled:bg-gray-400"
-              >
-                {uploading ? "Uploading..." : "Upload"}
-              </button>
-              <button
-                type="button"
                 onClick={() => {
                   setShowUploadForm(false);
                   setUploadFile(null);
                   setUploadMessage(null);
                 }}
-                className="text-sm bg-gray-300 text-gray-800 px-4 py-2 rounded hover:bg-gray-400"
+                className="text-gray-500 hover:text-gray-700 text-xl"
               >
-                Cancel
+                ✕
               </button>
             </div>
-
-            {uploadMessage && (
-              <div
-                className={`text-sm p-2 rounded ${
-                  uploadMessage.type === "success"
-                    ? "bg-green-100 text-green-800 border border-green-300"
-                    : "bg-red-100 text-red-800 border border-red-300"
-                }`}
-              >
-                {uploadMessage.text}
+            <div className="bg-blue-50 border border-blue-200 rounded p-3 mb-4">
+              <p className="text-sm text-gray-700">
+                <span className="font-semibold">Part:</span> <span className="font-mono text-primary-600">{partNumber}</span>
+              </p>
+              <p className="text-xs text-gray-600 mt-2">
+                Upload a PDF drawing file for this part. This will replace any existing drawing.
+              </p>
+            </div>
+            <form onSubmit={handleUpload} className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">PDF File</label>
+                <input
+                  type="file"
+                  accept=".pdf"
+                  onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                  className="block w-full text-sm border border-gray-300 rounded p-2"
+                  disabled={uploading}
+                />
+                {uploadFile && <p className="text-sm text-gray-600 mt-1">Selected: {uploadFile.name}</p>}
               </div>
-            )}
-          </form>
+
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  disabled={!uploadFile || uploading}
+                  className="flex-1 text-sm bg-primary-600 text-white px-4 py-2 rounded hover:bg-primary-700 disabled:bg-gray-400"
+                >
+                  {uploading ? "Uploading..." : "Upload"}
+                </button>
+              </div>
+
+              {uploadMessage && (
+                <div
+                  className={`text-sm p-2 rounded ${
+                    uploadMessage.type === "success"
+                      ? "bg-green-100 text-green-800 border border-green-300"
+                      : "bg-red-100 text-red-800 border border-red-300"
+                  }`}
+                >
+                  {uploadMessage.text}
+                </div>
+              )}
+            </form>
+          </div>
         </div>
       )}
 
-      {pdfUrl && !showUploadForm && (
-        <iframe src={pdfUrl} className="flex-1 w-full border-none" title={`Drawing for ${partNumber}`} />
-      )}
-
-      {!pdfUrl && !showUploadForm && !loading && errorState && (
-        <div className="flex items-center justify-center flex-1">
+      {!pdfUrl && !loading && errorState && !showUploadForm && (
+        <div className="flex items-center justify-center flex-1 p-4">
           <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full">
             <div className="text-red-600 text-5xl mb-4 text-center">📋</div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">{errorState.error}</h2>
             <p className="text-gray-600 mb-6 leading-relaxed">{errorState.details}</p>
-            <button
-              onClick={() => setShowUploadForm(true)}
-              className="w-full bg-primary-600 text-white px-4 py-2 rounded hover:bg-primary-700"
-            >
-              Upload a Drawing
-            </button>
+            {errorState.error === "Drawing not available" && (
+              <button
+                onClick={() => setShowUploadForm(true)}
+                className="w-full bg-primary-600 text-white px-4 py-2 rounded hover:bg-primary-700 font-medium mb-4"
+              >
+                Upload a Drawing
+              </button>
+            )}
+            <p className="text-xs text-gray-500 text-center">
+              Part: <span className="font-mono font-bold">{partNumber}</span>
+            </p>
           </div>
         </div>
       )}
+
     </div>
   );
 }
