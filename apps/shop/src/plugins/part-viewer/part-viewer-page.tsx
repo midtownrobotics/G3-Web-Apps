@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 
 interface ErrorState {
@@ -20,7 +20,7 @@ export function PartViewerPage() {
   const [showUploadForm, setShowUploadForm] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const checkDrawing = async () => {
+  const checkDrawing = useCallback(async () => {
     try {
       const response = await fetch(`/api/parts/${partNumber}/drawing`, {
         credentials: "include",
@@ -47,7 +47,7 @@ export function PartViewerPage() {
             : "An unexpected error occurred while checking the drawing.",
       });
     }
-  };
+  }, [partNumber]);
 
   useEffect(() => {
     if (!partNumber) return;
