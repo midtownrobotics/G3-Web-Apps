@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { requireAuth } from "./middleware/auth";
 import { drawingsRouter } from "./routes/drawings";
+import { onshapeExportRouter } from "./routes/onshape-export";
 import { onshapeWebhooksRouter } from "./routes/onshape-webhooks";
 import { partDefinitionsRouter } from "./routes/part-definitions";
 import { partInstanceProcessesRouter } from "./routes/part-instance-processes";
@@ -45,6 +46,7 @@ const app = base
     }),
   )
   .route("/drawings", drawingsRouter)
+  .route("/onshape", onshapeExportRouter)
   .route("/onshape", onshapeWebhooksRouter)
   .route("/subsystems", subsystemsRouter)
   .route("/processes", processesRouter)
