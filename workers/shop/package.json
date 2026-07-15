@@ -16,7 +16,7 @@
     "@g3/auth": "workspace:*",
     "@g3/slack": "workspace:*",
     "drizzle-orm": "^0.44.0",
-    "hono": "^4.7.0"
+    "hono": "4.12.19"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250516.0",
