@@ -17,5 +17,8 @@ export type AppEnv = {
     userDisplayName: string;
     userIsAdmin: boolean;
     userEmail: string;
+    sessionType: "oauth" | "pin";
+    kioskDeviceId: number | null;
+    kioskDeviceName: string | null;
   };
 };

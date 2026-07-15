@@ -1,8 +1,15 @@
-import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api } from "../../shared/api";
-import { buildInstanceRows } from "../../shared/derive";
+import { buildInstanceRows, machineMood, matchMachineProcess } from "../../shared/derive";
+import { processPath } from "../../shared/nav";
+import { useAuthUser, useKiosk } from "../../shared/use-auth";
 import { useShopData } from "../../shared/use-shop-data";
+
+const MOOD_TONES = {
+  calm: "bg-emerald-50 border-emerald-300 text-emerald-800",
+  steady: "bg-steel-tint border-steel/40 text-steel-dark",
+  warn: "bg-amber-50 border-amber-300 text-amber-800",
+  hot: "bg-crimson-tint border-crimson/40 text-crimson-dark",
+} as const;
 
 function greeting(): string {
   const hour = new Date().getHours();
@@ -12,21 +19,33 @@ function greeting(): string {
 }
 
 export function HomePage() {
-  const [name, setName] = useState<string>();
+  const user = useAuthUser();
+  const kiosk = useKiosk();
   const { data } = useShopData();
-
-  useEffect(() => {
-    api.me
-      .$get()
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => setName(data?.displayName))
-      .catch(() => setName(undefined));
-  }, []);
+  const name = user?.displayName;
 
   const rows = data ? buildInstanceRows(data) : [];
   const doing = rows.filter((r) => r.state === "doing").length;
   const todo = rows.filter((r) => r.state === "todo").length;
-  const active = rows.filter((r) => r.state !== "complete").length;
+  const complete = rows.filter((r) => r.state === "complete").length;
+
+  // Kiosks named after a machine get a section scoped to that machine.
+  const machineProcess =
+    kiosk.active && data ? matchMachineProcess(data.processes, kiosk.machineName) : null;
+  const machineDoing = machineProcess
+    ? rows.filter((r) => r.current?.processId === machineProcess.id && r.current.status === "doing")
+        .length
+    : 0;
+  const machineTodo = machineProcess
+    ? rows.filter((r) => r.current?.processId === machineProcess.id && r.current.status === "todo")
+        .length
+    : 0;
+  const machineDone = machineProcess
+    ? rows.filter((r) =>
+        r.procs.some((p) => p.processId === machineProcess.id && p.status === "done"),
+      ).length
+    : 0;
+  const mood = machineProcess ? machineMood(machineTodo, machineDoing) : null;
 
   const today = new Date().toLocaleDateString(undefined, {
     weekday: "long",
@@ -43,13 +62,55 @@ export function HomePage() {
             {greeting()}
             {name ? `, ${name.split(" ")[0]}` : ""}
           </h1>
-          <p className="text-steel-dark mt-2">G3 Shop — production tracking and management.</p>
+          <p className="text-steel-dark mt-2">
+            {kiosk.active && kiosk.machineName
+              ? `${kiosk.machineName} kiosk — G3 Shop production tracking.`
+              : "G3 Shop — production tracking and management."}
+          </p>
         </div>
+
+        {machineProcess && mood && (
+          <section className="space-y-4">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-steel">
+              This Machine — {machineProcess.name}
+            </h2>
+            <Link
+              to={processPath(machineProcess.id)}
+              className={`block rounded-xl border px-5 py-4 transition-transform hover:-translate-y-0.5 ${MOOD_TONES[mood.tone]}`}
+            >
+              <p className="font-display text-3xl">{mood.label}</p>
+              <p className="text-sm mt-0.5">{mood.blurb}</p>
+            </Link>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Stat
+                label="In Progress"
+                value={data ? machineDoing : null}
+                accent="text-amber-600"
+              />
+              <Stat
+                label="Ready to Start"
+                value={data ? machineTodo : null}
+                accent="text-crimson"
+              />
+              <Stat label="Completed" value={data ? machineDone : null} accent="text-green-600" />
+            </div>
+          </section>
+        )}
+
+        {machineProcess && (
+          <div className="flex items-center gap-3">
+            <span className="h-px flex-1 bg-steel/25" />
+            <h2 className="text-xs font-bold uppercase tracking-widest text-steel shrink-0">
+              Shop Overview
+            </h2>
+            <span className="h-px flex-1 bg-steel/25" />
+          </div>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Stat label="In Progress" value={data ? doing : null} accent="text-amber-600" />
           <Stat label="Ready to Start" value={data ? todo : null} accent="text-crimson" />
-          <Stat label="Active Parts" value={data ? active : null} accent="text-ink" />
+          <Stat label="Completed Parts" value={data ? complete : null} accent="text-green-600" />
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -59,15 +120,23 @@ export function HomePage() {
             blurb="Browse every part in production, add new ones, and check status."
           />
           <QuickLink
-            to="/board"
+            to={machineProcess ? processPath(machineProcess.id) : "/board"}
             title="Shop Floor"
-            blurb="See what each machine is working on and move parts forward."
+            blurb={
+              machineProcess
+                ? `Jump to the ${machineProcess.name} queue and move parts forward.`
+                : "See what each machine is working on and move parts forward."
+            }
           />
-          <QuickLink
-            to="/admin"
-            title="Admin"
-            blurb="Manage stale parts, subsystems, and shop processes."
-          />
+          {kiosk.active ? (
+            <QuickLink
+              to="/leaderboard"
+              title="Leaderboard"
+              blurb="See who has completed the most parts."
+            />
+          ) : (
+            <QuickLink to="/admin" title="Admin" blurb="Manage subsystems and shop processes." />
+          )}
         </div>
       </div>
     </main>

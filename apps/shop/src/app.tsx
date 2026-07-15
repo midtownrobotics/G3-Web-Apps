@@ -1,6 +1,7 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { plugins } from "./plugins.config";
 import { NavBar } from "./shared/nav-bar";
+import { ProtectedRoute } from "./shared/protected-route";
 
 export function App() {
   const allRoutes = plugins.flatMap((p) => p.routes);
@@ -8,12 +9,14 @@ export function App() {
 
   return (
     <BrowserRouter>
-      <NavBar items={navItems} />
-      <Routes>
-        {allRoutes.map((r) => (
-          <Route key={r.path} path={r.path} element={r.element} />
-        ))}
-      </Routes>
+      <ProtectedRoute>
+        <NavBar items={navItems} />
+        <Routes>
+          {allRoutes.map((r) => (
+            <Route key={r.path} path={r.path} element={r.element} />
+          ))}
+        </Routes>
+      </ProtectedRoute>
     </BrowserRouter>
   );
 }

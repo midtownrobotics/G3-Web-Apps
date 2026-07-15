@@ -1,8 +1,8 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import { deleteCookie, getCookie } from "hono/cookie";
 import { createDb } from "../db";
-import { coreUserIdentities, coreUserPins, coreUsers } from "../db/schema";
+import { coreUserIdentities, coreUserPins, coreUsers, kioskDevices } from "../db/schema";
 import { deleteCookieOptions } from "../lib/cookie";
 import { regeneratePinForUser } from "../lib/pin";
 import { deleteSession } from "../lib/session";
@@ -59,13 +59,47 @@ export const authRouter = new Hono<AppEnv>()
 
     const isAdmin = sessionType === "pin" ? false : user.isAdmin === 1;
 
+    let kioskDeviceName: string | undefined;
+    if (kioskDeviceId) {
+      const device = await db
+        .select({ name: kioskDevices.name })
+        .from(kioskDevices)
+        .where(eq(kioskDevices.id, kioskDeviceId))
+        .get();
+      kioskDeviceName = device?.name;
+    }
+
     return c.json({
       ...user,
       identities,
       isAdmin,
       sessionType,
       ...(kioskDeviceId && { kioskDeviceId }),
+      ...(kioskDeviceName && { kioskDeviceName }),
     });
+  })
+  // Resolve a batch of user IDs to public display names. Used by other services
+  // (e.g. the shop worker) to show human names instead of raw IDs.
+  .get("/users", requireAuth, async (c) => {
+    const idsParam = c.req.query("ids") ?? "";
+    const ids = [
+      ...new Set(
+        idsParam
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean),
+      ),
+    ];
+    if (ids.length === 0) return c.json([] as { id: string; displayName: string }[]);
+
+    const db = createDb(c.env.DB);
+    const rows = await db
+      .select({ id: coreUsers.id, displayName: coreUsers.displayName })
+      .from(coreUsers)
+      .where(inArray(coreUsers.id, ids))
+      .all();
+
+    return c.json(rows);
   })
   .post("/logout", async (c) => {
     const sessionId = getCookie(c, "g3_session");

@@ -1,3 +1,4 @@
+import { OnShapeIcon } from "@g3/ui";
 import { Loader2, Shield, ShieldOff } from "lucide-react";
 import { useEffect, useState } from "react";
 import { FaGithub, FaGoogle, FaKey, FaSlack, FaSteam } from "react-icons/fa";
@@ -63,6 +64,12 @@ function ProviderIcon({ provider }: { provider: string }) {
       return (
         <span className={`${cls} text-yellow-400`} title="Password">
           <FaKey />
+        </span>
+      );
+    case "onshape":
+      return (
+        <span className={`${cls} text-green-400`} title="Onshape">
+          <OnShapeIcon size={16} onshape-green />
         </span>
       );
     default:
