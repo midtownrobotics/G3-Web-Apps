@@ -19,8 +19,6 @@ migrations_dir = "src/db/migrations"
 [[r2_buckets]]
 binding = "DRAWINGS"
 bucket_name = "g3-bucket"
-jurisdiction = "nam"
-preview_bucket_name = "g3-bucket-preview"
 
 [vars]
 FRONTEND_URL = "http://localhost:5174"
@@ -45,7 +43,6 @@ migrations_dir = "src/db/migrations"
 [[env.production.r2_buckets]]
 binding = "DRAWINGS"
 bucket_name = "g3-bucket"
-jurisdiction = "nam"
 
 [env.production.vars]
 FRONTEND_URL = "https://shop.g3robotics.com"
