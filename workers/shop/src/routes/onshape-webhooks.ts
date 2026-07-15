@@ -82,7 +82,11 @@ router.post("/events", async (c) => {
     return c.json({ ok: true });
   }
 
-  if (webhookData.event === "onshape.workflow.transition" && webhookData.objectType === "RELEASE" && webhookData.transitionName === "RELEASE") {
+  if (
+    webhookData.event === "onshape.workflow.transition" &&
+    webhookData.objectType === "RELEASE" &&
+    webhookData.transitionName === "RELEASE"
+  ) {
     const { objectId: releaseId, timestamp } = webhookData;
     if (releaseId && timestamp) {
       c.executionCtx.waitUntil(processReleaseEvent(releaseId, timestamp, c.env));
