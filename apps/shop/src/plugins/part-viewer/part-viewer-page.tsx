@@ -13,7 +13,10 @@ export function PartViewerPage() {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [uploadMessage, setUploadMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [uploadMessage, setUploadMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
   const [showUploadForm, setShowUploadForm] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -38,7 +41,10 @@ export function PartViewerPage() {
     } catch (err) {
       setErrorState({
         error: "Failed to check drawing",
-        details: err instanceof Error ? err.message : "An unexpected error occurred while checking the drawing.",
+        details:
+          err instanceof Error
+            ? err.message
+            : "An unexpected error occurred while checking the drawing.",
       });
     }
   };
@@ -48,7 +54,7 @@ export function PartViewerPage() {
 
     setLoading(true);
     checkDrawing().finally(() => setLoading(false));
-  }, [partNumber]);
+  }, [partNumber, checkDrawing]);
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,7 +92,10 @@ export function PartViewerPage() {
         setRefreshKey((k) => k + 1);
       }
     } catch (err) {
-      setUploadMessage({ type: "error", text: err instanceof Error ? err.message : "Upload failed" });
+      setUploadMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Upload failed",
+      });
     } finally {
       setUploading(false);
     }
@@ -98,7 +107,9 @@ export function PartViewerPage() {
         <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full text-center">
           <div className="text-red-600 text-4xl mb-4">⚠️</div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Missing Part Number</h1>
-          <p className="text-gray-600">No part number was provided. Please check the URL and try again.</p>
+          <p className="text-gray-600">
+            No part number was provided. Please check the URL and try again.
+          </p>
         </div>
       </div>
     );
@@ -110,7 +121,9 @@ export function PartViewerPage() {
         <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full text-center">
           <div className="animate-spin text-primary-600 text-4xl mb-4">⏳</div>
           <h1 className="text-xl font-bold text-gray-900 mb-2">Loading Drawing</h1>
-          <p className="text-gray-600">Please wait while we retrieve the drawing for part {partNumber}...</p>
+          <p className="text-gray-600">
+            Please wait while we retrieve the drawing for part {partNumber}...
+          </p>
         </div>
       </div>
     );
@@ -118,8 +131,6 @@ export function PartViewerPage() {
 
   return (
     <div className="w-full h-screen bg-white flex flex-col">
-
-
       {pdfUrl && !showUploadForm && (
         <>
           <div className="bg-gray-50 border-b border-gray-200 px-6 py-4 flex items-center justify-between">
@@ -127,6 +138,7 @@ export function PartViewerPage() {
               Drawing for Part <span className="font-mono text-primary-600">{partNumber}</span>
             </h1>
             <button
+              type="button"
               onClick={() => setShowUploadForm(true)}
               className="bg-primary-600 text-white px-4 py-2 rounded hover:bg-primary-700 font-medium text-sm"
             >
@@ -149,6 +161,7 @@ export function PartViewerPage() {
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-gray-900">Upload Drawing</h2>
               <button
+                type="button"
                 onClick={() => {
                   setShowUploadForm(false);
                   setUploadFile(null);
@@ -161,7 +174,8 @@ export function PartViewerPage() {
             </div>
             <div className="bg-blue-50 border border-blue-200 rounded p-3 mb-4">
               <p className="text-sm text-gray-700">
-                <span className="font-semibold">Part:</span> <span className="font-mono text-primary-600">{partNumber}</span>
+                <span className="font-semibold">Part:</span>{" "}
+                <span className="font-mono text-primary-600">{partNumber}</span>
               </p>
               <p className="text-xs text-gray-600 mt-2">
                 Upload a PDF drawing file for this part. This will replace any existing drawing.
@@ -169,15 +183,20 @@ export function PartViewerPage() {
             </div>
             <form onSubmit={handleUpload} className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">PDF File</label>
+                <label htmlFor="pdf-file" className="block text-sm font-medium text-gray-700 mb-1">
+                  PDF File
+                </label>
                 <input
+                  id="pdf-file"
                   type="file"
                   accept=".pdf"
                   onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
                   className="block w-full text-sm border border-gray-300 rounded p-2"
                   disabled={uploading}
                 />
-                {uploadFile && <p className="text-sm text-gray-600 mt-1">Selected: {uploadFile.name}</p>}
+                {uploadFile && (
+                  <p className="text-sm text-gray-600 mt-1">Selected: {uploadFile.name}</p>
+                )}
               </div>
 
               <div className="flex gap-2">
@@ -214,6 +233,7 @@ export function PartViewerPage() {
             <p className="text-gray-600 mb-6 leading-relaxed">{errorState.details}</p>
             {errorState.error === "Drawing not available" && (
               <button
+                type="button"
                 onClick={() => setShowUploadForm(true)}
                 className="w-full bg-primary-600 text-white px-4 py-2 rounded hover:bg-primary-700 font-medium mb-4"
               >
@@ -226,7 +246,6 @@ export function PartViewerPage() {
           </div>
         </div>
       )}
-
     </div>
   );
 }

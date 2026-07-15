@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import type { Context } from "hono";
 import {
   drawingExistsInR2,
   exportDrawingAsPDF,
@@ -10,7 +11,7 @@ import type { AppEnv } from "../types";
 
 const router = new Hono<AppEnv>();
 
-const handleDrawingRequest = async (c: any) => {
+const handleDrawingRequest = async (c: Context<AppEnv>) => {
   try {
     const partNumber = c.req.param("partNumber");
 
@@ -30,7 +31,12 @@ const handleDrawingRequest = async (c: any) => {
       console.log("[OnShape Export] Drawing not in R2, exporting from OnShape", { partNumber });
       // Get export params and export from OnShape
       const params = await getDrawingExportParams(partNumber, c.env);
-      pdfBuffer = await exportDrawingAsPDF(params.documentId, params.versionId, params.drawingEntityId, c.env);
+      pdfBuffer = await exportDrawingAsPDF(
+        params.documentId,
+        params.versionId,
+        params.drawingEntityId,
+        c.env,
+      );
       // Store in R2 for future requests
       await storeDrawingInR2(partNumber, pdfBuffer, c.env);
     }

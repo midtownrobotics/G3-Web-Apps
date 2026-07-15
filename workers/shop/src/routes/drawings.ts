@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
-import { Hono } from "hono";
 import { drizzle } from "drizzle-orm/d1";
+import { Hono } from "hono";
 import * as schema from "../db/schema";
 import type { AppEnv } from "../types";
 
@@ -64,10 +64,7 @@ router.post("/upload", async (c) => {
     });
   } catch (err) {
     console.error("[Drawing Upload Error]", err);
-    return c.json(
-      { error: err instanceof Error ? err.message : "Upload failed" },
-      500,
-    );
+    return c.json({ error: err instanceof Error ? err.message : "Upload failed" }, 500);
   }
 });
 
@@ -85,16 +82,13 @@ router.get("/list/:partNumber", async (c) => {
     return c.json({ drawings });
   } catch (err) {
     console.error("[Drawing List Error]", err);
-    return c.json(
-      { error: err instanceof Error ? err.message : "Failed to list drawings" },
-      500,
-    );
+    return c.json({ error: err instanceof Error ? err.message : "Failed to list drawings" }, 500);
   }
 });
 
 router.get("/:drawingId/download", async (c) => {
   try {
-    const drawingId = parseInt(c.req.param("drawingId"), 10);
+    const drawingId = Number.parseInt(c.req.param("drawingId"), 10);
     const db = drizzle(c.env.SHOP_DB, { schema });
 
     const drawing = await db

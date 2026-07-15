@@ -39,7 +39,11 @@ export async function storeDrawingInR2(
       contentType: "application/pdf",
     },
   });
-  console.log("[OnShape Export] Stored drawing in R2", { partNumber, r2Key, size: pdfBuffer.byteLength });
+  console.log("[OnShape Export] Stored drawing in R2", {
+    partNumber,
+    r2Key,
+    size: pdfBuffer.byteLength,
+  });
   return r2Key;
 }
 
@@ -153,11 +157,14 @@ export async function exportDrawingAsPDF(
 
     console.log("[OnShape Export] Polling status", { translationId, attempt: retries + 1 });
 
-    const statusResponse = await fetch(`https://cad.onshape.com/api/v16/translations/${translationId}`, {
-      headers: {
-        Authorization: `Basic ${credentials}`,
+    const statusResponse = await fetch(
+      `https://cad.onshape.com/api/v16/translations/${translationId}`,
+      {
+        headers: {
+          Authorization: `Basic ${credentials}`,
+        },
       },
-    });
+    );
 
     if (!statusResponse.ok) {
       const error = await statusResponse.text();
@@ -181,7 +188,10 @@ export async function exportDrawingAsPDF(
     throw new Error(`PDF export failed: ${failureReason}`);
   }
 
-  if (!translationStatus.resultExternalDataIds || translationStatus.resultExternalDataIds.length === 0) {
+  if (
+    !translationStatus.resultExternalDataIds ||
+    translationStatus.resultExternalDataIds.length === 0
+  ) {
     console.error("[OnShape Export] No external data IDs in response");
     throw new Error("No PDF data returned from export");
   }
