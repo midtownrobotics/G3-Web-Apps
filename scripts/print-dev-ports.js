@@ -76,6 +76,7 @@ async function main() {
     const devProcess = spawn("pnpm", ["-r", "--parallel", "--if-present", "dev"], {
       cwd: path.join(__dirname, ".."),
       stdio: "inherit",
+      shell: true,
     });
 
     // Wait for servers to be ready
