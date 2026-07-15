@@ -5,6 +5,7 @@ import { createShopDb } from "./db";
 import { requireAuth } from "./middleware/auth";
 import { drawingsRouter } from "./routes/drawings";
 import { onshapeExportRouter } from "./routes/onshape-export";
+import { partViewerRouter } from "./routes/part-viewer";
 import { actionsRouter } from "./routes/actions";
 import { clearPresence, kioskPresenceRouter } from "./routes/kiosk-presence";
 import { onshapeWebhooksRouter } from "./routes/onshape-webhooks";
@@ -53,6 +54,7 @@ const app = base
   )
   .route("/drawings", drawingsRouter)
   .route("/onshape", onshapeExportRouter)
+  .route("", partViewerRouter)
   // Proxy logout to g3id so the shop app can end sessions (and clean up kiosk
   // presence) without talking to the g3id worker directly.
   .post("/logout", requireAuth, async (c) => {

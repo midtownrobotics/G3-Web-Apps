@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useParams } from "react-router-dom";
 
 export function DrawingUploadPage() {
@@ -6,7 +6,6 @@ export function DrawingUploadPage() {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-  const [drawings, setDrawings] = useState<any[]>([]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files?.[0]) {
@@ -43,7 +42,6 @@ export function DrawingUploadPage() {
         if (e.target instanceof HTMLFormElement) {
           e.target.reset();
         }
-        fetchDrawings();
       }
     } catch (err) {
       setMessage({ type: "error", text: err instanceof Error ? err.message : "Upload failed" });
@@ -52,23 +50,6 @@ export function DrawingUploadPage() {
     }
   };
 
-  const fetchDrawings = async () => {
-    if (!partNumber) return;
-    try {
-      const res = await fetch(`/api/drawings/list/${partNumber}`, {
-        credentials: "include",
-      });
-      const data = (await res.json()) as { drawings?: any[] };
-      setDrawings(data.drawings || []);
-    } catch (err) {
-      console.error("Failed to fetch drawings", err);
-    }
-  };
-
-  // Fetch on mount
-  useEffect(() => {
-    fetchDrawings();
-  }, [partNumber]);
 
   return (
     <div className="p-6 max-w-2xl mx-auto">
@@ -110,12 +91,12 @@ export function DrawingUploadPage() {
       )}
 
       {partNumber && (
-        <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <h2 className="text-xl font-bold mb-4">OnShape Drawing</h2>
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-xl font-bold mb-4">Drawing</h2>
           <div className="flex items-center justify-between p-3 bg-gray-50 rounded">
             <div>
               <p className="font-medium">Drawing for {partNumber}</p>
-              <p className="text-sm text-gray-600">Cached from OnShape</p>
+              <p className="text-sm text-gray-600">Cached and served from storage</p>
             </div>
             <a
               href={`/api/onshape/drawings/view/${partNumber}`}
@@ -125,32 +106,6 @@ export function DrawingUploadPage() {
             >
               View
             </a>
-          </div>
-        </div>
-      )}
-
-      {drawings.length > 0 && (
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-bold mb-4">Uploaded Drawings</h2>
-          <div className="space-y-2">
-            {drawings.map((drawing) => (
-              <div key={drawing.id} className="flex items-center justify-between p-3 bg-gray-50 rounded">
-                <div>
-                  <p className="font-medium">{drawing.filename}</p>
-                  <p className="text-sm text-gray-600">
-                    {drawing.fileSize && `${(drawing.fileSize / 1024).toFixed(2)} KB`}
-                  </p>
-                </div>
-                <a
-                  href={`/api/drawings/${drawing.id}/download`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 hover:text-blue-800 font-medium"
-                >
-                  View
-                </a>
-              </div>
-            ))}
           </div>
         </div>
       )}

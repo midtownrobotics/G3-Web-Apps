@@ -22,11 +22,10 @@ router.post("/upload", async (c) => {
       return c.json({ error: "Only PDF files are supported" }, 400);
     }
 
-    // Generate R2 key
-    const timestamp = Date.now();
-    const r2Key = `drawings/${partNumber}/${timestamp}-${fileObj.name}`;
+    // Use standard R2 key that matches OnShape export location
+    const r2Key = `drawings/${partNumber}.pdf`;
 
-    // Upload to R2
+    // Upload to R2 (overwrites any existing drawing)
     const arrayBuffer = await fileObj.arrayBuffer();
     console.log("[Drawing Upload] Uploading to R2", { r2Key, size: arrayBuffer.byteLength });
     await c.env.DRAWINGS.put(r2Key, arrayBuffer, {
