@@ -4,11 +4,14 @@ import { cors } from "hono/cors";
 import { createShopDb } from "./db";
 import { requireAuth } from "./middleware/auth";
 import { actionsRouter } from "./routes/actions";
+import { drawingsRouter } from "./routes/drawings";
 import { clearPresence, kioskPresenceRouter } from "./routes/kiosk-presence";
+import { onshapeExportRouter } from "./routes/onshape-export";
 import { onshapeWebhooksRouter } from "./routes/onshape-webhooks";
 import { partDefinitionsRouter } from "./routes/part-definitions";
 import { partInstanceProcessesRouter } from "./routes/part-instance-processes";
 import { partInstancesRouter } from "./routes/part-instances";
+import { partViewerRouter } from "./routes/part-viewer";
 import { processesRouter } from "./routes/processes";
 import { subsystemsRouter } from "./routes/subsystems";
 import type { AppEnv } from "./types";
@@ -49,6 +52,9 @@ const app = base
       kioskDeviceName: c.get("kioskDeviceName"),
     }),
   )
+  .route("/drawings", drawingsRouter)
+  .route("/onshape", onshapeExportRouter)
+  .route("", partViewerRouter)
   // Proxy logout to g3id so the shop app can end sessions (and clean up kiosk
   // presence) without talking to the g3id worker directly.
   .post("/logout", requireAuth, async (c) => {

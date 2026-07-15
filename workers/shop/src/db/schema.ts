@@ -122,3 +122,13 @@ export const onshapeParts = sqliteTable(
   },
   (t) => [unique().on(t.onshapeReleaseId, t.partNumber)],
 );
+
+export const drawings = sqliteTable("drawings", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  partNumber: text("part_number").notNull(),
+  filename: text("filename").notNull(),
+  r2Key: text("r2_key").notNull(),
+  fileSize: integer("file_size"),
+  uploadedBy: text("uploaded_by"),
+  createdAt: integer("created_at").notNull(),
+});
