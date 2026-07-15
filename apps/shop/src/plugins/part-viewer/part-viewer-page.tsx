@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { PDFViewer } from "./pdf-viewer";
 
 interface ErrorState {
   error: string;
@@ -16,6 +15,7 @@ export function PartViewerPage() {
   const [uploading, setUploading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [showUploadForm, setShowUploadForm] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const checkDrawing = async () => {
     try {
@@ -82,6 +82,8 @@ export function PartViewerPage() {
         }
         // Refresh the drawing
         await checkDrawing();
+        // Force PDF refresh by incrementing key
+        setRefreshKey((k) => k + 1);
       }
     } catch (err) {
       setUploadMessage({ type: "error", text: err instanceof Error ? err.message : "Upload failed" });
@@ -131,7 +133,13 @@ export function PartViewerPage() {
               Replace Drawing
             </button>
           </div>
-          <PDFViewer url={pdfUrl} title={`Drawing for ${partNumber}`} />
+          <embed
+            key={refreshKey}
+            src={`${pdfUrl}?v=${refreshKey}`}
+            type="application/pdf"
+            className="flex-1 w-full"
+            title={`Drawing for ${partNumber}`}
+          />
         </>
       )}
 

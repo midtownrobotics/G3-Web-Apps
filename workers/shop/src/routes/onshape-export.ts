@@ -10,7 +10,7 @@ import type { AppEnv } from "../types";
 
 const router = new Hono<AppEnv>();
 
-router.get("/drawings/view/:partNumber", async (c) => {
+const handleDrawingRequest = async (c: any) => {
   try {
     const partNumber = c.req.param("partNumber");
 
@@ -49,6 +49,8 @@ router.get("/drawings/view/:partNumber", async (c) => {
       500,
     );
   }
-});
+};
+
+router.get("/drawings/export/:partNumber", handleDrawingRequest);
 
 export const onshapeExportRouter = router;
