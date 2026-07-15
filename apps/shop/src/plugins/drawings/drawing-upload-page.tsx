@@ -109,6 +109,26 @@ export function DrawingUploadPage() {
         </div>
       )}
 
+      {partNumber && (
+        <div className="bg-white rounded-lg shadow p-6 mb-6">
+          <h2 className="text-xl font-bold mb-4">OnShape Drawing</h2>
+          <div className="flex items-center justify-between p-3 bg-gray-50 rounded">
+            <div>
+              <p className="font-medium">Drawing for {partNumber}</p>
+              <p className="text-sm text-gray-600">Cached from OnShape</p>
+            </div>
+            <a
+              href={`/api/drawings/view/${partNumber}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:text-blue-800 font-medium"
+            >
+              View
+            </a>
+          </div>
+        </div>
+      )}
+
       {drawings.length > 0 && (
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-xl font-bold mb-4">Uploaded Drawings</h2>
