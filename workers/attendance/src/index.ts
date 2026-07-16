@@ -162,7 +162,13 @@ const app = base
     ]);
 
     const signedInIds = new Set(
-      openSessions.map((s) => s.path.split("/")[1]).filter((id): id is string => Boolean(id)),
+      openSessions
+        .map((s) => {
+          const parts = s.path.split("/");
+          const idx = parts.indexOf("members");
+          return idx >= 0 ? parts[idx + 1] : undefined;
+        })
+        .filter((id): id is string => Boolean(id)),
     );
 
     const summaries = await Promise.all(
