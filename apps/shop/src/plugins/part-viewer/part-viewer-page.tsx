@@ -22,21 +22,20 @@ export function PartViewerPage() {
 
   const checkDrawing = useCallback(async () => {
     try {
-      const response = await fetch(`https://api.shop.g3robotics.com/parts/${partNumber}/drawing`, {
+      const apiBase = import.meta.env.VITE_API_BASE_URL || "/api";
+      const url = `${apiBase}/parts/${partNumber}/drawing`;
+
+      const response = await fetch(url, {
         credentials: "include",
-        method: "HEAD",
       });
 
       if (!response.ok) {
-        const errorData = await fetch(`https://api.shop.g3robotics.com/${partNumber}/drawing`, {
-          credentials: "include",
-        }).then((r) => r.json() as Promise<ErrorState>);
-
+        const errorData = (await response.json()) as ErrorState;
         setErrorState(errorData);
         return;
       }
 
-      setPdfUrl(`https://api.shop.g3robotics.com/${partNumber}/drawing`);
+      setPdfUrl(url);
       setErrorState(null);
     } catch (err) {
       setErrorState({
