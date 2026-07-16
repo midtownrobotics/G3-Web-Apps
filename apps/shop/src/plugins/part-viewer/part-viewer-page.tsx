@@ -69,7 +69,8 @@ export function PartViewerPage() {
       formData.append("partNumber", partNumber);
       formData.append("uploadedBy", "part-viewer");
 
-      const res = await fetch("/api/drawings/upload", {
+      const apiBase = import.meta.env.VITE_API_BASE_URL || "/api";
+      const res = await fetch(`${apiBase}/drawings/upload`, {
         method: "POST",
         body: formData,
         credentials: "include",
