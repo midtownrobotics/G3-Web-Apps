@@ -90,7 +90,7 @@ export async function onshapeRequest(
     fetchOptions.body = JSON.stringify(options.body);
   }
 
-  const response = await fetch(`https://cad.onshape.com/api${path}`, fetchOptions);
+  const response = await fetch(`https://cad.onshape.com/api/${path}`, fetchOptions);
 
   if (!response.ok) {
     throw new Error(`OnShape API error: ${response.status} ${response.statusText}`);

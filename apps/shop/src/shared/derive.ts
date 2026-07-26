@@ -25,8 +25,13 @@ export const STATE_META: Record<InstanceState, { label: string; badge: string }>
   },
 };
 
-/** Join non-stale instances with their definitions and pipelines. */
-export function buildInstanceRows(data: ShopData): InstanceRow[] {
+/** Join instances with their definitions and pipelines. Obsolete instances
+ * (`isStale` in the API) are excluded unless `includeStale` is set — the parts
+ * page's Obsolete table needs them. */
+export function buildInstanceRows(
+  data: ShopData,
+  { includeStale = false }: { includeStale?: boolean } = {},
+): InstanceRow[] {
   const defById = new Map(data.definitions.map((d) => [d.id, d]));
   const procsByInstance = new Map<number, PartInstanceProcess[]>();
   for (const p of data.instanceProcesses) {
@@ -37,7 +42,7 @@ export function buildInstanceRows(data: ShopData): InstanceRow[] {
 
   const rows: InstanceRow[] = [];
   for (const instance of data.instances) {
-    if (instance.isStale) continue;
+    if (instance.isStale && !includeStale) continue;
     const definition = defById.get(instance.partDefinitionId);
     if (!definition) continue;
     const procs = (procsByInstance.get(instance.id) ?? []).sort((a, b) => a.index - b.index);
@@ -78,6 +83,49 @@ export function processLoads(rows: InstanceRow[], processes: Process[]): Process
     const open = todo + doing;
     return { process, todo, doing, level: open === 0 ? "none" : open >= 5 ? "high" : "medium" };
   });
+}
+
+/** Find the process a kiosk device is stationed at, by name (case-insensitive). */
+export function matchMachineProcess(
+  processes: Process[],
+  machineName: string | null | undefined,
+): Process | null {
+  if (!machineName) return null;
+  const wanted = machineName.trim().toLowerCase();
+  return processes.find((p) => p.name.trim().toLowerCase() === wanted) ?? null;
+}
+
+/** Status for a single machine based on how much work it has queued. */
+export function machineMood(todo: number, doing: number): ShopMood {
+  if (todo === 0 && doing === 0) {
+    return { label: "Idle", blurb: "No parts queued for this machine.", tone: "calm" };
+  }
+  if (doing === 0) {
+    if (todo >= 5) {
+      return {
+        label: "Backing Up",
+        blurb: `${todo} parts are waiting and nothing is running.`,
+        tone: "warn",
+      };
+    }
+    return {
+      label: "Ready",
+      blurb: `${todo} part${todo === 1 ? " is" : "s are"} ready to start.`,
+      tone: "steady",
+    };
+  }
+  if (todo >= 5) {
+    return {
+      label: "Slammed",
+      blurb: `${doing} running with ${todo} more waiting — this machine is the bottleneck.`,
+      tone: "hot",
+    };
+  }
+  return {
+    label: "Running",
+    blurb: `${doing} in progress, ${todo} up next.`,
+    tone: "steady",
+  };
 }
 
 export type ShopMood = {

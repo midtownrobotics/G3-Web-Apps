@@ -1,6 +1,8 @@
 import { api } from "./api";
 import type {
+  Action,
   Blueprint,
+  KioskPresence,
   PartDefinition,
   PartInstance,
   PartInstanceProcess,
@@ -66,6 +68,30 @@ export async function fetchProcessQueue(
   });
   if (!res.ok) throw new Error(`Failed to fetch process queue (${res.status})`);
   return res.json() as Promise<PartInstanceProcess[]>;
+}
+
+/** Newest-first audit log of part status changes. */
+export async function fetchActions(): Promise<Action[]> {
+  const res = await api.actions.$get();
+  if (!res.ok) throw new Error(`Failed to fetch actions (${res.status})`);
+  return res.json() as Promise<Action[]>;
+}
+
+/** Who is logged in at which kiosk device right now. */
+export async function fetchKioskPresence(): Promise<KioskPresence[]> {
+  const res = await api["kiosk-presence"].$get();
+  if (!res.ok) throw new Error(`Failed to fetch kiosk presence (${res.status})`);
+  return res.json() as Promise<KioskPresence[]>;
+}
+
+/** Resolve a batch of user IDs to display names. */
+export async function fetchUserNames(
+  ids: string[],
+): Promise<{ id: string; displayName: string }[]> {
+  if (ids.length === 0) return [];
+  const res = await api.users.$get({ query: { ids: ids.join(",") } });
+  if (!res.ok) throw new Error(`Failed to fetch user names (${res.status})`);
+  return res.json() as Promise<{ id: string; displayName: string }[]>;
 }
 
 /** The API only exposes instance processes per-process or per-instance, so

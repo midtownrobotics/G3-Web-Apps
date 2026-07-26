@@ -11,11 +11,15 @@ export type AppEnv = {
     ONSHAPE_WEBHOOK_KEY_SECONDARY: string;
     SLACK_BOT_TOKEN: string;
     SLACK_SIGNING_SECRET: string;
+    DRAWINGS: R2Bucket;
   };
   Variables: {
     userId: string;
     userDisplayName: string;
     userIsAdmin: boolean;
     userEmail: string;
+    sessionType: "oauth" | "pin";
+    kioskDeviceId: number | null;
+    kioskDeviceName: string | null;
   };
 };

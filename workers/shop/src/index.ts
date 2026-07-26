@@ -1,11 +1,17 @@
 import { sendMessage } from "@g3/slack";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { createShopDb } from "./db";
 import { requireAuth } from "./middleware/auth";
+import { actionsRouter } from "./routes/actions";
+import { drawingsRouter } from "./routes/drawings";
+import { clearPresence, kioskPresenceRouter } from "./routes/kiosk-presence";
+import { onshapeExportRouter } from "./routes/onshape-export";
 import { onshapeWebhooksRouter } from "./routes/onshape-webhooks";
 import { partDefinitionsRouter } from "./routes/part-definitions";
 import { partInstanceProcessesRouter } from "./routes/part-instance-processes";
 import { partInstancesRouter } from "./routes/part-instances";
+import { partViewerRouter } from "./routes/part-viewer";
 import { processesRouter } from "./routes/processes";
 import { subsystemsRouter } from "./routes/subsystems";
 import type { AppEnv } from "./types";
@@ -41,14 +47,51 @@ const app = base
       isAdmin: c.get("userIsAdmin"),
       email: c.get("userEmail"),
       displayName: c.get("userDisplayName"),
+      sessionType: c.get("sessionType"),
+      kioskDeviceId: c.get("kioskDeviceId"),
+      kioskDeviceName: c.get("kioskDeviceName"),
     }),
   )
+  .route("/drawings", drawingsRouter)
+  .route("/onshape", onshapeExportRouter)
+  .route("", partViewerRouter)
+  // Proxy logout to g3id so the shop app can end sessions (and clean up kiosk
+  // presence) without talking to the g3id worker directly.
+  .post("/logout", requireAuth, async (c) => {
+    const kioskDeviceId = c.get("kioskDeviceId");
+    if (c.get("sessionType") === "pin" && kioskDeviceId) {
+      await clearPresence(createShopDb(c.env.SHOP_DB), kioskDeviceId);
+    }
+    const res = await c.env.G3ID.fetch(
+      new Request("http://g3id/auth/logout", {
+        method: "POST",
+        headers: { cookie: c.req.header("Cookie") ?? "" },
+      }),
+    );
+    // Forward the session-clearing cookie from g3id to the browser.
+    const setCookie = res.headers.get("Set-Cookie");
+    if (setCookie) c.header("Set-Cookie", setCookie);
+    return c.json({ ok: true });
+  })
+  // Resolve user IDs (e.g. part creators) to display names via g3id.
+  .get("/users", requireAuth, async (c) => {
+    const ids = c.req.query("ids") ?? "";
+    const res = await c.env.G3ID.fetch(
+      new Request(`http://g3id/auth/users?ids=${encodeURIComponent(ids)}`, {
+        headers: { cookie: c.req.header("Cookie") ?? "" },
+      }),
+    );
+    if (!res.ok) return c.json({ error: "Failed to resolve users." }, 502);
+    return c.json((await res.json()) as { id: string; displayName: string }[]);
+  })
   .route("/onshape", onshapeWebhooksRouter)
   .route("/subsystems", subsystemsRouter)
   .route("/processes", processesRouter)
   .route("/part-definitions", partDefinitionsRouter)
   .route("/part-instances", partInstancesRouter)
   .route("/part-instance-processes", partInstanceProcessesRouter)
+  .route("/actions", actionsRouter)
+  .route("/kiosk-presence", kioskPresenceRouter)
   .get("/slack-test", async (c) => {
     c.executionCtx.waitUntil(sendMessage("C09QYMTSGKT", "test but now from shop sw worker", c.env));
     return c.text("200", 200);

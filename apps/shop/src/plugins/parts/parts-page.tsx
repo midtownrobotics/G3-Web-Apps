@@ -6,8 +6,11 @@ import {
   STATE_META,
   buildInstanceRows,
 } from "../../shared/derive";
+import { processPath } from "../../shared/nav";
 import { ErrorBanner, PageLoading } from "../../shared/ui";
+import type { ShopData } from "../../shared/use-shop-data";
 import { useShopData } from "../../shared/use-shop-data";
+import { useTouchDevice } from "../../shared/use-touch";
 import { PartCard } from "./part-card";
 
 type SortKey = "newest" | "oldest" | "alpha" | "priority" | "process" | "status" | "subsystem";
@@ -43,24 +46,130 @@ const DEFAULT_FILTERS: Filters = {
 
 export function PartsPage() {
   const { data, loading, error, refresh } = useShopData();
+  const touch = useTouchDevice();
+  const [selectedInstanceId, setSelectedInstanceId] = useState<number | null>(null);
 
+  // Live (non-obsolete) rows split into "in production" vs. fully complete;
+  // obsolete rows get their own table.
+  const liveRows = useMemo(() => (data ? buildInstanceRows(data) : []), [data]);
+  const obsoleteRows = useMemo(
+    () =>
+      data ? buildInstanceRows(data, { includeStale: true }).filter((r) => r.instance.isStale) : [],
+    [data],
+  );
+  const activeRows = useMemo(() => liveRows.filter((r) => r.state !== "complete"), [liveRows]);
+  const completeRows = useMemo(() => liveRows.filter((r) => r.state === "complete"), [liveRows]);
+
+  // Total instances ever made per definition — drives the "#n of N total" label.
+  const totalByDef = useMemo(() => {
+    const map = new Map<number, number>();
+    for (const inst of data?.instances ?? [])
+      map.set(inst.partDefinitionId, (map.get(inst.partDefinitionId) ?? 0) + 1);
+    return map;
+  }, [data]);
+
+  if (loading) return <PageLoading />;
+
+  const selectedRow =
+    selectedInstanceId !== null
+      ? ([...liveRows, ...obsoleteRows].find((r) => r.instance.id === selectedInstanceId) ?? null)
+      : null;
+
+  return (
+    <main className="min-h-screen bg-mist">
+      <div className="max-w-5xl mx-auto px-6 py-8 space-y-8">
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="font-display text-4xl text-ink">Parts</h1>
+          <Link
+            to="/parts/new"
+            className={`bg-crimson hover:bg-crimson-dark text-paper text-sm font-semibold rounded-lg transition-colors ${
+              touch ? "px-5 py-3" : "px-4 py-2"
+            }`}
+          >
+            + Add Part
+          </Link>
+        </div>
+
+        {error && <ErrorBanner message={error} />}
+
+        {data && (
+          <>
+            <PartsTable
+              title="In Production"
+              rows={activeRows}
+              data={data}
+              totalByDef={totalByDef}
+              touch={touch}
+              onOpen={setSelectedInstanceId}
+              emptyAll="No parts in production yet. Add one to get started."
+            />
+            <PartsTable
+              title="Complete"
+              rows={completeRows}
+              data={data}
+              totalByDef={totalByDef}
+              touch={touch}
+              onOpen={setSelectedInstanceId}
+              emptyAll="No completed parts yet."
+            />
+            <PartsTable
+              title="Obsolete"
+              rows={obsoleteRows}
+              data={data}
+              totalByDef={totalByDef}
+              touch={touch}
+              onOpen={setSelectedInstanceId}
+              emptyAll="No obsolete parts."
+            />
+          </>
+        )}
+      </div>
+
+      {selectedRow && data && (
+        <PartCard
+          row={selectedRow}
+          data={data}
+          onClose={() => setSelectedInstanceId(null)}
+          onChanged={refresh}
+        />
+      )}
+    </main>
+  );
+}
+
+// ── Per-table: own search, filters and sort ────────────────────────────────────
+
+function PartsTable({
+  title,
+  rows,
+  data,
+  totalByDef,
+  touch,
+  onOpen,
+  emptyAll,
+}: {
+  title: string;
+  rows: InstanceRow[];
+  data: ShopData;
+  totalByDef: Map<number, number>;
+  touch: boolean;
+  onOpen: (instanceId: number) => void;
+  emptyAll: string;
+}) {
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortKey>("newest");
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [selectedInstanceId, setSelectedInstanceId] = useState<number | null>(null);
 
-  const rows = useMemo(() => (data ? buildInstanceRows(data) : []), [data]);
+  const processName = (pid: number) =>
+    data.processes.find((p) => p.id === pid)?.name ?? `Process #${pid}`;
+  const subsystemName = (sid: number) => data.subsystems.find((s) => s.id === sid)?.name ?? "—";
 
   const qtyByDef = useMemo(() => {
     const map = new Map<number, number>();
     for (const r of rows) map.set(r.definition.id, (map.get(r.definition.id) ?? 0) + 1);
     return map;
   }, [rows]);
-
-  const processName = (pid: number) =>
-    data?.processes.find((p) => p.id === pid)?.name ?? `Process #${pid}`;
-  const subsystemName = (sid: number) => data?.subsystems.find((s) => s.id === sid)?.name ?? "—";
 
   // ── Filter ──────────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -152,13 +261,6 @@ export function PartsPage() {
     return grouped;
   }, [filtered, sort]);
 
-  if (loading) return <PageLoading />;
-
-  const selectedRow =
-    selectedInstanceId !== null
-      ? (rows.find((r) => r.instance.id === selectedInstanceId) ?? null)
-      : null;
-
   const activeFilterCount =
     (filters.priority !== "all" ? 1 : 0) +
     (filters.subsystemId ? 1 : 0) +
@@ -167,226 +269,215 @@ export function PartsPage() {
     (filters.revision.trim() ? 1 : 0) +
     (filters.minQty > 0 ? 1 : 0);
 
+  const controlPad = touch ? "py-3" : "py-2";
+
   return (
-    <main className="min-h-screen bg-mist">
-      <div className="max-w-5xl mx-auto px-6 py-8 space-y-5">
-        <div className="flex items-center justify-between gap-3">
-          <h1 className="font-display text-4xl text-ink">Parts</h1>
-          <Link
-            to="/parts/new"
-            className="px-4 py-2 bg-crimson hover:bg-crimson-dark text-paper text-sm font-semibold rounded-lg transition-colors"
+    <section className="space-y-3">
+      <h2 className="font-display text-2xl text-ink">
+        {title} <span className="text-steel text-lg font-normal">({rows.length})</span>
+      </h2>
+
+      {/* Toolbar */}
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name, part number, or revision…"
+            className={`flex-1 min-w-52 bg-paper border border-steel/40 rounded-lg px-3 text-sm text-ink placeholder-steel focus:outline-none focus:border-crimson ${controlPad}`}
+          />
+          <button
+            type="button"
+            onClick={() => setFiltersOpen((o) => !o)}
+            className={`px-3 text-sm font-medium rounded-lg border transition-colors ${controlPad} ${
+              filtersOpen || activeFilterCount > 0
+                ? "bg-crimson-tint border-crimson/40 text-crimson-dark"
+                : "bg-paper border-steel/40 text-steel-dark hover:border-steel"
+            }`}
           >
-            + Add Part
-          </Link>
-        </div>
-
-        {error && <ErrorBanner message={error} />}
-
-        {/* Toolbar */}
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by name, part number, or revision…"
-              className="flex-1 min-w-52 bg-paper border border-steel/40 rounded-lg px-3 py-2 text-sm text-ink placeholder-steel focus:outline-none focus:border-crimson"
-            />
-            <button
-              type="button"
-              onClick={() => setFiltersOpen((o) => !o)}
-              className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
-                filtersOpen || activeFilterCount > 0
-                  ? "bg-crimson-tint border-crimson/40 text-crimson-dark"
-                  : "bg-paper border-steel/40 text-steel-dark hover:border-steel"
-              }`}
+            Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
+          </button>
+          <label className="flex items-center gap-2 text-sm text-steel-dark">
+            Sort
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as SortKey)}
+              className={`bg-paper border border-steel/40 rounded-lg px-2.5 text-sm text-ink focus:outline-none focus:border-crimson ${controlPad}`}
             >
-              Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
-            </button>
-            <label className="flex items-center gap-2 text-sm text-steel-dark">
-              Sort
-              <select
-                value={sort}
-                onChange={(e) => setSort(e.target.value as SortKey)}
-                className="bg-paper border border-steel/40 rounded-lg px-2.5 py-2 text-sm text-ink focus:outline-none focus:border-crimson"
-              >
-                <option value="newest">Newest first</option>
-                <option value="oldest">Oldest first</option>
-                <option value="alpha">A–Z</option>
-                <option value="priority">Priority first</option>
-                <option value="process">By process</option>
-                <option value="status">By status</option>
-                <option value="subsystem">By subsystem</option>
-              </select>
-            </label>
-          </div>
-
-          {filtersOpen && data && (
-            <div className="bg-paper border border-steel/30 rounded-xl p-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-              <FilterSelect
-                label="Priority"
-                value={filters.priority}
-                onChange={(v) => setFilters({ ...filters, priority: v as Filters["priority"] })}
-                options={[
-                  ["all", "All"],
-                  ["priority", "Priority only"],
-                  ["standard", "Standard only"],
-                ]}
-              />
-              <FilterSelect
-                label="Subsystem"
-                value={String(filters.subsystemId)}
-                onChange={(v) => setFilters({ ...filters, subsystemId: Number(v) })}
-                options={[
-                  ["0", "All"],
-                  ...data.subsystems.map((s): [string, string] => [String(s.id), s.name]),
-                ]}
-              />
-              <FilterSelect
-                label="Process"
-                value={String(filters.processId)}
-                onChange={(v) => setFilters({ ...filters, processId: Number(v) })}
-                options={[
-                  ["0", "All"],
-                  ...data.processes.map((p): [string, string] => [String(p.id), p.name]),
-                ]}
-              />
-              <FilterSelect
-                label="Status"
-                value={filters.state}
-                onChange={(v) => setFilters({ ...filters, state: v as Filters["state"] })}
-                options={[
-                  ["", "All"],
-                  ...Object.entries(STATE_META).map(([k, m]): [string, string] => [k, m.label]),
-                ]}
-              />
-              <div className="space-y-1">
-                <span className="text-xs font-medium text-steel-dark">Revision</span>
-                <input
-                  type="text"
-                  value={filters.revision}
-                  onChange={(e) => setFilters({ ...filters, revision: e.target.value })}
-                  placeholder="e.g. B"
-                  className="w-full bg-paper border border-steel/40 rounded-lg px-2.5 py-1.5 text-sm text-ink placeholder-steel focus:outline-none focus:border-crimson"
-                />
-              </div>
-              <div className="space-y-1">
-                <span className="text-xs font-medium text-steel-dark">Min Quantity</span>
-                <input
-                  type="number"
-                  min={0}
-                  value={filters.minQty || ""}
-                  onChange={(e) =>
-                    setFilters({ ...filters, minQty: Math.max(0, Number(e.target.value)) })
-                  }
-                  placeholder="Any"
-                  className="w-full bg-paper border border-steel/40 rounded-lg px-2.5 py-1.5 text-sm text-ink placeholder-steel focus:outline-none focus:border-crimson"
-                />
-              </div>
-              {activeFilterCount > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setFilters(DEFAULT_FILTERS)}
-                  className="self-end text-sm text-crimson hover:text-crimson-dark font-medium text-left pb-1.5"
-                >
-                  Clear all
-                </button>
-              )}
-            </div>
-          )}
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+              <option value="alpha">A–Z</option>
+              <option value="priority">Priority first</option>
+              <option value="process">By process</option>
+              <option value="status">By status</option>
+              <option value="subsystem">By subsystem</option>
+            </select>
+          </label>
         </div>
 
-        {/* Table */}
-        <div className="bg-paper border border-steel/30 rounded-xl overflow-hidden">
-          <div className="flex items-center gap-3 px-3 py-2 border-b border-steel/25 bg-mist text-xs font-semibold uppercase tracking-wider text-steel">
-            <span className="w-8 shrink-0" />
-            <span className="w-3.5 shrink-0" />
-            <span className="flex-1 min-w-0">Part</span>
-            <span className="w-44 shrink-0 hidden sm:block">Number / Rev</span>
-            <span className="w-36 shrink-0 hidden md:block">Process</span>
-            <span className="w-28 shrink-0">Status</span>
-          </div>
-
-          {groups.length === 0 && (
-            <p className="text-steel text-sm text-center py-12">
-              {rows.length === 0
-                ? "No parts in production yet. Add one to get started."
-                : "No parts match your search or filters."}
-            </p>
-          )}
-
-          <div className="divide-y divide-steel/15">
-            {groups.map((group) =>
-              group.map((row, i) => (
-                <PartRow
-                  key={row.instance.id}
-                  row={row}
-                  connector={
-                    group.length === 1
-                      ? "only"
-                      : i === 0
-                        ? "first"
-                        : i === group.length - 1
-                          ? "last"
-                          : "middle"
-                  }
-                  processName={processName}
-                  onOpen={() => setSelectedInstanceId(row.instance.id)}
-                />
-              )),
+        {filtersOpen && (
+          <div className="bg-paper border border-steel/30 rounded-xl p-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            <FilterSelect
+              label="Priority"
+              value={filters.priority}
+              onChange={(v) => setFilters({ ...filters, priority: v as Filters["priority"] })}
+              options={[
+                ["all", "All"],
+                ["priority", "Priority only"],
+                ["standard", "Standard only"],
+              ]}
+            />
+            <FilterSelect
+              label="Subsystem"
+              value={String(filters.subsystemId)}
+              onChange={(v) => setFilters({ ...filters, subsystemId: Number(v) })}
+              options={[
+                ["0", "All"],
+                ...data.subsystems.map((s): [string, string] => [String(s.id), s.name]),
+              ]}
+            />
+            <FilterSelect
+              label="Process"
+              value={String(filters.processId)}
+              onChange={(v) => setFilters({ ...filters, processId: Number(v) })}
+              options={[
+                ["0", "All"],
+                ...data.processes.map((p): [string, string] => [String(p.id), p.name]),
+              ]}
+            />
+            <FilterSelect
+              label="Status"
+              value={filters.state}
+              onChange={(v) => setFilters({ ...filters, state: v as Filters["state"] })}
+              options={[
+                ["", "All"],
+                ...Object.entries(STATE_META).map(([k, m]): [string, string] => [k, m.label]),
+              ]}
+            />
+            <div className="space-y-1">
+              <span className="text-xs font-medium text-steel-dark">Revision</span>
+              <input
+                type="text"
+                value={filters.revision}
+                onChange={(e) => setFilters({ ...filters, revision: e.target.value })}
+                placeholder="e.g. B"
+                className="w-full bg-paper border border-steel/40 rounded-lg px-2.5 py-1.5 text-sm text-ink placeholder-steel focus:outline-none focus:border-crimson"
+              />
+            </div>
+            <div className="space-y-1">
+              <span className="text-xs font-medium text-steel-dark">Min Quantity</span>
+              <input
+                type="number"
+                min={0}
+                value={filters.minQty || ""}
+                onChange={(e) =>
+                  setFilters({ ...filters, minQty: Math.max(0, Number(e.target.value)) })
+                }
+                placeholder="Any"
+                className="w-full bg-paper border border-steel/40 rounded-lg px-2.5 py-1.5 text-sm text-ink placeholder-steel focus:outline-none focus:border-crimson"
+              />
+            </div>
+            {activeFilterCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setFilters(DEFAULT_FILTERS)}
+                className="self-end text-sm text-crimson hover:text-crimson-dark font-medium text-left pb-1.5"
+              >
+                Clear all
+              </button>
             )}
           </div>
-        </div>
+        )}
       </div>
 
-      {selectedRow && data && (
-        <PartCard
-          row={selectedRow}
-          data={data}
-          onClose={() => setSelectedInstanceId(null)}
-          onChanged={refresh}
-        />
-      )}
-    </main>
+      {/* Table */}
+      <div className="bg-paper border border-steel/30 rounded-xl overflow-hidden">
+        <div className="flex items-center gap-3 px-3 py-2 border-b border-steel/25 bg-mist text-xs font-semibold uppercase tracking-wider text-steel">
+          <span className="w-3.5 shrink-0" />
+          <span className="flex-1 min-w-0">Part</span>
+          <span className="w-44 shrink-0 hidden sm:block">Number / Rev</span>
+          <span className="w-36 shrink-0 hidden md:block">Last process</span>
+          <span className="w-28 shrink-0">Status</span>
+        </div>
+
+        {groups.length === 0 && (
+          <p className="text-steel text-sm text-center py-12">
+            {rows.length === 0 ? emptyAll : "No parts match your search or filters."}
+          </p>
+        )}
+
+        <div className="divide-y divide-steel/15">
+          {groups.map((group) =>
+            group.map((row, i) => (
+              <PartRow
+                key={row.instance.id}
+                row={row}
+                total={totalByDef.get(row.definition.id) ?? 1}
+                connector={
+                  group.length === 1
+                    ? "only"
+                    : i === 0
+                      ? "first"
+                      : i === group.length - 1
+                        ? "last"
+                        : "middle"
+                }
+                processName={processName}
+                touch={touch}
+                onOpen={() => onOpen(row.instance.id)}
+              />
+            )),
+          )}
+        </div>
+      </div>
+    </section>
   );
 }
 
 function PartRow({
   row,
+  total,
   connector,
   processName,
+  touch,
   onOpen,
 }: {
   row: InstanceRow;
+  total: number;
   connector: "only" | "first" | "middle" | "last";
   processName: (pid: number) => string;
+  touch: boolean;
   onOpen: () => void;
 }) {
-  const meta = STATE_META[row.state];
+  // Obsolete parts read simply as "Obsolete" regardless of their pipeline state.
+  const isObsolete = !!row.instance.isStale;
+  const status = isObsolete
+    ? { label: "Obsolete", badge: "bg-steel-tint text-steel-dark border-steel/40" }
+    : STATE_META[row.state];
   return (
-    <div className="relative flex items-center gap-3 px-3 py-2.5 hover:bg-mist/70 transition-colors">
+    // biome-ignore lint/a11y/useKeyWithClickEvents: row is a convenience target; the nested process link stays keyboard-accessible
+    <div
+      className={`relative flex items-center gap-3 px-3 cursor-pointer hover:bg-mist/70 transition-colors ${
+        touch ? "py-4" : "py-2.5"
+      }`}
+      onClick={onOpen}
+      title="View part details"
+    >
       {row.instance.isPriority ? (
         <span className="absolute left-0 inset-y-0 w-1 bg-amber-400" title="Priority part" />
       ) : null}
-
-      <button
-        type="button"
-        onClick={onOpen}
-        title="View part details"
-        aria-label="View part details"
-        className="w-8 h-8 shrink-0 rounded-lg text-steel hover:text-ink hover:bg-steel-tint text-lg leading-none transition-colors"
-      >
-        ⋮
-      </button>
 
       <Connector pos={connector} />
 
       <span
         className="flex-1 min-w-0 text-sm font-medium text-ink truncate"
-        title={`Part name: ${row.definition.name} (instance #${row.instance.instanceNumber})`}
+        title={`Part name: ${row.definition.name} (instance ${row.instance.instanceNumber} of ${total})`}
       >
         {row.definition.name}
-        <span className="text-steel font-normal ml-1.5">#{row.instance.instanceNumber}</span>
+        <span className="text-steel font-normal ml-1.5">
+          #{row.instance.instanceNumber} of {total}
+        </span>
       </span>
 
       <span
@@ -396,22 +487,26 @@ function PartRow({
         {row.definition.onshapePartNumber} · Rev {row.definition.revision}
       </span>
 
-      <span
-        className="w-36 shrink-0 hidden md:block text-sm text-ink truncate"
-        title={
-          row.current
-            ? `Current process: ${processName(row.current.processId)}`
-            : "No current process"
-        }
-      >
-        {row.current ? processName(row.current.processId) : "—"}
+      <span className="w-36 shrink-0 hidden md:block text-sm text-ink truncate">
+        {row.current ? (
+          <Link
+            to={processPath(row.current.processId)}
+            onClick={(e) => e.stopPropagation()}
+            className="text-ink hover:text-crimson underline decoration-steel/40 hover:decoration-crimson transition-colors"
+            title={`Go to ${processName(row.current.processId)} on the shop floor`}
+          >
+            {processName(row.current.processId)}
+          </Link>
+        ) : (
+          "—"
+        )}
       </span>
 
-      <span className="w-28 shrink-0" title={`Status: ${meta.label}`}>
+      <span className="w-28 shrink-0" title={`Status: ${status.label}`}>
         <span
-          className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full border ${meta.badge}`}
+          className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full border ${status.badge}`}
         >
-          {meta.label}
+          {status.label}
         </span>
       </span>
     </div>
