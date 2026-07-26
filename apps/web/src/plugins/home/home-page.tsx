@@ -5,6 +5,7 @@ import {
   FaGithub,
   FaHardHat,
   FaInstagram,
+  FaRobot,
   FaSlack,
   FaToolbox,
   FaTrophy,
@@ -47,6 +48,12 @@ const APPS: App[] = [
     href: "https://skilltree.g3robotics.com",
     icon: LuGitBranch,
     bg: "bg-amber-900",
+  },
+  {
+    label: "Strategy",
+    href: "https://scouting.g3robotics.com",
+    icon: FaRobot,
+    bg: "bg-slate-900",
   },
   {
     label: "Public Site",

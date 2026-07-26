@@ -1,0 +1,44 @@
+name = "scouting"
+main = "src/index.ts"
+compatibility_date = "2026-05-17"
+
+[[services]]
+binding = "G3ID"
+service = "g3id"
+
+[[d1_databases]]
+binding = "SCOUTING_DB"
+database_name = "g3-scouting-local"
+database_id = "00000000-0000-0000-0000-000000000002"
+migrations_dir = "src/db/migrations"
+
+[[r2_buckets]]
+binding = "FIELD_MAPS"
+bucket_name = "g3-scouting"
+
+[vars]
+FRONTEND_URL = "http://localhost:5182"
+
+[env.production]
+name = "scouting-production"
+
+[[env.production.services]]
+binding = "G3ID"
+service = "g3id-production"
+
+[[env.production.d1_databases]]
+binding = "SCOUTING_DB"
+database_name = "g3-scouting-prod"
+database_id = "REPLACE_WITH_PRODUCTION_D1_ID"
+migrations_dir = "src/db/migrations"
+
+[[env.production.r2_buckets]]
+binding = "FIELD_MAPS"
+bucket_name = "g3-scouting"
+
+[[env.production.routes]]
+pattern = "api.scouting.g3robotics.com"
+custom_domain = true
+
+[env.production.vars]
+FRONTEND_URL = "https://scouting.g3robotics.com"

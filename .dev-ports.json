@@ -29,6 +29,11 @@
       "port": 5181,
       "name": "Attendance",
       "url": "http://localhost:5181"
+    },
+    "scouting": {
+      "port": 5182,
+      "name": "Strategy Tools",
+      "url": "http://localhost:5182"
     }
   },
   "workers": {
@@ -61,6 +66,12 @@
       "inspectorPort": 9233,
       "name": "Attendance Worker",
       "url": "http://localhost:8791"
+    },
+    "scouting": {
+      "port": 8792,
+      "inspectorPort": 9234,
+      "name": "Scouting Worker",
+      "url": "http://localhost:8792"
     }
   }
 }
