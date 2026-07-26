@@ -27,6 +27,7 @@ import {
   useState,
 } from "react";
 import { API_URL, G3ID_URL, api } from "./api";
+import { deleteLocalFieldMap, listLocalFieldMaps, saveLocalFieldMap } from "./local-field-maps";
 
 type Page = "overview" | "tiers" | "maps" | "autos";
 type User = { userId: string; displayName: string; email: string; isAdmin: boolean };
@@ -444,12 +445,14 @@ function MapCanvas({ onSaved }: { onSaved: () => Promise<void> }) {
     try {
       const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
       if (!blob) throw new Error("Could not create image.");
-      const form = new FormData();
-      form.set("image", blob, "annotated-field.png");
-      form.set("name", name);
-      form.set("eventName", eventName);
-      form.set("notes", notes);
-      await api("/field-maps", { method: "POST", body: form });
+      await saveLocalFieldMap({
+        id: crypto.randomUUID(),
+        name: name.trim(),
+        eventName: eventName.trim(),
+        notes: notes.trim(),
+        image: blob,
+        updatedAt: Date.now(),
+      });
       await onSaved();
       setName("");
       setEventName("");
@@ -549,15 +552,25 @@ function MapCanvas({ onSaved }: { onSaved: () => Promise<void> }) {
 function FieldMaps() {
   const [maps, setMaps] = useState<FieldMap[]>([]);
   const load = useCallback(async () => {
-    const data = await api<{ fieldMaps: FieldMap[] }>("/field-maps");
-    setMaps(data.fieldMaps);
+    const stored = await listLocalFieldMaps();
+    setMaps((current) => {
+      for (const map of current) URL.revokeObjectURL(map.imageUrl);
+      return stored.map((map) => ({
+        id: map.id,
+        name: map.name,
+        eventName: map.eventName,
+        notes: map.notes,
+        imageUrl: URL.createObjectURL(map.image),
+        updatedAt: map.updatedAt,
+      }));
+    });
   }, []);
   useEffect(() => {
     load().catch(() => undefined);
   }, [load]);
 
   async function remove(id: string) {
-    await api(`/field-maps/${id}`, { method: "DELETE" });
+    await deleteLocalFieldMap(id);
     await load();
   }
 
@@ -572,14 +585,14 @@ function FieldMaps() {
       <div className="section-title">
         <div>
           <h2>Saved maps</h2>
-          <span>{maps.length} shared plans</span>
+          <span>{maps.length} saved on this device</span>
         </div>
       </div>
       {maps.length ? (
         <div className="map-grid">
           {maps.map((map) => (
             <article className="map-card" key={map.id}>
-              <img src={`${API_URL}${map.imageUrl}`} alt={map.name} />
+              <img src={map.imageUrl} alt={map.name} />
               <div>
                 <span className="card-kicker">{map.eventName || "General strategy"}</span>
                 <h3>{map.name}</h3>
