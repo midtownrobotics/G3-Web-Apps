@@ -29,7 +29,7 @@ service = "g3id-production"
 [[env.production.d1_databases]]
 binding = "SCOUTING_DB"
 database_name = "g3-scouting-prod"
-database_id = "REPLACE_WITH_PRODUCTION_D1_ID"
+database_id = "e24f6c2e-72dd-4307-864f-8e1b5dc2c2aa"
 migrations_dir = "src/db/migrations"
 
 [[env.production.r2_buckets]]
