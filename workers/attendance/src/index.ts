@@ -149,7 +149,66 @@ const app = base
 
     return c.json({ ok: true, durationMs, totalHours: totalMs / 3_600_000 });
   })
+  // Attendance summary — admin only. One row per member: current status,
+  // last sign-in, and total hours for the current year.
+  .get("/admin/summary", requireAuth, async (c) => {
+    if (!c.get("userIsAdmin")) return c.json({ error: "Forbidden." }, 403);
 
+    const fs = db(c.env);
+    const year = String(new Date().getFullYear());
+    const members = await fs.listCollection("members");
+
+    const summaries = await Promise.all(
+      members.map(async (member) => {
+        const memberId = member.id;
+        const sessions = await fs.listCollection(`members/${memberId}/sessions`);
+        let latestSignIn: Date | null = null;
+        let totalMs = 0;
+        let signedIn = false;
+
+        for (const session of sessions) {
+          const signInRaw = session.data.signIn;
+          const signIn = signInRaw instanceof Date ? signInRaw : new Date(signInRaw as string);
+          if (Number.isNaN(signIn.getTime())) continue;
+
+          if (!latestSignIn || signIn > latestSignIn) latestSignIn = signIn;
+          if (String(session.data.year ?? signIn.getFullYear()) !== year) continue;
+
+          const isOpen = session.data.status === "open" || session.data.signOut == null;
+          if (isOpen) {
+            signedIn = true;
+            totalMs += Math.max(0, Date.now() - signIn.getTime());
+            continue;
+          }
+
+          const durationMs = session.data.durationMs;
+          if (typeof durationMs === "number" && Number.isFinite(durationMs)) {
+            totalMs += Math.max(0, durationMs);
+            continue;
+          }
+
+          const signOutRaw = session.data.signOut;
+          const signOut = signOutRaw instanceof Date ? signOutRaw : new Date(signOutRaw as string);
+          if (!Number.isNaN(signOut.getTime())) {
+            totalMs += Math.max(0, signOut.getTime() - signIn.getTime());
+          }
+        }
+
+        return {
+          id: memberId,
+          displayName: (member.data.displayName as string) ?? memberId,
+          email: (member.data.email as string) ?? "",
+          signedIn,
+          lastSignIn: latestSignIn?.toISOString() ?? null,
+          totalHours: totalMs / 3_600_000,
+        };
+      }),
+    );
+
+    summaries.sort((a, b) => a.displayName.localeCompare(b.displayName));
+
+    return c.json({ year, members: summaries });
+  })
   // Who's currently signed in — any logged-in user can view.
   .get("/status", requireAuth, async (c) => {
     const fs = db(c.env);
