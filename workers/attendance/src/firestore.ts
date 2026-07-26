@@ -224,11 +224,29 @@ export class Firestore {
 
 
   async listCollection(collectionPath: string): Promise<DocSnapshot[]> {
-    const url = `${this.base}/${collectionPath}`;
-    const res = await fetch(url, { headers: await this.headers() });
-    const data = (await res.json()) as { documents?: FirestoreDoc[] };
+    const documents: FirestoreDoc[] = [];
+    let pageToken: string | undefined;
 
-    return (data.documents ?? []).map(doc => ({
+    do {
+      const params = new URLSearchParams({ pageSize: "1000" });
+      if (pageToken) params.set("pageToken", pageToken);
+
+      const res = await fetch(`${this.base}/${collectionPath}?${params}`, {
+        headers: await this.headers(),
+      });
+      if (!res.ok) {
+        throw new Error(`Firestore list failed (${res.status}) for ${collectionPath}`);
+      }
+
+      const data = (await res.json()) as {
+        documents?: FirestoreDoc[];
+        nextPageToken?: string;
+      };
+      documents.push(...(data.documents ?? []));
+      pageToken = data.nextPageToken;
+    } while (pageToken);
+
+    return documents.map(doc => ({
       id: getSafeId(doc.name),
       path: getSafePath(doc.name),
       data: fieldsToObj(doc.fields ?? {}),

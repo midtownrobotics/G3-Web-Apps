@@ -156,54 +156,51 @@ const app = base
 
     const fs = db(c.env);
     const year = String(new Date().getFullYear());
-    const [members, openSessions] = await Promise.all([
-      fs.listCollection("members"),
-      fs.collectionGroupQuery("sessions", [{ field: "status", op: "EQUAL", value: "open" }]),
-    ]);
-
-    const signedInIds = new Set(
-      openSessions
-        .map((s) => {
-          const parts = s.path.split("/");
-          const idx = parts.indexOf("members");
-          return idx >= 0 ? parts[idx + 1] : undefined;
-        })
-        .filter((id): id is string => Boolean(id)),
-    );
+    const members = await fs.listCollection("members");
 
     const summaries = await Promise.all(
       members.map(async (member) => {
         const memberId = member.id;
-        const sessionsPath = `members/${memberId}/sessions`;
+        const sessions = await fs.listCollection(`members/${memberId}/sessions`);
+        let latestSignIn: Date | null = null;
+        let totalMs = 0;
+        let signedIn = false;
 
-        const [lastSessions, totals] = await Promise.all([
-          fs.query(
-            sessionsPath,
-            [{ field: "status", op: "EQUAL", value: "completed" }],
-            {
-              field: "signOut",
-              dir: "DESCENDING",
-            },
-            1,
-          ),
-          fs.getDoc(`members/${memberId}/totals/${year}`),
-        ]);
+        for (const session of sessions) {
+          const signInRaw = session.data.signIn;
+          const signIn = signInRaw instanceof Date ? signInRaw : new Date(signInRaw as string);
+          if (Number.isNaN(signIn.getTime())) continue;
 
-        const lastSignInRaw = lastSessions[0]?.data?.signIn;
-        const lastSignIn =
-          lastSignInRaw instanceof Date
-            ? lastSignInRaw.toISOString()
-            : lastSignInRaw
-              ? new Date(lastSignInRaw as string).toISOString()
-              : null;
+          if (!latestSignIn || signIn > latestSignIn) latestSignIn = signIn;
+          if (String(session.data.year ?? signIn.getFullYear()) !== year) continue;
+
+          const isOpen = session.data.status === "open" || session.data.signOut == null;
+          if (isOpen) {
+            signedIn = true;
+            totalMs += Math.max(0, Date.now() - signIn.getTime());
+            continue;
+          }
+
+          const durationMs = session.data.durationMs;
+          if (typeof durationMs === "number" && Number.isFinite(durationMs)) {
+            totalMs += Math.max(0, durationMs);
+            continue;
+          }
+
+          const signOutRaw = session.data.signOut;
+          const signOut = signOutRaw instanceof Date ? signOutRaw : new Date(signOutRaw as string);
+          if (!Number.isNaN(signOut.getTime())) {
+            totalMs += Math.max(0, signOut.getTime() - signIn.getTime());
+          }
+        }
 
         return {
           id: memberId,
           displayName: (member.data.displayName as string) ?? memberId,
           email: (member.data.email as string) ?? "",
-          signedIn: signedInIds.has(memberId),
-          lastSignIn,
-          totalHours: (totals?.data?.totalHours as number) ?? 0,
+          signedIn,
+          lastSignIn: latestSignIn?.toISOString() ?? null,
+          totalHours: totalMs / 3_600_000,
         };
       }),
     );
