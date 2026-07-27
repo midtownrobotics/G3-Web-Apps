@@ -43,3 +43,4 @@ custom_domain = true
 
 [env.production.vars]
 FRONTEND_URL = "https://scouting.g3robotics.com"
+LOCAL_AUTH_BYPASS = "false"
