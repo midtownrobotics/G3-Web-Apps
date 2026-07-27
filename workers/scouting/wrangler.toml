@@ -23,3 +23,30 @@ LOCAL_AUTH_BYPASS = "false"
 [[routes]]
 pattern = "api.scouting.g3robotics.com"
 custom_domain = true
+
+# Keep a named production environment for Cloudflare Builds configurations
+# that invoke `wrangler deploy --env production`.
+[env.production]
+name = "scouting-production"
+
+[[env.production.services]]
+binding = "G3ID"
+service = "g3id-production"
+
+[[env.production.d1_databases]]
+binding = "SCOUTING_DB"
+database_name = "g3-scouting-prod"
+database_id = "e24f6c2e-72dd-4307-864f-8e1b5dc2c2aa"
+migrations_dir = "src/db/migrations"
+
+[[env.production.r2_buckets]]
+binding = "FIELD_MAPS"
+bucket_name = "g3-scouting"
+
+[[env.production.routes]]
+pattern = "api.scouting.g3robotics.com"
+custom_domain = true
+
+[env.production.vars]
+FRONTEND_URL = "https://scouting.g3robotics.com"
+LOCAL_AUTH_BYPASS = "false"
