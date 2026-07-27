@@ -374,36 +374,39 @@ function MapCanvas({ onSaved }: { onSaved: () => Promise<void> }) {
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
 
-  function snapshot() {
+  const snapshot = useCallback(() => {
     const canvas = canvasRef.current;
     const context = canvas?.getContext("2d");
     if (canvas && context)
       history.current.push(context.getImageData(0, 0, canvas.width, canvas.height));
-  }
+  }, []);
 
-  function loadImage(imageBlob: Blob, suggestedName = "") {
-    const image = new window.Image();
-    image.onload = () => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const maxWidth = 1400;
-      const scale = Math.min(1, maxWidth / image.width);
-      canvas.width = image.width * scale;
-      canvas.height = image.height * scale;
-      canvas.getContext("2d")?.drawImage(image, 0, 0, canvas.width, canvas.height);
-      const baseCanvas = document.createElement("canvas");
-      baseCanvas.width = canvas.width;
-      baseCanvas.height = canvas.height;
-      baseCanvas.getContext("2d")?.drawImage(image, 0, 0, canvas.width, canvas.height);
-      baseCanvasRef.current = baseCanvas;
-      history.current = [];
-      snapshot();
-      setHasImage(true);
-      if (suggestedName) setName(suggestedName.replace(/\.[^.]+$/, ""));
-      URL.revokeObjectURL(image.src);
-    };
-    image.src = URL.createObjectURL(imageBlob);
-  }
+  const loadImage = useCallback(
+    (imageBlob: Blob, suggestedName = "") => {
+      const image = new window.Image();
+      image.onload = () => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const maxWidth = 1400;
+        const scale = Math.min(1, maxWidth / image.width);
+        canvas.width = image.width * scale;
+        canvas.height = image.height * scale;
+        canvas.getContext("2d")?.drawImage(image, 0, 0, canvas.width, canvas.height);
+        const baseCanvas = document.createElement("canvas");
+        baseCanvas.width = canvas.width;
+        baseCanvas.height = canvas.height;
+        baseCanvas.getContext("2d")?.drawImage(image, 0, 0, canvas.width, canvas.height);
+        baseCanvasRef.current = baseCanvas;
+        history.current = [];
+        snapshot();
+        setHasImage(true);
+        if (suggestedName) setName(suggestedName.replace(/\.[^.]+$/, ""));
+        URL.revokeObjectURL(image.src);
+      };
+      image.src = URL.createObjectURL(imageBlob);
+    },
+    [snapshot],
+  );
 
   async function loadFile(file?: File) {
     if (!file || !file.type.startsWith("image/")) return;
@@ -417,7 +420,7 @@ function MapCanvas({ onSaved }: { onSaved: () => Promise<void> }) {
         if (preset) loadImage(preset);
       })
       .catch(() => undefined);
-  }, []);
+  }, [loadImage]);
 
   function point(event: ReactPointerEvent<HTMLCanvasElement>) {
     const canvas = canvasRef.current;
@@ -451,9 +454,8 @@ function MapCanvas({ onSaved }: { onSaved: () => Promise<void> }) {
     context.lineWidth = brushSize;
     context.globalCompositeOperation = "source-over";
     const baseCanvas = baseCanvasRef.current;
-    const basePattern = tool === "erase" && baseCanvas
-      ? context.createPattern(baseCanvas, "no-repeat")
-      : null;
+    const basePattern =
+      tool === "erase" && baseCanvas ? context.createPattern(baseCanvas, "no-repeat") : null;
     context.strokeStyle = basePattern ?? color;
     context.lineTo(position.x, position.y);
     context.stroke();

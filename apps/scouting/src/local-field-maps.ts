@@ -31,7 +31,8 @@ function openDatabase(): Promise<IDBDatabase> {
 export async function getFieldMapPreset(): Promise<Blob | null> {
   const database = await openDatabase();
   return new Promise((resolve, reject) => {
-    const request = database.transaction(PRESET_STORE, "readonly")
+    const request = database
+      .transaction(PRESET_STORE, "readonly")
       .objectStore(PRESET_STORE)
       .get(DEFAULT_PRESET);
     request.onsuccess = () => {
