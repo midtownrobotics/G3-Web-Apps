@@ -26,4 +26,10 @@ jobs:
 
       - run: pnpm typecheck
 
+      - name: Build Scouting page
+        run: pnpm --filter @g3/scouting build
+
+      - name: Build Scouting worker
+        run: pnpm --filter @g3/worker-scouting build
+
       - run: pnpm test
