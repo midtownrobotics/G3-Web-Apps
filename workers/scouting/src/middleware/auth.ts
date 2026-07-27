@@ -2,6 +2,15 @@ import { createMiddleware } from "hono/factory";
 import type { AppEnv } from "../types";
 
 export const requireAuth = createMiddleware<AppEnv>(async (c, next) => {
+  if (c.env.LOCAL_AUTH_BYPASS === "true") {
+    c.set("userId", "local-scout");
+    c.set("userDisplayName", "Local Scout");
+    c.set("userEmail", "scout@localhost");
+    c.set("userIsAdmin", true);
+    await next();
+    return;
+  }
+
   const response = await c.env.G3ID.fetch(
     new Request("http://g3id/auth/me", {
       headers: { cookie: c.req.header("Cookie") ?? "" },

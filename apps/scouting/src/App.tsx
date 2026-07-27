@@ -8,11 +8,13 @@ import {
   Map as MapIcon,
   Menu,
   Monitor,
+  Moon,
   Pencil,
   Plus,
   RotateCcw,
   Save,
   Search,
+  Sun,
   Trash2,
   Upload,
   X,
@@ -27,7 +29,13 @@ import {
   useState,
 } from "react";
 import { API_URL, G3ID_URL, api } from "./api";
-import { deleteLocalFieldMap, listLocalFieldMaps, saveLocalFieldMap } from "./local-field-maps";
+import {
+  deleteLocalFieldMap,
+  getFieldMapPreset,
+  listLocalFieldMaps,
+  saveFieldMapPreset,
+  saveLocalFieldMap,
+} from "./local-field-maps";
 
 type Page = "overview" | "tiers" | "maps" | "autos";
 type User = { userId: string; displayName: string; email: string; isAdmin: boolean };
@@ -127,9 +135,9 @@ function Overview({ go }: { go: (page: Page) => void }) {
       <div className="hero">
         <div>
           <h1>
-            Gears for
+            G3
             <br />
-            <span>Greater Good</span>
+            <span>Strategy</span>
           </h1>
         </div>
         <div className="hero-logo" aria-hidden="true">
@@ -354,6 +362,7 @@ function TierLists() {
 
 function MapCanvas({ onSaved }: { onSaved: () => Promise<void> }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const baseCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const drawing = useRef(false);
   const history = useRef<ImageData[]>([]);
   const [hasImage, setHasImage] = useState(false);
@@ -372,8 +381,7 @@ function MapCanvas({ onSaved }: { onSaved: () => Promise<void> }) {
       history.current.push(context.getImageData(0, 0, canvas.width, canvas.height));
   }
 
-  function loadFile(file?: File) {
-    if (!file || !file.type.startsWith("image/")) return;
+  function loadImage(imageBlob: Blob, suggestedName = "") {
     const image = new window.Image();
     image.onload = () => {
       const canvas = canvasRef.current;
@@ -383,14 +391,33 @@ function MapCanvas({ onSaved }: { onSaved: () => Promise<void> }) {
       canvas.width = image.width * scale;
       canvas.height = image.height * scale;
       canvas.getContext("2d")?.drawImage(image, 0, 0, canvas.width, canvas.height);
+      const baseCanvas = document.createElement("canvas");
+      baseCanvas.width = canvas.width;
+      baseCanvas.height = canvas.height;
+      baseCanvas.getContext("2d")?.drawImage(image, 0, 0, canvas.width, canvas.height);
+      baseCanvasRef.current = baseCanvas;
       history.current = [];
       snapshot();
       setHasImage(true);
-      if (!name) setName(file.name.replace(/\.[^.]+$/, ""));
+      if (suggestedName) setName(suggestedName.replace(/\.[^.]+$/, ""));
       URL.revokeObjectURL(image.src);
     };
-    image.src = URL.createObjectURL(file);
+    image.src = URL.createObjectURL(imageBlob);
   }
+
+  async function loadFile(file?: File) {
+    if (!file || !file.type.startsWith("image/")) return;
+    await saveFieldMapPreset(file);
+    loadImage(file, file.name);
+  }
+
+  useEffect(() => {
+    getFieldMapPreset()
+      .then((preset) => {
+        if (preset) loadImage(preset);
+      })
+      .catch(() => undefined);
+  }, []);
 
   function point(event: ReactPointerEvent<HTMLCanvasElement>) {
     const canvas = canvasRef.current;
@@ -422,8 +449,12 @@ function MapCanvas({ onSaved }: { onSaved: () => Promise<void> }) {
     context.lineCap = "round";
     context.lineJoin = "round";
     context.lineWidth = brushSize;
-    context.globalCompositeOperation = tool === "erase" ? "destination-out" : "source-over";
-    context.strokeStyle = color;
+    context.globalCompositeOperation = "source-over";
+    const baseCanvas = baseCanvasRef.current;
+    const basePattern = tool === "erase" && baseCanvas
+      ? context.createPattern(baseCanvas, "no-repeat")
+      : null;
+    context.strokeStyle = basePattern ?? color;
     context.lineTo(position.x, position.y);
     context.stroke();
   }
@@ -457,9 +488,15 @@ function MapCanvas({ onSaved }: { onSaved: () => Promise<void> }) {
       setName("");
       setEventName("");
       setNotes("");
-      setHasImage(false);
       const context = canvas.getContext("2d");
-      context?.clearRect(0, 0, canvas.width, canvas.height);
+      const baseCanvas = baseCanvasRef.current;
+      if (context && baseCanvas) {
+        context.globalCompositeOperation = "source-over";
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(baseCanvas, 0, 0);
+        history.current = [];
+        snapshot();
+      }
     } finally {
       setSaving(false);
     }
@@ -469,7 +506,7 @@ function MapCanvas({ onSaved }: { onSaved: () => Promise<void> }) {
     <div className="map-editor">
       <div className="map-toolbar">
         <label className="upload-button">
-          <Upload size={17} /> Upload field image
+          <Upload size={17} /> {hasImage ? "Replace field preset" : "Upload field preset"}
           <input type="file" accept="image/*" onChange={(e) => loadFile(e.target.files?.[0])} />
         </label>
         <span className="toolbar-divider" />
@@ -817,6 +854,16 @@ export function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    const saved = localStorage.getItem("g3-strategy-theme");
+    if (saved === "light" || saved === "dark") return saved;
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  });
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem("g3-strategy-theme", theme);
+  }, [theme]);
 
   useEffect(() => {
     api<User>("/me")
@@ -886,6 +933,15 @@ export function App() {
             </button>
           ))}
         </nav>
+        <button
+          type="button"
+          className="theme-toggle"
+          onClick={() => setTheme((current) => (current === "light" ? "dark" : "light"))}
+          aria-label={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
+        >
+          {theme === "light" ? <Moon size={17} /> : <Sun size={17} />}
+          {theme === "light" ? "Dark mode" : "Light mode"}
+        </button>
         <a className="all-apps-link" href="https://web.g3robotics.com">
           All Apps
         </a>

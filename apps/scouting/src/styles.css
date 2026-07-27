@@ -2588,3 +2588,137 @@ textarea {
   width: 19px;
   height: 19px;
 }
+
+/* Keep typed form values readable against the final light theme. */
+.list-meta .title-input,
+.form-panel input,
+.form-panel textarea {
+  color: #0c0c0c;
+  caret-color: #0c0c0c;
+}
+
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 12px;
+  border: 1px solid rgba(121, 138, 146, 0.35);
+  border-radius: 8px;
+  color: #57646c;
+  background: #fefefe;
+  font-size: 13px;
+}
+
+.all-apps-link {
+  margin-left: 8px;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  color: #f4f4f5;
+  background: #171717;
+  --panel: #262626;
+  --panel-2: #303030;
+  --line: #454545;
+  --muted: #b5b5b5;
+}
+
+html[data-theme="dark"] body,
+html[data-theme="dark"] .app-shell > main,
+html[data-theme="dark"] .auth-screen {
+  color: #f4f4f5;
+  background: #171717;
+}
+
+html[data-theme="dark"] .app-shell aside,
+html[data-theme="dark"] .mobile-header {
+  border-color: #454545;
+  color: #f4f4f5;
+  background: #262626;
+}
+
+html[data-theme="dark"] .app-shell aside nav button,
+html[data-theme="dark"] .all-apps-link {
+  color: #c4c4c4;
+}
+
+html[data-theme="dark"] .app-shell aside nav button:hover,
+html[data-theme="dark"] .mobile-header button {
+  color: #fff;
+}
+
+html[data-theme="dark"] .page-heading h1,
+html[data-theme="dark"] .hero h1,
+html[data-theme="dark"] .tool-card h2,
+html[data-theme="dark"] .section-title h2,
+html[data-theme="dark"] .form-panel-heading h2,
+html[data-theme="dark"] .canvas-placeholder strong,
+html[data-theme="dark"] .auto-card li,
+html[data-theme="dark"] .map-card h3,
+html[data-theme="dark"] .auto-card h3 {
+  color: #f4f4f5;
+}
+
+html[data-theme="dark"] .tool-card,
+html[data-theme="dark"] .map-card,
+html[data-theme="dark"] .auto-card,
+html[data-theme="dark"] .editor-card,
+html[data-theme="dark"] .map-editor,
+html[data-theme="dark"] .form-panel,
+html[data-theme="dark"] .library-bar,
+html[data-theme="dark"] .empty-state,
+html[data-theme="dark"] .tier-row,
+html[data-theme="dark"] .tier-items {
+  border-color: #454545;
+  color: #f4f4f5;
+  background: #262626;
+}
+
+html[data-theme="dark"] select,
+html[data-theme="dark"] input,
+html[data-theme="dark"] textarea,
+html[data-theme="dark"] .theme-toggle,
+html[data-theme="dark"] .secondary-button,
+html[data-theme="dark"] .heading-actions button,
+html[data-theme="dark"] .add-row button,
+html[data-theme="dark"] .add-tier-button {
+  border-color: #555;
+  color: #f4f4f5;
+  caret-color: #f4f4f5;
+  background: #303030;
+}
+
+html[data-theme="dark"] .list-meta .title-input,
+html[data-theme="dark"] .form-panel input,
+html[data-theme="dark"] .form-panel textarea {
+  color: #f4f4f5;
+  caret-color: #f4f4f5;
+}
+
+html[data-theme="dark"] .tier-chip,
+html[data-theme="dark"] .start-position,
+html[data-theme="dark"] .canvas-shell {
+  border-color: #555;
+  color: #f4f4f5;
+  background-color: #303030;
+}
+
+html[data-theme="dark"] .map-card p,
+html[data-theme="dark"] .auto-card > p,
+html[data-theme="dark"] .auto-card header span:not(.auto-icon),
+html[data-theme="dark"] .auto-card footer small,
+html[data-theme="dark"] .library-bar,
+html[data-theme="dark"] .list-meta > span,
+html[data-theme="dark"] .tool-link {
+  color: #b5b5b5;
+}
+
+@media (max-width: 760px) {
+  .theme-toggle {
+    margin: auto 12px 0;
+  }
+
+  .all-apps-link {
+    margin: 0;
+  }
+}
