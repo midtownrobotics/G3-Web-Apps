@@ -6,11 +6,11 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "dev": "wrangler dev --port 8792 --inspector-port 9234",
-    "deploy": "wrangler deploy --env production",
+    "dev": "wrangler dev --config wrangler.local.toml --port 8792 --inspector-port 9234",
+    "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
-    "db:migrate:local": "wrangler d1 migrations apply SCOUTING_DB --local",
-    "db:migrate:prod": "wrangler d1 migrations apply SCOUTING_DB --env production --remote"
+    "db:migrate:local": "wrangler d1 migrations apply SCOUTING_DB --config wrangler.local.toml --local",
+    "db:migrate:prod": "wrangler d1 migrations apply SCOUTING_DB --remote"
   },
   "dependencies": {
     "hono": "^4.7.0"
