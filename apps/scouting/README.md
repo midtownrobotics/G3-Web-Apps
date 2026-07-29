@@ -1,7 +1,10 @@
 # @g3/scouting
 
-Offline-first scouting PWA — Vite + React + IndexedDB, syncs to D1 when connected.
+Shared strategy workspace for G3 Robotics.
 
-**Planned:** Match scouting, pit scouting, pick list. Consider forking Maneuver or the Indiana Scouting Alliance app rather than building from scratch.
+- Customizable, drag-and-drop tier lists
+- Uploadable field maps with browser drawing tools and R2 storage
+- Searchable autonomous routine library
 
-Not yet implemented.
+The app runs on port 5182 and its worker runs on port 8792. Apply the worker's
+local D1 migration before first use.
