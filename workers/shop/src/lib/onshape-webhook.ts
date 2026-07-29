@@ -4,6 +4,21 @@ import { drizzle } from "drizzle-orm/d1";
 import * as schema from "../db/schema";
 import type { AppEnv } from "../types";
 
+interface BOMHeader {
+  id: string;
+  propertyName: string;
+  label: string;
+}
+
+interface BOMRow {
+  headerIdToValue: Record<string, string | number | boolean | null>;
+}
+
+interface BOMData {
+  headers: BOMHeader[];
+  rows: BOMRow[];
+}
+
 export const ONSHAPE_WEBHOOK_EVENTS = ["onshape.revision.created", "onshape.workflow.transition"];
 
 export async function verifyOnshapeSignature(
@@ -135,6 +150,89 @@ export async function processRevisionEvent(
   });
 }
 
+async function fetchAndParseBOM(
+  documentId: string,
+  versionId: string,
+  mainAssemblyId: string,
+  apiKey: string,
+  apiSecret: string,
+): Promise<Map<string, { quantity?: number; name?: string; description?: string; revision?: string }>> {
+  const credentials = btoa(`${apiKey}:${apiSecret}`);
+  const bomUrl = `https://cad.onshape.com/api/v16/assemblies/d/${documentId}/v/${versionId}/e/${mainAssemblyId}/bom?indented=false`;
+
+  try {
+    const response = await fetch(bomUrl, {
+      headers: {
+        Authorization: `Basic ${credentials}`,
+      },
+    });
+
+    if (!response.ok) {
+      console.error("[BOM Fetch Error]", response.status, response.statusText);
+      return new Map();
+    }
+
+    const bom = (await response.json()) as BOMData;
+    const partMetadata = new Map<
+      string,
+      { quantity?: number; name?: string; description?: string; revision?: string }
+    >();
+
+    // Find property IDs from headers
+    const propertyIds: Record<string, string> = {};
+    for (const header of bom.headers) {
+      if (header.propertyName === "partNumber") propertyIds["partNumber"] = header.id;
+      if (header.propertyName === "quantity") propertyIds["quantity"] = header.id;
+      if (header.propertyName === "name") propertyIds["name"] = header.id;
+      if (header.propertyName === "description") propertyIds["description"] = header.id;
+      if (header.propertyName === "revision") propertyIds["revision"] = header.id;
+    }
+
+    // Parse rows to extract metadata by part number
+    for (const row of bom.rows) {
+      const partNumberId = propertyIds["partNumber"];
+      if (partNumberId && row.headerIdToValue[partNumberId]) {
+        const partNumber = String(row.headerIdToValue[partNumberId]);
+
+        const metadata: { quantity?: number; name?: string; description?: string; revision?: string } = {};
+
+        const quantityId = propertyIds["quantity"];
+        if (quantityId && row.headerIdToValue[quantityId]) {
+          const qty = row.headerIdToValue[quantityId];
+          if (typeof qty === "number") metadata.quantity = qty;
+        }
+
+        const nameId = propertyIds["name"];
+        if (nameId && row.headerIdToValue[nameId]) {
+          const val = row.headerIdToValue[nameId];
+          if (val) metadata.name = String(val);
+        }
+
+        const descriptionId = propertyIds["description"];
+        if (descriptionId && row.headerIdToValue[descriptionId]) {
+          const val = row.headerIdToValue[descriptionId];
+          if (val) metadata.description = String(val);
+        }
+
+        const revisionId = propertyIds["revision"];
+        if (revisionId && row.headerIdToValue[revisionId]) {
+          const val = row.headerIdToValue[revisionId];
+          if (val) metadata.revision = String(val);
+        }
+
+        if (Object.keys(metadata).length > 0) {
+          partMetadata.set(partNumber, metadata);
+        }
+      }
+    }
+
+    return partMetadata;
+  } catch (err) {
+    console.error("[BOM Parse Error]", err);
+    return new Map();
+  }
+}
+
 export async function processReleaseEvent(
   releaseId: string,
   timestamp: string,
@@ -180,10 +278,52 @@ export async function processReleaseEvent(
     .from(schema.onshapeParts)
     .where(eq(schema.onshapeParts.releaseId, releaseRowId));
 
-  // Get document ID from KV storage
+  // Get document ID and API credentials from KV storage
   const configStr = await env.SESSIONS.get("onshape-config:document");
-  const config = configStr ? (JSON.parse(configStr) as { documentId?: string }) : {};
+  const config = configStr ? (JSON.parse(configStr) as { documentId?: string; mainAssemblyId?: string }) : {};
   const docId = config.documentId || "unknown";
+
+  // Fetch BOM data if we have the necessary IDs
+  if (config.documentId && config.mainAssemblyId && parts.length > 0 && parts[0]?.versionId) {
+    const apiKey = env.ONSHAPE_API_KEY;
+    const apiSecret = env.ONSHAPE_API_SECRET;
+
+    if (apiKey && apiSecret) {
+      const bomMetadata = await fetchAndParseBOM(
+        config.documentId,
+        parts[0].versionId,
+        config.mainAssemblyId,
+        apiKey,
+        apiSecret,
+      );
+
+      // Update parts with BOM metadata
+      for (const part of parts) {
+        const metadata = bomMetadata.get(part.partNumber);
+        if (metadata) {
+          await database
+            .update(schema.onshapeParts)
+            .set({
+              quantity: metadata.quantity ?? part.quantity,
+              name: metadata.name ?? part.name,
+              description: metadata.description ?? part.description,
+              revision: metadata.revision ?? part.revision,
+            })
+            .where(eq(schema.onshapeParts.id, part.id));
+        }
+      }
+
+      // Refetch parts to get updated metadata
+      const updatedParts = await database
+        .select()
+        .from(schema.onshapeParts)
+        .where(eq(schema.onshapeParts.releaseId, releaseRowId));
+
+      // Update parts reference with fresh data
+      parts.length = 0;
+      parts.push(...updatedParts);
+    }
+  }
 
   // Build Slack message
   const releaseLink = `<https://cad.onshape.com/documents?releasepackage=${releaseId}|${releaseId}>`;
@@ -200,7 +340,7 @@ export async function processReleaseEvent(
         ? `\n    • <https://cad.onshape.com/documents/${docId}/v/${part.versionId}/e/${part.partDrawingEntityId}|OnShape Drawing Link>`
         : "";
       return `
-• *${part.partNumber}*${part.quantity ? ` x${part.quantity}` : ""}
+• *${part.partNumber}*${part.revision ? ` (rev ${part.revision})` : ""}${part.name ? `- ${part.name}` : ""}${part.quantity ? ` x${part.quantity}` : ""}
     • <https://shop.g3robotics.com/part?p=${part.partNumber}|Shop SW Link>${partLink}${drawingLink}`;
     }),
   ].join("\n");
