@@ -156,7 +156,9 @@ async function fetchAndParseBOM(
   mainAssemblyId: string,
   apiKey: string,
   apiSecret: string,
-): Promise<Map<string, { quantity?: number; name?: string; description?: string; revision?: string }>> {
+): Promise<
+  Map<string, { quantity?: number; name?: string; description?: string; revision?: string }>
+> {
   const credentials = btoa(`${apiKey}:${apiSecret}`);
   const bomUrl = `https://cad.onshape.com/api/v16/assemblies/d/${documentId}/v/${versionId}/e/${mainAssemblyId}/bom?indented=false`;
 
@@ -181,40 +183,45 @@ async function fetchAndParseBOM(
     // Find property IDs from headers
     const propertyIds: Record<string, string> = {};
     for (const header of bom.headers) {
-      if (header.propertyName === "partNumber") propertyIds["partNumber"] = header.id;
-      if (header.propertyName === "quantity") propertyIds["quantity"] = header.id;
-      if (header.propertyName === "name") propertyIds["name"] = header.id;
-      if (header.propertyName === "description") propertyIds["description"] = header.id;
-      if (header.propertyName === "revision") propertyIds["revision"] = header.id;
+      if (header.propertyName === "partNumber") propertyIds.partNumber = header.id;
+      if (header.propertyName === "quantity") propertyIds.quantity = header.id;
+      if (header.propertyName === "name") propertyIds.name = header.id;
+      if (header.propertyName === "description") propertyIds.description = header.id;
+      if (header.propertyName === "revision") propertyIds.revision = header.id;
     }
 
     // Parse rows to extract metadata by part number
     for (const row of bom.rows) {
-      const partNumberId = propertyIds["partNumber"];
+      const partNumberId = propertyIds.partNumber;
       if (partNumberId && row.headerIdToValue[partNumberId]) {
         const partNumber = String(row.headerIdToValue[partNumberId]);
 
-        const metadata: { quantity?: number; name?: string; description?: string; revision?: string } = {};
+        const metadata: {
+          quantity?: number;
+          name?: string;
+          description?: string;
+          revision?: string;
+        } = {};
 
-        const quantityId = propertyIds["quantity"];
+        const quantityId = propertyIds.quantity;
         if (quantityId && row.headerIdToValue[quantityId]) {
           const qty = row.headerIdToValue[quantityId];
           if (typeof qty === "number") metadata.quantity = qty;
         }
 
-        const nameId = propertyIds["name"];
+        const nameId = propertyIds.name;
         if (nameId && row.headerIdToValue[nameId]) {
           const val = row.headerIdToValue[nameId];
           if (val) metadata.name = String(val);
         }
 
-        const descriptionId = propertyIds["description"];
+        const descriptionId = propertyIds.description;
         if (descriptionId && row.headerIdToValue[descriptionId]) {
           const val = row.headerIdToValue[descriptionId];
           if (val) metadata.description = String(val);
         }
 
-        const revisionId = propertyIds["revision"];
+        const revisionId = propertyIds.revision;
         if (revisionId && row.headerIdToValue[revisionId]) {
           const val = row.headerIdToValue[revisionId];
           if (val) metadata.revision = String(val);
@@ -280,7 +287,9 @@ export async function processReleaseEvent(
 
   // Get document ID and API credentials from KV storage
   const configStr = await env.SESSIONS.get("onshape-config:document");
-  const config = configStr ? (JSON.parse(configStr) as { documentId?: string; mainAssemblyId?: string }) : {};
+  const config = configStr
+    ? (JSON.parse(configStr) as { documentId?: string; mainAssemblyId?: string })
+    : {};
   const docId = config.documentId || "unknown";
 
   // Fetch BOM data if we have the necessary IDs
