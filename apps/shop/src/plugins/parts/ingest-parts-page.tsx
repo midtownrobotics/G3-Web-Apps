@@ -17,6 +17,9 @@ type PendingPart = {
   onshapeReleaseId: string;
   releaseId: number | null;
   createdAt: number;
+  revision: string | null;
+  name: string | null;
+  description: string | null;
 };
 
 type PendingPartsData = {
@@ -219,11 +222,11 @@ function PartIngestCard({
 }) {
   const [form, setForm] = useState<PartForm>({
     onshapePartNumber: part.partNumber,
-    revision: "",
+    revision: part.revision || "",
     subsystemId: 0,
-    name: part.partNumber,
+    name: part.name || part.partNumber,
     quantity: part.quantity ?? 1,
-    notes: "",
+    notes: part.description || "",
     partDrawingUrl: "",
     isPriority: false,
     processIds: [],
