@@ -1,8 +1,8 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import { validator } from "hono/validator";
 import { createShopDb } from "../db";
-import { partDefinitionProcessBlueprints, partDefinitions } from "../db/schema";
+import { partDefinitionProcessBlueprints, partDefinitions, partInstances } from "../db/schema";
 import { requireAuth } from "../middleware/auth";
 import type { AppEnv } from "../types";
 
@@ -60,6 +60,17 @@ const reorderBlueprintValidator = validator("json", (value, c): { processIds: nu
 export const partDefinitionsRouter = new Hono<AppEnv>()
   .get("/", requireAuth, async (c) => {
     const db = createShopDb(c.env.SHOP_DB);
+    const onshapePartNumber = c.req.query("onshapePartNumber");
+
+    if (onshapePartNumber) {
+      const rows = await db
+        .select({ revision: partDefinitions.revision })
+        .from(partDefinitions)
+        .where(eq(partDefinitions.onshapePartNumber, onshapePartNumber))
+        .all();
+      return c.json(rows);
+    }
+
     const rows = await db.select().from(partDefinitions).all();
     return c.json(rows);
   })
@@ -72,10 +83,19 @@ export const partDefinitionsRouter = new Hono<AppEnv>()
       notes?: string;
       partDrawingUrl?: string;
       processIds?: number[];
+      obsoleteExisting?: boolean;
     }>();
 
-    const { onshapePartNumber, revision, subsystemId, name, notes, partDrawingUrl, processIds } =
-      body;
+    const {
+      onshapePartNumber,
+      revision,
+      subsystemId,
+      name,
+      notes,
+      partDrawingUrl,
+      processIds,
+      obsoleteExisting,
+    } = body;
     if (!onshapePartNumber || !revision || !subsystemId || !name) {
       return c.json(
         { error: "onshapePartNumber, revision, subsystemId, and name are required." },
@@ -85,6 +105,23 @@ export const partDefinitionsRouter = new Hono<AppEnv>()
 
     const db = createShopDb(c.env.SHOP_DB);
     const now = Date.now();
+
+    // If obsoleteExisting is true, delete all existing parts with same number
+    if (obsoleteExisting) {
+      const existingParts = await db
+        .select({ id: partDefinitions.id })
+        .from(partDefinitions)
+        .where(eq(partDefinitions.onshapePartNumber, onshapePartNumber))
+        .all();
+
+      const existingIds = existingParts.map((p) => p.id);
+      if (existingIds.length > 0) {
+        // Delete all instances of these parts first (foreign key constraint)
+        await db.delete(partInstances).where(inArray(partInstances.partDefinitionId, existingIds));
+        // Delete the part definitions
+        await db.delete(partDefinitions).where(inArray(partDefinitions.id, existingIds));
+      }
+    }
 
     const partDef = await db
       .insert(partDefinitions)

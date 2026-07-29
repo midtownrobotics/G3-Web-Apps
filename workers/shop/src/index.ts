@@ -4,6 +4,7 @@ import { cors } from "hono/cors";
 import { createShopDb } from "./db";
 import { requireAuth } from "./middleware/auth";
 import { actionsRouter } from "./routes/actions";
+import { adminPartsRouter } from "./routes/admin-parts";
 import { drawingsRouter } from "./routes/drawings";
 import { clearPresence, kioskPresenceRouter } from "./routes/kiosk-presence";
 import { onshapeExportRouter } from "./routes/onshape-export";
@@ -92,6 +93,7 @@ const app = base
   .route("/part-instance-processes", partInstanceProcessesRouter)
   .route("/actions", actionsRouter)
   .route("/kiosk-presence", kioskPresenceRouter)
+  .route("/admin", adminPartsRouter)
   .get("/slack-test", async (c) => {
     c.executionCtx.waitUntil(sendMessage("C09QYMTSGKT", "test but now from shop sw worker", c.env));
     return c.text("200", 200);

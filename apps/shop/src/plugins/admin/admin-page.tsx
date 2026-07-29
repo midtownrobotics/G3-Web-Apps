@@ -86,9 +86,9 @@ export function AdminPage() {
           <KioskModeSettings />
         </Section>
 
-        {/* Section 4: Admin Settings */}
-        <Section title="Admin Settings" defaultOpen={false}>
-          <p className="text-sm text-steel">Nothing here yet.</p>
+        {/* Section 4: OnShape Configuration */}
+        <Section title="OnShape Configuration" defaultOpen={false}>
+          {data ? <OnShapeConfig /> : <p className="text-sm text-steel">Loading…</p>}
         </Section>
       </div>
     </main>
@@ -230,6 +230,166 @@ function NameList({
             </button>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function OnShapeConfig() {
+  const [documentId, setDocumentId] = useState("");
+  const [mainAssemblyId, setMainAssemblyId] = useState("");
+  const [urlInput, setUrlInput] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [banner, setBanner] = useState<string | null>(null);
+
+  function parseUrl() {
+    // Format: https://cad.onshape.com/documents/[DOCID]/[not used]/[not used]/e/[MAINASSEMBLYID]
+    const match = urlInput.match(/\/documents\/([^/]+)\/[^/]*\/[^/]*\/e\/([^/?]+)/);
+    if (!match) {
+      setBanner(
+        "Invalid URL format. Expected: https://cad.onshape.com/documents/[DOCID]/[...]/e/[MAINASSEMBLYID]",
+      );
+      return;
+    }
+
+    const [, docId, assemblyId] = match;
+    setDocumentId(docId);
+    setMainAssemblyId(assemblyId);
+    setUrlInput("");
+    setBanner(null);
+  }
+
+  async function loadConfig() {
+    try {
+      // biome-ignore lint/suspicious/noExplicitAny: workaround for Hono client type generation
+      const res = await (api as any).admin.onshape.config.$get();
+      if (!res.ok) {
+        setBanner(await getErrorMessage(res as unknown as Response));
+        return;
+      }
+      const config = (await res.json()) as { documentId: string; mainAssemblyId: string };
+      setDocumentId(config.documentId || "");
+      setMainAssemblyId(config.mainAssemblyId || "");
+    } catch (err) {
+      setBanner(err instanceof Error ? err.message : "Failed to load OnShape config");
+    }
+  }
+
+  async function handleSave() {
+    if (!documentId.trim()) {
+      setBanner("Document ID is required");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      // biome-ignore lint/suspicious/noExplicitAny: workaround for Hono client type generation
+      const res = await (api as any).admin.onshape.config.$post({
+        json: {
+          documentId: documentId.trim(),
+          mainAssemblyId: mainAssemblyId.trim() || undefined,
+        },
+      });
+
+      if (!res.ok) {
+        setBanner(await getErrorMessage(res as unknown as Response));
+        return;
+      }
+
+      setBanner(null);
+      await loadConfig();
+    } catch (err) {
+      setBanner(err instanceof Error ? err.message : "Failed to save config");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4 max-w-xl">
+      {banner && (
+        <div
+          className={`text-sm rounded-lg px-3 py-2 ${
+            banner.includes("Failed") || banner.includes("required") || banner.includes("Invalid")
+              ? "text-crimson-dark bg-crimson-50 border border-crimson-200"
+              : "text-emerald-700 bg-emerald-50 border border-emerald-300"
+          }`}
+        >
+          {banner}
+        </div>
+      )}
+
+      <div className="p-3 bg-mist rounded-lg border border-steel/25 space-y-2">
+        <p className="text-xs font-medium text-steel-dark">Quick Add from URL</p>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={urlInput}
+            onChange={(e) => setUrlInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") parseUrl();
+            }}
+            placeholder="https://cad.onshape.com/documents/[...]/e/[...]"
+            className="flex-1 bg-paper border border-steel/40 rounded-lg px-3 py-2 text-sm text-ink placeholder-steel focus:outline-none focus:border-crimson"
+          />
+          <button
+            type="button"
+            onClick={parseUrl}
+            className="px-3 py-2 bg-paper border border-steel/40 hover:bg-steel-tint text-ink text-sm font-medium rounded-lg transition-colors"
+          >
+            Parse
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <label htmlFor="doc-id" className="text-xs font-medium text-steel-dark">
+          Document ID *
+        </label>
+        <input
+          id="doc-id"
+          type="text"
+          value={documentId}
+          onChange={(e) => setDocumentId(e.target.value)}
+          placeholder="e.g. abc123def456"
+          className="w-full bg-paper border border-steel/40 rounded-lg px-3 py-2 text-sm text-ink placeholder-steel focus:outline-none focus:border-crimson"
+        />
+        <p className="text-xs text-steel">
+          From OnShape URL: cad.onshape.com/documents/[DOCUMENT_ID]/...
+        </p>
+      </div>
+
+      <div className="space-y-1">
+        <label htmlFor="main-asm-id" className="text-xs font-medium text-steel-dark">
+          Main Assembly ID
+        </label>
+        <input
+          id="main-asm-id"
+          type="text"
+          value={mainAssemblyId}
+          onChange={(e) => setMainAssemblyId(e.target.value)}
+          placeholder="e.g. xyz789 (optional)"
+          className="w-full bg-paper border border-steel/40 rounded-lg px-3 py-2 text-sm text-ink placeholder-steel focus:outline-none focus:border-crimson"
+        />
+        <p className="text-xs text-steel">Optional — usually not needed for drawing exports</p>
+      </div>
+
+      <div className="flex gap-2 pt-2">
+        <button
+          type="button"
+          onClick={loadConfig}
+          className="px-4 py-2 bg-steel-tint hover:bg-steel/30 text-steel-dark text-sm font-medium rounded-lg transition-colors"
+        >
+          Load Current
+        </button>
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          className="px-4 py-2 bg-crimson hover:bg-crimson-dark disabled:opacity-50 text-paper text-sm font-semibold rounded-lg transition-colors"
+        >
+          {saving ? "Saving…" : "Save"}
+        </button>
       </div>
     </div>
   );
