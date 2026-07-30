@@ -1,0 +1,4 @@
+-- SQLite doesn't support modifying column constraints directly.
+-- The columns are already nullable in the schema definition.
+-- Existing NOT NULL constraints will remain on current data,
+-- but new rows can have NULL values for revision and name.
