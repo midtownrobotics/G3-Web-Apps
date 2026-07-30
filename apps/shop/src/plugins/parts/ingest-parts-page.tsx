@@ -46,6 +46,89 @@ type LocalPartData = {
   quantity?: number;
 };
 
+function DrawingStatusCell({
+  part,
+  localPartData,
+}: {
+  part: PendingPart;
+  localPartData: Record<string, LocalPartData>;
+}) {
+  const [drawingExists, setDrawingExists] = useState(false);
+  const [checking, setChecking] = useState(true);
+  const revision = localPartData[part.partNumber]?.revision ?? part.revision;
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: dependencies captured via closure
+  useEffect(() => {
+    checkDrawing();
+  }, [part.partNumber, revision]);
+
+  async function checkDrawing() {
+    try {
+      setChecking(true);
+      if (!revision) {
+        setDrawingExists(false);
+        return;
+      }
+
+      const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:5174/api";
+      const res = await fetch(`${apiBase}/parts/${part.partNumber}/${revision}/drawing`);
+
+      // Check if we got an error response or can't parse as JSON
+      if (!res.ok) {
+        setDrawingExists(false);
+        return;
+      }
+
+      try {
+        // biome-ignore lint/suspicious/noExplicitAny: response type varies by content
+        const data = (await res.json()) as any;
+        if (data.error) {
+          setDrawingExists(false);
+          return;
+        }
+      } catch {
+        // If we can't parse as JSON, it's likely the PDF (binary)
+      }
+
+      setDrawingExists(true);
+    } catch {
+      setDrawingExists(false);
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  if (checking) {
+    return <span className="text-xs text-steel">…</span>;
+  }
+
+  if (drawingExists) {
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:5174/api";
+          window.open(`${apiBase}/parts/${part.partNumber}/${revision}/drawing`, "_blank");
+        }}
+        className="text-emerald-600 hover:text-emerald-700 font-semibold cursor-pointer"
+        title="Click to open cached drawing"
+      >
+        →
+      </button>
+    );
+  }
+
+  if (part.partDrawingEntityId) {
+    return (
+      <span className="text-blue-600 font-semibold" title="Drawing entity ID available">
+        ✓
+      </span>
+    );
+  }
+
+  return <span className="text-red-600 font-semibold">✕</span>;
+}
+
 function ProcessPanel({
   partNumber,
   processes,
@@ -354,7 +437,7 @@ export function IngestPartsPage() {
                         </button>
                       </td>
                       <td className="px-4 py-3 text-steel text-center">
-                        {part.partDrawingEntityId ? "✓" : "—"}
+                        <DrawingStatusCell part={part} localPartData={localPartData} />
                       </td>
                       <td className="px-4 py-3 text-right flex gap-2 justify-end">
                         <button
@@ -564,18 +647,18 @@ function PartIngestCard({
   const [drawingFetching, setDrawingFetching] = useState(false);
   const [drawingError, setDrawingError] = useState<string | null>(null);
   const [drawingSuccess, setDrawingSuccess] = useState(false);
-  const [showExistsAlert, setShowExistsAlert] = useState(false);
-  const [showRefetchConfirm, setShowRefetchConfirm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
   const [banner, setBanner] = useState<string | null>(null);
   const [documentId, setDocumentId] = useState<string | null>(null);
   const [existingRevisions, setExistingRevisions] = useState<string[]>([]);
   const [showDuplicateConfirm, setShowDuplicateConfirm] = useState(false);
+  const [checkingDrawing, setCheckingDrawing] = useState(true);
 
-  // Load document ID for OnShape link
+  // Load document ID and check if drawing exists
   useEffect(() => {
     loadDocumentId();
+    checkIfDrawingExists();
   }, []);
 
   async function loadDocumentId() {
@@ -588,6 +671,25 @@ function PartIngestCard({
       }
     } catch (err) {
       console.error("Failed to load document ID");
+    }
+  }
+
+  async function checkIfDrawingExists() {
+    try {
+      setCheckingDrawing(true);
+      const revision = part.revision || form.revision;
+      if (!revision) {
+        return;
+      }
+      const exists = await checkDrawingExists();
+      if (exists) {
+        const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:5174/api";
+        const drawingUrl = `${apiBase}/parts/${part.partNumber}/${revision}/drawing`;
+        setForm((prev) => ({ ...prev, partDrawingUrl: drawingUrl }));
+        setDrawingSuccess(true);
+      }
+    } finally {
+      setCheckingDrawing(false);
     }
   }
 
@@ -620,42 +722,13 @@ function PartIngestCard({
   }
 
   async function handleFetchDrawing() {
-    // Check if drawing already exists
-    const exists = await checkDrawingExists();
-
-    if (exists) {
-      // Show alert that drawing already exists
-      setShowExistsAlert(true);
-      return;
-    }
-
-    // No existing drawing, fetch from OnShape
     await performDrawingFetch();
-  }
-
-  function handleViewExisting() {
-    // Open existing drawing in new tab for preview
-    const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:5174/api";
-    const revision = part.revision || form.revision;
-    window.open(`${apiBase}/parts/${part.partNumber}/${revision}/drawing`, "_blank");
-    setShowExistsAlert(false);
-    setShowRefetchConfirm(true);
-  }
-
-  function handleKeepExisting() {
-    // Set the drawing URL based on environment
-    const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:5174/api";
-    const revision = part.revision || form.revision;
-    const drawingUrl = `${apiBase}/parts/${part.partNumber}/${revision}/drawing`;
-    setForm((prev) => ({ ...prev, partDrawingUrl: drawingUrl }));
-    setShowRefetchConfirm(false);
   }
 
   async function performDrawingFetch() {
     setDrawingFetching(true);
     setDrawingError(null);
     setDrawingSuccess(false);
-    setShowRefetchConfirm(false);
 
     try {
       const revision = part.revision || form.revision;
@@ -805,8 +878,6 @@ function PartIngestCard({
       setBanner(null);
       setDrawingError(null);
       setDrawingSuccess(false);
-      setShowExistsAlert(false);
-      setShowRefetchConfirm(false);
       window.scrollTo(0, 0);
     } catch (err) {
       setBanner(err instanceof Error ? err.message : "An error occurred");
@@ -957,54 +1028,20 @@ function PartIngestCard({
       </div>
 
       <div className="p-3 bg-mist rounded-lg border border-steel/25 space-y-2">
-        {showExistsAlert ? (
+        {checkingDrawing ? (
           <div className="space-y-2">
-            <p className="text-xs font-medium text-steel-dark">
-              Drawing already exists for this part
-            </p>
-            <p className="text-xs text-steel">
-              Would you like to view the existing drawing to check if it needs updating?
-            </p>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={handleViewExisting}
-                className="text-xs font-medium rounded-lg px-3 py-1.5 bg-paper border border-steel/40 text-ink hover:bg-steel-tint"
-              >
-                View Existing
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowExistsAlert(false)}
-                className="text-xs font-medium rounded-lg px-3 py-1.5 bg-steel-tint border border-steel/40 text-steel-dark hover:bg-steel/20"
-              >
-                Cancel
-              </button>
-            </div>
+            <p className="text-xs font-medium text-steel-dark mb-2">Checking for drawing…</p>
           </div>
-        ) : showRefetchConfirm ? (
+        ) : drawingSuccess ? (
           <div className="space-y-2">
-            <p className="text-xs font-medium text-steel-dark">Ready to update the drawing?</p>
-            <p className="text-xs text-steel">
-              Click below to refetch the drawing from OnShape and overwrite the cached version.
-            </p>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={performDrawingFetch}
-                disabled={drawingFetching}
-                className="text-xs font-medium rounded-lg px-3 py-1.5 bg-crimson hover:bg-crimson-dark disabled:opacity-50 text-paper"
-              >
-                {drawingFetching ? "Refetching…" : "Refetch & Overwrite"}
-              </button>
-              <button
-                type="button"
-                onClick={handleKeepExisting}
-                className="text-xs font-medium rounded-lg px-3 py-1.5 bg-steel-tint border border-steel/40 text-steel-dark hover:bg-steel/20"
-              >
-                Keep Existing
-              </button>
-            </div>
+            <p className="text-xs font-medium text-steel-dark mb-2">Auto-fetch Drawing</p>
+            <button
+              type="button"
+              disabled
+              className="text-xs font-medium rounded-lg transition-colors px-3 py-1.5 w-full bg-emerald-50 border border-emerald-300 text-emerald-700 cursor-default"
+            >
+              ✓ Drawing Cached
+            </button>
           </div>
         ) : (
           <div className="space-y-2">
@@ -1012,22 +1049,14 @@ function PartIngestCard({
             <button
               type="button"
               onClick={handleFetchDrawing}
-              disabled={drawingFetching || drawingSuccess}
+              disabled={drawingFetching}
               className={`text-xs font-medium rounded-lg transition-colors px-3 py-1.5 w-full ${
-                drawingSuccess
-                  ? "bg-emerald-50 border border-emerald-300 text-emerald-700 cursor-default"
-                  : drawingError
-                    ? "bg-crimson-50 border border-crimson-200 text-crimson hover:bg-crimson-100"
-                    : "bg-paper border border-steel/40 text-ink hover:bg-steel-tint"
+                drawingError
+                  ? "bg-crimson-50 border border-crimson-200 text-crimson hover:bg-crimson-100"
+                  : "bg-paper border border-steel/40 text-ink hover:bg-steel-tint"
               }`}
             >
-              {drawingFetching
-                ? "Fetching…"
-                : drawingSuccess
-                  ? "✓ Drawing Cached"
-                  : drawingError
-                    ? "⚠ Retry"
-                    : "Try Auto Fetch"}
+              {drawingFetching ? "Fetching…" : drawingError ? "⚠ Retry" : "Try Auto Fetch"}
             </button>
           </div>
         )}
@@ -1151,8 +1180,6 @@ function PartIngestCard({
             setBanner(null);
             setDrawingError(null);
             setDrawingSuccess(false);
-            setShowExistsAlert(false);
-            setShowRefetchConfirm(false);
             window.scrollTo(0, 0);
             onNext();
           }}
