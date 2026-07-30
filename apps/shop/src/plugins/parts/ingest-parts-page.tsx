@@ -264,7 +264,8 @@ function PartIngestCard({
 
   async function checkDrawingExists() {
     try {
-      const res = await fetch(`/api/parts/${part.partNumber}/drawing`);
+      const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:5174/api";
+      const res = await fetch(`${apiBase}/parts/${part.partNumber}/drawing`);
       return res.ok;
     } catch {
       return false;
