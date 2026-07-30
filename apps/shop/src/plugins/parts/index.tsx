@@ -8,7 +8,10 @@ export const partsPlugin: Plugin = {
   routes: [
     { path: "/parts", element: <PartsPage /> },
     { path: "/parts/new", element: <AddPartPage /> },
-    { path: "/parts/ingest", element: <IngestPartsPage /> },
+    { path: "/ingest", element: <IngestPartsPage /> },
   ],
-  navItems: [{ label: "Parts", to: "/parts", order: 1 }],
+  navItems: [
+    { label: "Parts", to: "/parts", order: 1 },
+    { label: "Ingest", to: "/ingest", order: 2 },
+  ],
 };

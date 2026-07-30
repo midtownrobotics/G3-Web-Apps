@@ -1,4 +1,3 @@
-import { sendMessage } from "@g3/slack";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "../db/schema";
@@ -150,7 +149,7 @@ export async function processRevisionEvent(
   });
 }
 
-async function fetchAndParseBOM(
+export async function fetchAndParseBOM(
   documentId: string,
   versionId: string,
   mainAssemblyId: string,
@@ -159,22 +158,31 @@ async function fetchAndParseBOM(
 ): Promise<
   Map<string, { quantity?: number; name?: string; description?: string; revision?: string }>
 > {
+  const bomStartTime = Date.now();
   const credentials = btoa(`${apiKey}:${apiSecret}`);
   const bomUrl = `https://cad.onshape.com/api/v16/assemblies/d/${documentId}/v/${versionId}/e/${mainAssemblyId}/bom?indented=false`;
 
   try {
+    console.log("[BOM Fetch] Starting BOM request");
     const response = await fetch(bomUrl, {
       headers: {
         Authorization: `Basic ${credentials}`,
       },
     });
+    console.log(
+      `[BOM Fetch] Response received after ${Date.now() - bomStartTime}ms, status: ${response.status}`,
+    );
 
     if (!response.ok) {
       console.error("[BOM Fetch Error]", response.status, response.statusText);
       return new Map();
     }
 
+    console.log("[BOM Fetch] Parsing response JSON");
     const bom = (await response.json()) as BOMData;
+    console.log(
+      `[BOM Fetch] JSON parsed after ${Date.now() - bomStartTime}ms, ${bom.rows.length} rows`,
+    );
     const partMetadata = new Map<
       string,
       { quantity?: number; name?: string; description?: string; revision?: string }
@@ -233,6 +241,9 @@ async function fetchAndParseBOM(
       }
     }
 
+    console.log(
+      `[BOM Fetch] Parsing complete after ${Date.now() - bomStartTime}ms, found ${partMetadata.size} parts with metadata`,
+    );
     return partMetadata;
   } catch (err) {
     console.error("[BOM Parse Error]", err);
@@ -244,10 +255,15 @@ export async function processReleaseEvent(
   releaseId: string,
   timestamp: string,
   env: AppEnv["Bindings"],
+  queue: Queue,
 ): Promise<void> {
+  const startTime = Date.now();
+  console.log(`[OnShape Webhook] Starting processReleaseEvent for ${releaseId}`);
+
   const database = drizzle(env.SHOP_DB, { schema });
   const now = Math.floor(Date.now() / 1000);
 
+  console.log(`[OnShape Webhook] [${Date.now() - startTime}ms] Inserting release`);
   const release = await database
     .insert(schema.onshapeReleases)
     .values({
@@ -263,6 +279,7 @@ export async function processReleaseEvent(
     return;
   }
 
+  console.log(`[OnShape Webhook] [${Date.now() - startTime}ms] Updating existing parts`);
   const existingParts = await database
     .select()
     .from(schema.onshapeParts)
@@ -277,87 +294,30 @@ export async function processReleaseEvent(
     }
   }
 
+  console.log(`[OnShape Webhook] [${Date.now() - startTime}ms] Waiting 5 seconds`);
   await new Promise((resolve) => setTimeout(resolve, 5000));
 
   // Query parts for this release
+  console.log(`[OnShape Webhook] [${Date.now() - startTime}ms] Querying parts`);
   const parts = await database
     .select()
     .from(schema.onshapeParts)
     .where(eq(schema.onshapeParts.releaseId, releaseRowId));
 
-  // Get document ID and API credentials from KV storage
-  const configStr = await env.SESSIONS.get("onshape-config:document");
-  const config = configStr
-    ? (JSON.parse(configStr) as { documentId?: string; mainAssemblyId?: string })
-    : {};
-  const docId = config.documentId || "unknown";
+  console.log(`[OnShape Webhook] [${Date.now() - startTime}ms] Found ${parts.length} parts`);
 
-  // Fetch BOM data if we have the necessary IDs
-  if (config.documentId && config.mainAssemblyId && parts.length > 0 && parts[0]?.versionId) {
-    const apiKey = env.ONSHAPE_API_KEY;
-    const apiSecret = env.ONSHAPE_API_SECRET;
+  // Queue BOM fetch job for async processing
+  console.log(`[OnShape Webhook] [${Date.now() - startTime}ms] Queuing BOM fetch job`);
+  await queue.send({
+    releaseId,
+    releaseRowId,
+    timestamp,
+  });
 
-    if (apiKey && apiSecret) {
-      const bomMetadata = await fetchAndParseBOM(
-        config.documentId,
-        parts[0].versionId,
-        config.mainAssemblyId,
-        apiKey,
-        apiSecret,
-      );
-
-      // Update parts with BOM metadata
-      for (const part of parts) {
-        const metadata = bomMetadata.get(part.partNumber);
-        if (metadata) {
-          await database
-            .update(schema.onshapeParts)
-            .set({
-              quantity: metadata.quantity ?? part.quantity,
-              name: metadata.name ?? part.name,
-              description: metadata.description ?? part.description,
-              revision: metadata.revision ?? part.revision,
-            })
-            .where(eq(schema.onshapeParts.id, part.id));
-        }
-      }
-
-      // Refetch parts to get updated metadata
-      const updatedParts = await database
-        .select()
-        .from(schema.onshapeParts)
-        .where(eq(schema.onshapeParts.releaseId, releaseRowId));
-
-      // Update parts reference with fresh data
-      parts.length = 0;
-      parts.push(...updatedParts);
-    }
-  }
-
-  // Build Slack message
-  const releaseLink = `<https://cad.onshape.com/documents?releasepackage=${releaseId}|${releaseId}>`;
-  const message = [
-    "🎉 *New release candidate approved!*",
-    `Release: ${releaseLink}`,
-    `Time: <!date^${Math.floor(new Date(timestamp).getTime() / 1000)}^{date_num} {time_secs}|${timestamp}>`,
-    `Parts: ${parts.length}`,
-    ...parts.map((part) => {
-      const partLink = part.entityId
-        ? `\n    • <https://cad.onshape.com/documents/${docId}/v/${part.versionId}/e/${part.entityId}|OnShape Part Link>`
-        : "";
-      const drawingLink = part.partDrawingEntityId
-        ? `\n    • <https://cad.onshape.com/documents/${docId}/v/${part.versionId}/e/${part.partDrawingEntityId}|OnShape Drawing Link>`
-        : "";
-      return `
-• *${part.partNumber}*${part.revision ? ` (rev ${part.revision})` : ""}${part.name ? `- ${part.name}` : ""}${part.quantity ? ` x${part.quantity}` : ""}
-    • <https://shop.g3robotics.com/part?p=${part.partNumber}|Shop SW Link>${partLink}${drawingLink}`;
-    }),
-  ].join("\n");
-
-  await sendMessage("C09QYMTSGKT", message, env);
-
-  console.log("[OnShape Webhook] Processed release", {
+  const totalTime = Date.now() - startTime;
+  console.log("[OnShape Webhook] Release processed, BOM job queued", {
     releaseId,
     partCount: parts.length,
+    totalTimeMs: totalTime,
   });
 }

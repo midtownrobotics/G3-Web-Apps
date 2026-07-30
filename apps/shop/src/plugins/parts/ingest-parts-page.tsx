@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import { api } from "../../shared/api";
 import { getErrorMessage } from "../../shared/api-error";
 import type { Process, Subsystem } from "../../shared/types";
@@ -39,6 +38,102 @@ type PartForm = {
   processIds: number[];
 };
 
+type LocalPartData = {
+  subsystemId: number;
+  processIds: number[];
+  revision?: string;
+  name?: string;
+  quantity?: number;
+};
+
+function ProcessPanel({
+  partNumber,
+  processes,
+  selectedProcessIds,
+  onAddProcess,
+  onRemoveProcess,
+  onClose,
+}: {
+  partNumber: string;
+  processes: Process[];
+  selectedProcessIds: number[];
+  onAddProcess: (procId: number) => void;
+  onRemoveProcess: (idx: number) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="bg-paper w-full max-w-sm h-full shadow-lg flex flex-col">
+      <div className="border-b border-steel/25 px-6 py-4 flex items-center justify-between">
+        <h2 className="font-semibold text-ink">Processes: {partNumber}</h2>
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-steel hover:text-ink text-xl leading-none"
+        >
+          ✕
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+        <div>
+          <h3 className="text-xs font-semibold text-steel-dark mb-3">Available Processes</h3>
+          <div className="space-y-2">
+            {processes
+              .filter((p) => !selectedProcessIds.includes(p.id))
+              .map((proc) => (
+                <button
+                  key={proc.id}
+                  type="button"
+                  onClick={() => onAddProcess(proc.id)}
+                  className="w-full text-left px-3 py-2 text-sm text-steel hover:bg-mist rounded border border-steel/20 hover:border-crimson/40 transition-colors"
+                >
+                  + {proc.name}
+                </button>
+              ))}
+          </div>
+        </div>
+
+        {selectedProcessIds.length > 0 && (
+          <div>
+            <h3 className="text-xs font-semibold text-steel-dark mb-3">Selected (in order)</h3>
+            <div className="space-y-2">
+              {selectedProcessIds.map((procId, idx) => {
+                const proc = processes.find((p) => p.id === procId);
+                return (
+                  <div
+                    key={procId}
+                    className="flex items-center gap-2 px-3 py-2 bg-mist rounded border border-steel/20"
+                  >
+                    <span className="text-xs font-semibold text-steel-dark w-6">{idx + 1}.</span>
+                    <span className="text-sm text-ink flex-1">{proc?.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => onRemoveProcess(idx)}
+                      className="text-steel hover:text-crimson text-xs font-semibold"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="border-t border-steel/25 px-6 py-4 flex gap-2 justify-end">
+        <button
+          type="button"
+          onClick={onClose}
+          className="px-4 py-2 text-sm font-medium text-steel hover:text-ink border border-steel/40 rounded-lg transition-colors"
+        >
+          Done
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function IngestPartsPage() {
   const { data, loading } = useShopData();
   const touch = useTouchDevice();
@@ -46,10 +141,72 @@ export function IngestPartsPage() {
   const [pendingLoading, setPendingLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState<number | null>(null);
+  const [deletingPartNumber, setDeletingPartNumber] = useState<string | null>(null);
+  const [localPartData, setLocalPartData] = useState<Record<string, LocalPartData>>({});
+  const [editingProcessPartIdx, setEditingProcessPartIdx] = useState<number | null>(null);
+  const [ingestingAll, setIngestingAll] = useState(false);
 
   useEffect(() => {
     loadPendingParts();
   }, []);
+
+  useEffect(() => {
+    const hasUnsavedChanges = Object.keys(localPartData).length > 0;
+
+    if (hasUnsavedChanges) {
+      window.sessionStorage.setItem("shop-unsaved-changes", "true");
+    } else {
+      window.sessionStorage.removeItem("shop-unsaved-changes");
+    }
+  }, [localPartData]);
+
+  useEffect(() => {
+    const hasUnsavedChanges = Object.keys(localPartData).length > 0;
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = "";
+        return "";
+      }
+    };
+
+    const handlePopstate = (e: PopStateEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        if (!window.confirm("You have unsaved changes. Are you sure you want to leave?")) {
+          window.history.pushState(null, "", window.location.pathname);
+        }
+      }
+    };
+
+    const handleLinkClick = (e: MouseEvent) => {
+      if (!hasUnsavedChanges) return;
+
+      const target = (e.target as HTMLElement).closest("a");
+      if (!target) return;
+
+      const href = target.getAttribute("href");
+      if (!href || href.startsWith("#") || href.startsWith("?")) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (window.confirm("You have unsaved changes. Are you sure you want to leave?")) {
+        window.sessionStorage.removeItem("shop-unsaved-changes");
+        window.location.href = href;
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    window.addEventListener("popstate", handlePopstate);
+    document.addEventListener("click", handleLinkClick, true);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      window.removeEventListener("popstate", handlePopstate);
+      document.removeEventListener("click", handleLinkClick, true);
+    };
+  }, [localPartData]);
 
   async function loadPendingParts() {
     try {
@@ -71,15 +228,32 @@ export function IngestPartsPage() {
     }
   }
 
+  async function handleDeletePart(partNumber: string) {
+    setDeletingPartNumber(partNumber);
+    try {
+      // biome-ignore lint/suspicious/noExplicitAny: workaround for Hono client type generation
+      const res = await (api as any).admin.parts[":partNumber"].$delete({ param: { partNumber } });
+
+      if (!res.ok) {
+        setError(await getErrorMessage(res as unknown as Response));
+        return;
+      }
+
+      // Reload the pending parts list
+      await loadPendingParts();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete part");
+    } finally {
+      setDeletingPartNumber(null);
+    }
+  }
+
   if (loading || pendingLoading) return <PageLoading />;
 
   if (error) {
     return (
       <main className="min-h-screen bg-mist">
         <div className="max-w-2xl mx-auto px-6 py-8 space-y-5">
-          <Link to="/parts" className="text-sm text-steel hover:text-ink transition-colors">
-            ← Back to Parts
-          </Link>
           <h1 className="font-display text-4xl text-ink">Ingest Parts</h1>
           <ErrorBanner message={error} />
         </div>
@@ -91,9 +265,6 @@ export function IngestPartsPage() {
     return (
       <main className="min-h-screen bg-mist">
         <div className="max-w-2xl mx-auto px-6 py-8 space-y-5">
-          <Link to="/parts" className="text-sm text-steel hover:text-ink transition-colors">
-            ← Back to Parts
-          </Link>
           <h1 className="font-display text-4xl text-ink">Ingest Parts</h1>
           <div className="bg-paper border border-steel/30 rounded-xl p-6">
             <p className="text-sm text-steel">No pending parts to ingest.</p>
@@ -108,9 +279,6 @@ export function IngestPartsPage() {
     return (
       <main className="min-h-screen bg-mist">
         <div className="max-w-4xl mx-auto px-6 py-8 space-y-5">
-          <Link to="/parts" className="text-sm text-steel hover:text-ink transition-colors">
-            ← Back to Parts
-          </Link>
           <h1 className="font-display text-4xl text-ink">Ingest Parts</h1>
 
           <div className="bg-paper border border-steel/30 rounded-xl overflow-hidden">
@@ -121,12 +289,13 @@ export function IngestPartsPage() {
                     <th className="px-4 py-3 text-left font-semibold text-steel-dark">
                       Part Number
                     </th>
-                    <th className="px-4 py-3 text-left font-semibold text-steel-dark">
-                      Release ID
-                    </th>
-                    <th className="px-4 py-3 text-left font-semibold text-steel-dark">Entity ID</th>
-                    <th className="px-4 py-3 text-left font-semibold text-steel-dark">Drawing</th>
-                    <th className="px-4 py-3 text-right font-semibold text-steel-dark">Action</th>
+                    <th className="px-4 py-3 text-left font-semibold text-steel-dark">Rev</th>
+                    <th className="px-4 py-3 text-left font-semibold text-steel-dark">Name</th>
+                    <th className="px-4 py-3 text-left font-semibold text-steel-dark">Qty</th>
+                    <th className="px-4 py-3 text-left font-semibold text-steel-dark">Subsystem</th>
+                    <th className="px-4 py-3 text-left font-semibold text-steel-dark">Processes</th>
+                    <th className="px-4 py-3 text-center font-semibold text-steel-dark">Drawing</th>
+                    <th className="px-4 py-3 text-right font-semibold text-steel-dark">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-steel/25">
@@ -135,23 +304,73 @@ export function IngestPartsPage() {
                       key={`${part.onshapeReleaseId}-${part.partNumber}`}
                       className="hover:bg-mist transition-colors"
                     >
-                      <td className="px-4 py-3 text-ink font-medium">{part.partNumber}</td>
-                      <td className="px-4 py-3 text-steel text-xs font-mono">
-                        {part.onshapeReleaseId}
+                      <td className="px-4 py-3 text-ink font-medium font-mono text-xs">
+                        {part.partNumber}
                       </td>
-                      <td className="px-4 py-3 text-steel text-xs font-mono">
-                        {part.entityId ? `${part.entityId.slice(0, 12)}…` : "—"}
+                      <td className="px-4 py-3 text-steel text-xs">
+                        {(localPartData[part.partNumber]?.revision ?? part.revision) || "—"}
                       </td>
-                      <td className="px-4 py-3 text-steel">
+                      <td className="px-4 py-3 text-ink text-xs truncate max-w-xs">
+                        {(localPartData[part.partNumber]?.name ?? part.name) || "—"}
+                      </td>
+                      <td className="px-4 py-3 text-steel text-xs">
+                        {localPartData[part.partNumber]?.quantity ?? part.quantity ?? 1}
+                      </td>
+                      <td className="px-4 py-3 text-steel text-xs">
+                        <select
+                          value={localPartData[part.partNumber]?.subsystemId || 0}
+                          onChange={(e) =>
+                            setLocalPartData({
+                              ...localPartData,
+                              [part.partNumber]: {
+                                ...localPartData[part.partNumber],
+                                subsystemId: Number(e.target.value),
+                                processIds: localPartData[part.partNumber]?.processIds || [],
+                                revision: localPartData[part.partNumber]?.revision,
+                                name: localPartData[part.partNumber]?.name,
+                                quantity: localPartData[part.partNumber]?.quantity,
+                              },
+                            })
+                          }
+                          className="bg-paper border border-steel/40 rounded px-2 py-1 text-xs text-ink focus:outline-none focus:border-crimson"
+                        >
+                          <option value={0}>— Select —</option>
+                          {pendingData.subsystems.map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.name}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-4 py-3 text-steel text-xs">
+                        <button
+                          type="button"
+                          onClick={() => setEditingProcessPartIdx(idx)}
+                          className="text-xs font-medium text-steel hover:text-ink underline"
+                        >
+                          {localPartData[part.partNumber]?.processIds?.length
+                            ? "Edit Processes"
+                            : "Set Processes"}
+                        </button>
+                      </td>
+                      <td className="px-4 py-3 text-steel text-center">
                         {part.partDrawingEntityId ? "✓" : "—"}
                       </td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-4 py-3 text-right flex gap-2 justify-end">
                         <button
                           type="button"
                           onClick={() => setCurrentIndex(idx)}
                           className="text-xs font-medium text-crimson hover:text-crimson-dark underline"
                         >
-                          Ingest →
+                          Details
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeletePart(part.partNumber)}
+                          disabled={deletingPartNumber === part.partNumber}
+                          className="text-xs font-medium text-steel hover:text-steel-dark disabled:opacity-50"
+                        >
+                          {deletingPartNumber === part.partNumber ? "Deleting…" : "Delete"}
                         </button>
                       </td>
                     </tr>
@@ -160,6 +379,92 @@ export function IngestPartsPage() {
               </table>
             </div>
           </div>
+
+          {pendingData && (
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                disabled={
+                  ingestingAll ||
+                  !pendingData.parts.every((p) => localPartData[p.partNumber]?.subsystemId)
+                }
+                onClick={async () => {
+                  setIngestingAll(true);
+                  try {
+                    for (const part of pendingData.parts) {
+                      const partData = localPartData[part.partNumber];
+                      if (!partData?.subsystemId) continue;
+
+                      // biome-ignore lint/suspicious/noExplicitAny: workaround for Hono client type generation
+                      await (api as any)["part-definitions"].$post({
+                        json: {
+                          onshapePartNumber: part.partNumber,
+                          revision: partData.revision ?? part.revision ?? undefined,
+                          subsystemId: partData.subsystemId,
+                          name: partData.name ?? part.name ?? undefined,
+                          quantity: partData.quantity ?? part.quantity ?? 1,
+                          notes: part.description || undefined,
+                          partDrawingUrl: "",
+                          processIds: partData.processIds || [],
+                        },
+                      });
+                    }
+                    await loadPendingParts();
+                    setLocalPartData({});
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : "Failed to ingest parts");
+                  } finally {
+                    setIngestingAll(false);
+                  }
+                }}
+                className="px-6 py-2 text-sm font-semibold text-paper bg-crimson hover:bg-crimson-dark disabled:bg-steel/30 disabled:cursor-not-allowed rounded-lg transition-colors"
+              >
+                {ingestingAll ? "Ingesting…" : "Ingest All"}
+              </button>
+            </div>
+          )}
+
+          {editingProcessPartIdx !== null && data && (
+            <div className="fixed inset-0 bg-black/30 z-40 flex justify-end">
+              <ProcessPanel
+                partNumber={pendingData.parts[editingProcessPartIdx]?.partNumber}
+                processes={data.processes}
+                selectedProcessIds={
+                  localPartData[pendingData.parts[editingProcessPartIdx].partNumber]?.processIds ||
+                  []
+                }
+                onAddProcess={(procId) => {
+                  const partNum = pendingData.parts[editingProcessPartIdx].partNumber;
+                  setLocalPartData({
+                    ...localPartData,
+                    [partNum]: {
+                      ...localPartData[partNum],
+                      subsystemId: localPartData[partNum]?.subsystemId || 0,
+                      processIds: [...(localPartData[partNum]?.processIds || []), procId],
+                      revision: localPartData[partNum]?.revision,
+                      name: localPartData[partNum]?.name,
+                      quantity: localPartData[partNum]?.quantity,
+                    },
+                  });
+                }}
+                onRemoveProcess={(idx) => {
+                  const partNum = pendingData.parts[editingProcessPartIdx].partNumber;
+                  setLocalPartData({
+                    ...localPartData,
+                    [partNum]: {
+                      ...localPartData[partNum],
+                      subsystemId: localPartData[partNum]?.subsystemId || 0,
+                      processIds: localPartData[partNum].processIds.filter((_, i) => i !== idx),
+                      revision: localPartData[partNum]?.revision,
+                      name: localPartData[partNum]?.name,
+                      quantity: localPartData[partNum]?.quantity,
+                    },
+                  });
+                }}
+                onClose={() => setEditingProcessPartIdx(null)}
+              />
+            </div>
+          )}
         </div>
       </main>
     );
@@ -173,7 +478,10 @@ export function IngestPartsPage() {
       <div className="max-w-2xl mx-auto px-6 py-8 space-y-5">
         <button
           type="button"
-          onClick={() => setCurrentIndex(null)}
+          onClick={() => {
+            setCurrentIndex(null);
+            window.scrollTo(0, 0);
+          }}
           className="text-sm text-steel hover:text-ink transition-colors"
         >
           ← Back to List
@@ -189,6 +497,13 @@ export function IngestPartsPage() {
             part={currentPart}
             subsystems={pendingData.subsystems}
             processes={data.processes}
+            localPartData={localPartData[currentPart.partNumber]}
+            onUpdateLocalPartData={(partData) => {
+              setLocalPartData({
+                ...localPartData,
+                [currentPart.partNumber]: partData,
+              });
+            }}
             onNext={() => {
               if (currentIndex + 1 < pendingData.parts.length) {
                 setCurrentIndex(currentIndex + 1);
@@ -196,6 +511,7 @@ export function IngestPartsPage() {
                 setCurrentIndex(null);
               }
             }}
+            onBack={() => setCurrentIndex(null)}
             onRefresh={loadPendingParts}
             touch={touch}
           />
@@ -209,27 +525,33 @@ function PartIngestCard({
   part,
   subsystems,
   processes,
+  localPartData,
+  onUpdateLocalPartData,
   onNext,
   onRefresh,
   touch,
+  onBack,
 }: {
   part: PendingPart;
   subsystems: Subsystem[];
   processes: Process[];
+  localPartData?: LocalPartData;
+  onUpdateLocalPartData: (partData: LocalPartData) => void;
   onNext: () => void;
   onRefresh: () => void;
   touch: boolean;
+  onBack: () => void;
 }) {
   const [form, setForm] = useState<PartForm>({
     onshapePartNumber: part.partNumber,
-    revision: part.revision ?? "",
-    subsystemId: 0,
-    name: part.name ?? "",
-    quantity: part.quantity ?? 1,
+    revision: localPartData?.revision ?? part.revision ?? "",
+    subsystemId: localPartData?.subsystemId ?? 0,
+    name: localPartData?.name ?? part.name ?? "",
+    quantity: localPartData?.quantity ?? part.quantity ?? 1,
     notes: part.description ?? "",
     partDrawingUrl: "",
     isPriority: false,
-    processIds: [],
+    processIds: localPartData?.processIds ?? [],
   });
 
   const [drawingFetching, setDrawingFetching] = useState(false);
@@ -266,7 +588,24 @@ function PartIngestCard({
     try {
       const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:5174/api";
       const res = await fetch(`${apiBase}/parts/${part.partNumber}/drawing`);
-      return res.ok;
+
+      // Check if we got an error response (either status or body)
+      if (!res.ok) {
+        return false;
+      }
+
+      // Also check if the response contains an error message
+      try {
+        // biome-ignore lint/suspicious/noExplicitAny: response type varies by content
+        const data = (await res.json()) as any;
+        if (data.error) {
+          return false;
+        }
+      } catch {
+        // If we can't parse as JSON, assume it's the PDF (binary)
+      }
+
+      return true;
     } catch {
       return false;
     }
@@ -288,7 +627,8 @@ function PartIngestCard({
 
   function handleViewExisting() {
     // Open existing drawing in new tab for preview
-    window.open(`/api/parts/${part.partNumber}/drawing`, "_blank");
+    const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:5174/api";
+    window.open(`${apiBase}/parts/${part.partNumber}/drawing`, "_blank");
     setShowExistsAlert(false);
     setShowRefetchConfirm(true);
   }
@@ -340,6 +680,13 @@ function PartIngestCard({
       } else {
         next.processIds[index] = processId;
       }
+      onUpdateLocalPartData({
+        subsystemId: next.subsystemId,
+        processIds: next.processIds,
+        revision: next.revision,
+        name: next.name,
+        quantity: next.quantity,
+      });
       return next;
     });
   }
@@ -490,14 +837,33 @@ function PartIngestCard({
           label="Revision"
           required
           value={form.revision}
-          onChange={(v) => setForm({ ...form, revision: v })}
+          onChange={(v) => {
+            setForm({ ...form, revision: v });
+            onUpdateLocalPartData({
+              subsystemId: form.subsystemId,
+              processIds: form.processIds,
+              revision: v,
+              name: form.name,
+              quantity: form.quantity,
+            });
+          }}
           placeholder="A"
         />
         <div className="space-y-1">
           <FieldLabel label="Subsystem" required />
           <select
             value={form.subsystemId}
-            onChange={(e) => setForm({ ...form, subsystemId: Number(e.target.value) })}
+            onChange={(e) => {
+              const subsystemId = Number(e.target.value);
+              setForm({ ...form, subsystemId });
+              onUpdateLocalPartData({
+                subsystemId,
+                processIds: form.processIds,
+                revision: form.revision,
+                name: form.name,
+                quantity: form.quantity,
+              });
+            }}
             className="w-full bg-paper border border-steel/40 rounded-lg px-3 py-2 text-sm text-ink focus:outline-none focus:border-crimson"
           >
             <option value={0}>Select…</option>
@@ -512,7 +878,16 @@ function PartIngestCard({
           label="Name"
           required
           value={form.name}
-          onChange={(v) => setForm({ ...form, name: v })}
+          onChange={(v) => {
+            setForm({ ...form, name: v });
+            onUpdateLocalPartData({
+              subsystemId: form.subsystemId,
+              processIds: form.processIds,
+              revision: form.revision,
+              name: v,
+              quantity: form.quantity,
+            });
+          }}
           placeholder="Same as Onshape"
         />
         <div className="space-y-1">
@@ -521,12 +896,20 @@ function PartIngestCard({
             type="number"
             min={1}
             value={form.quantity}
-            onChange={(e) =>
+            onChange={(e) => {
+              const quantity = Math.max(1, Math.floor(Number(e.target.value)));
               setForm({
                 ...form,
-                quantity: Math.max(1, Math.floor(Number(e.target.value))),
-              })
-            }
+                quantity,
+              });
+              onUpdateLocalPartData({
+                subsystemId: form.subsystemId,
+                processIds: form.processIds,
+                revision: form.revision,
+                name: form.name,
+                quantity,
+              });
+            }}
             className="w-full bg-paper border border-steel/40 rounded-lg px-3 py-2 text-sm text-ink focus:outline-none focus:border-crimson"
           />
         </div>
@@ -770,12 +1153,7 @@ function PartIngestCard({
         <button
           type="button"
           onClick={() => {
-            setFormError("");
-            setBanner(null);
-            setDrawingError(null);
-            setDrawingSuccess(false);
-            setShowExistsAlert(false);
-            setShowRefetchConfirm(false);
+            onBack();
             window.scrollTo(0, 0);
           }}
           className={`ml-auto bg-paper border border-steel/40 hover:bg-mist text-ink text-sm font-medium rounded-lg transition-colors ${

@@ -80,24 +80,14 @@ export function PartsPage() {
       <div className="max-w-5xl mx-auto px-6 py-8 space-y-8">
         <div className="flex items-center justify-between gap-3">
           <h1 className="font-display text-4xl text-ink">Parts</h1>
-          <div className="flex gap-2">
-            <Link
-              to="/parts/ingest"
-              className={`bg-steel hover:bg-steel-dark text-paper text-sm font-semibold rounded-lg transition-colors ${
-                touch ? "px-5 py-3" : "px-4 py-2"
-              }`}
-            >
-              Ingest
-            </Link>
-            <Link
-              to="/parts/new"
-              className={`bg-crimson hover:bg-crimson-dark text-paper text-sm font-semibold rounded-lg transition-colors ${
-                touch ? "px-5 py-3" : "px-4 py-2"
-              }`}
-            >
-              + Add Part
-            </Link>
-          </div>
+          <Link
+            to="/parts/new"
+            className={`bg-crimson hover:bg-crimson-dark text-paper text-sm font-semibold rounded-lg transition-colors ${
+              touch ? "px-5 py-3" : "px-4 py-2"
+            }`}
+          >
+            + Add Part
+          </Link>
         </div>
 
         {error && <ErrorBanner message={error} />}

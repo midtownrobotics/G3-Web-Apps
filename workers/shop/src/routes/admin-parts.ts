@@ -123,6 +123,35 @@ router.post("/parts/:partNumber/fetch-drawing", requireAuth, async (c) => {
   }
 });
 
+router.delete("/parts/:partNumber", requireAuth, async (c) => {
+  const partNumber = c.req.param("partNumber");
+
+  if (!partNumber) {
+    return c.json({ error: "Missing partNumber" }, 400);
+  }
+
+  try {
+    const db = createShopDb(c.env.SHOP_DB);
+
+    // Delete all onshapeParts with this part number
+    await db.delete(schema.onshapeParts).where(eq(schema.onshapeParts.partNumber, partNumber));
+
+    return c.json({
+      success: true,
+      partNumber,
+      message: "Part deleted successfully",
+    });
+  } catch (err) {
+    console.error("[Admin Parts] Delete error", err);
+    return c.json(
+      {
+        error: err instanceof Error ? err.message : "Failed to delete part",
+      },
+      500,
+    );
+  }
+});
+
 router.get("/onshape/config", requireAdmin, async (c) => {
   const configStr = await c.env.SESSIONS.get("onshape-config:document");
   const config = configStr
@@ -167,7 +196,10 @@ router.get("/seed-test-parts", requireAuth, async (c) => {
       releaseId: null,
       partNumber: "1648-26-P-0475",
       versionId: "78963be1e83bad7857f14f95",
-      quantity: null,
+      quantity: 2,
+      revision: "A",
+      name: "Main Shaft Assembly",
+      description: "Primary drive shaft for the drivetrain",
     },
     {
       entityId: "afcc70bb4a69714fec574c78",
@@ -176,7 +208,10 @@ router.get("/seed-test-parts", requireAuth, async (c) => {
       releaseId: null,
       partNumber: "1648-26-P-0518",
       versionId: "78963be1e83bad7857f14f95",
-      quantity: null,
+      quantity: 4,
+      revision: "B",
+      name: "Bearing Mount Plate",
+      description: "Mounts bearings to the frame",
     },
     {
       entityId: "4c962b683afb610b63d1a054",
@@ -185,7 +220,10 @@ router.get("/seed-test-parts", requireAuth, async (c) => {
       releaseId: null,
       partNumber: "1648-26-P-0475",
       versionId: "d612752ee89b974a66c8de06",
-      quantity: null,
+      quantity: 2,
+      revision: "C",
+      name: "Main Shaft Assembly",
+      description: "Updated drive shaft with improved tolerances",
     },
     {
       entityId: "afcc70bb4a69714fec574c78",
@@ -194,7 +232,10 @@ router.get("/seed-test-parts", requireAuth, async (c) => {
       releaseId: null,
       partNumber: "1648-26-P-0518",
       versionId: "d612752ee89b974a66c8de06",
-      quantity: null,
+      quantity: 4,
+      revision: "A",
+      name: "Bearing Mount Plate",
+      description: "Updated mounting plate design",
     },
     {
       entityId: "4c962b683afb610b63d1a054",
@@ -203,7 +244,10 @@ router.get("/seed-test-parts", requireAuth, async (c) => {
       releaseId: null,
       partNumber: "1648-26-P-0475",
       versionId: "21887b33ecbae4838890a78b",
-      quantity: null,
+      quantity: 2,
+      revision: "D",
+      name: "Main Shaft Assembly",
+      description: "Final production revision",
     },
     {
       entityId: "afcc70bb4a69714fec574c78",
@@ -212,7 +256,10 @@ router.get("/seed-test-parts", requireAuth, async (c) => {
       releaseId: null,
       partNumber: "1648-26-P-0518",
       versionId: "21887b33ecbae4838890a78b",
-      quantity: null,
+      quantity: 4,
+      revision: "B",
+      name: "Bearing Mount Plate",
+      description: "Final production version",
     },
   ];
 
