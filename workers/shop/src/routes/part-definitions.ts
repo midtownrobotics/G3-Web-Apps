@@ -64,7 +64,7 @@ export const partDefinitionsRouter = new Hono<AppEnv>()
 
     if (onshapePartNumber) {
       const rows = await db
-        .select({ revision: partDefinitions.revision })
+        .select()
         .from(partDefinitions)
         .where(eq(partDefinitions.onshapePartNumber, onshapePartNumber))
         .all();
