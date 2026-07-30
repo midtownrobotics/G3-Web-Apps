@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api } from "../../shared/api";
 import { getErrorMessage } from "../../shared/api-error";
 import {
@@ -20,6 +20,7 @@ import { useShopData } from "../../shared/use-shop-data";
 import { useTouchDevice } from "../../shared/use-touch";
 import { useUserNames } from "../../shared/use-user-names";
 import { PartCard } from "../parts/part-card";
+import { PartWorkView } from "./part-work-view";
 
 const MOOD_TONES: Record<ShopMood["tone"], string> = {
   calm: "bg-emerald-50 border-emerald-300 text-emerald-800",
@@ -41,6 +42,7 @@ export function BoardPage() {
   const { data, loading, error, refresh } = useShopData();
   const navigate = useNavigate();
   const params = useParams();
+  const [searchParams] = useSearchParams();
   const kiosk = useKiosk();
   // Kiosks are tablets — always use the finger-friendly layout there.
   const touch = useTouchDevice() || kiosk.active;
@@ -50,10 +52,19 @@ export function BoardPage() {
 
   const [banner, setBanner] = useState<string | null>(null);
   const [selectedInstanceId, setSelectedInstanceId] = useState<number | null>(null);
+  const [workingPartInstanceId, setWorkingPartInstanceId] = useState<number | null>(null);
   const [presence, setPresence] = useState<KioskPresence[]>([]);
 
   const rows = useMemo(() => (data ? buildInstanceRows(data) : []), [data]);
   const loads = useMemo(() => (data ? processLoads(rows, data.processes) : []), [rows, data]);
+
+  // Handle instance query parameter from part detail page
+  useEffect(() => {
+    const instanceParam = searchParams.get("instance");
+    if (instanceParam) {
+      setSelectedInstanceId(Number(instanceParam));
+    }
+  }, [searchParams]);
 
   // A kiosk named after a machine opens straight to that machine's queue.
   useEffect(() => {
@@ -96,6 +107,10 @@ export function BoardPage() {
     }
     setBanner(null);
     await refresh();
+    // Open the work view when starting a part
+    if (to === "doing") {
+      setWorkingPartInstanceId(row.instance.id);
+    }
   }
 
   if (loading) return <PageLoading />;
@@ -157,7 +172,7 @@ export function BoardPage() {
             loads={loads}
             processName={processName}
             touch={touch}
-            onOpenPart={setSelectedInstanceId}
+            navigate={navigate}
             presence={presence}
           />
         ) : (
@@ -167,10 +182,29 @@ export function BoardPage() {
             processName={processName}
             onAdvance={advance}
             touch={touch}
-            onOpenPart={setSelectedInstanceId}
+            onOpenWorkView={setWorkingPartInstanceId}
           />
         )}
       </div>
+
+      {workingPartInstanceId &&
+        data &&
+        (() => {
+          const workingRow = rows.find((r) => r.instance.id === workingPartInstanceId);
+          return workingRow ? (
+            <PartWorkView
+              row={workingRow}
+              data={data}
+              onClose={() => setWorkingPartInstanceId(null)}
+              onMarkComplete={async () => {
+                if (workingRow.current) {
+                  await advance(workingRow, "done");
+                  setWorkingPartInstanceId(null);
+                }
+              }}
+            />
+          ) : null;
+        })()}
 
       {selectedRow && data && (
         <PartCard
@@ -191,14 +225,14 @@ function OverviewView({
   loads,
   processName,
   touch,
-  onOpenPart,
+  navigate,
   presence,
 }: {
   rows: InstanceRow[];
   loads: ReturnType<typeof processLoads>;
   processName: (pid: number) => string;
   touch: boolean;
-  onOpenPart: (instanceId: number) => void;
+  navigate: (path: string) => void;
   presence: KioskPresence[];
 }) {
   const mood = shopMood(loads);
@@ -266,7 +300,7 @@ function OverviewView({
         empty="Nothing is being worked on right now."
         processName={processName}
         touch={touch}
-        onOpenPart={onOpenPart}
+        navigate={navigate}
       />
       <BoardList
         title="Not Started"
@@ -274,7 +308,7 @@ function OverviewView({
         empty="Nothing is waiting to start."
         processName={processName}
         touch={touch}
-        onOpenPart={onOpenPart}
+        navigate={navigate}
       />
     </div>
   );
@@ -286,14 +320,14 @@ function BoardList({
   empty,
   processName,
   touch,
-  onOpenPart,
+  navigate,
 }: {
   title: string;
   rows: InstanceRow[];
   empty: string;
   processName: (pid: number) => string;
   touch: boolean;
-  onOpenPart: (instanceId: number) => void;
+  navigate: (path: string) => void;
 }) {
   return (
     <section className="space-y-2">
@@ -305,12 +339,7 @@ function BoardList({
       ) : (
         <div className="bg-paper border border-steel/30 rounded-xl divide-y divide-steel/15">
           {rows.map((row) => (
-            <PartLine
-              key={row.instance.id}
-              row={row}
-              touch={touch}
-              onOpen={() => onOpenPart(row.instance.id)}
-            >
+            <PartLine key={row.instance.id} row={row} touch={touch} navigate={navigate}>
               {row.current && (
                 <Link
                   to={processPath(row.current.processId)}
@@ -336,14 +365,14 @@ function ProcessView({
   processName,
   onAdvance,
   touch,
-  onOpenPart,
+  onOpenWorkView,
 }: {
   processId: number;
   rows: InstanceRow[];
   processName: (pid: number) => string;
   onAdvance: (row: InstanceRow, to: "doing" | "done") => Promise<void>;
   touch: boolean;
-  onOpenPart: (instanceId: number) => void;
+  onOpenWorkView: (instanceId: number) => void;
 }) {
   // Parts whose pipeline includes this process and haven't finished it yet.
   const here = rows.filter((r) => r.procs.some((p) => p.processId === processId));
@@ -371,23 +400,17 @@ function ProcessView({
         ) : (
           <div className="bg-paper border border-steel/30 rounded-xl divide-y divide-steel/15">
             {inProgress.map((row) => (
-              <PartLine
-                key={row.instance.id}
-                row={row}
-                touch={touch}
-                onOpen={() => onOpenPart(row.instance.id)}
-              >
-                {row.definition.partDrawingUrl && (
-                  <a
-                    href={row.definition.partDrawingUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="text-xs text-crimson hover:text-crimson-dark underline shrink-0"
-                  >
-                    Drawing ↗
-                  </a>
-                )}
+              <PartLine key={row.instance.id} row={row} touch={touch}>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpenWorkView(row.instance.id);
+                  }}
+                  className={`text-xs bg-crimson hover:bg-crimson-dark text-paper rounded-lg font-semibold transition-colors shrink-0 ${btnSize}`}
+                >
+                  Open
+                </button>
                 <span className="relative group shrink-0">
                   <button
                     type="button"
@@ -418,12 +441,7 @@ function ProcessView({
         ) : (
           <div className="bg-paper border border-steel/30 rounded-xl divide-y divide-steel/15">
             {todo.map((row) => (
-              <PartLine
-                key={row.instance.id}
-                row={row}
-                touch={touch}
-                onOpen={() => onOpenPart(row.instance.id)}
-              >
+              <PartLine key={row.instance.id} row={row} touch={touch}>
                 <button
                   type="button"
                   onClick={(e) => {
@@ -449,13 +467,7 @@ function ProcessView({
         ) : (
           <div className="bg-paper border border-steel/30 rounded-xl divide-y divide-steel/15">
             {upcoming.map((row) => (
-              <PartLine
-                key={row.instance.id}
-                row={row}
-                touch={touch}
-                muted
-                onOpen={() => onOpenPart(row.instance.id)}
-              >
+              <PartLine key={row.instance.id} row={row} touch={touch} muted>
                 {row.current && (
                   <span className="text-xs text-steel shrink-0">
                     Stuck at{" "}
@@ -483,23 +495,37 @@ function PartLine({
   row,
   muted,
   touch,
+  navigate,
   onOpen,
   children,
 }: {
   row: InstanceRow;
   muted?: boolean;
   touch?: boolean;
-  onOpen: () => void;
+  navigate?: (path: string) => void;
+  onOpen?: () => void;
   children?: React.ReactNode;
 }) {
+  const handleClick = () => {
+    // In overview, navigate to the process where the part currently is
+    if (navigate && row.current) {
+      navigate(processPath(row.current.processId));
+    } else if (onOpen) {
+      // In process view, open the part card
+      onOpen();
+    }
+  };
+
+  const isClickable = (navigate && row.current) || onOpen;
+
   return (
     // biome-ignore lint/a11y/useKeyWithClickEvents: row is a convenience target; nested controls remain keyboard-accessible
     <div
-      className={`relative flex items-center gap-3 px-4 cursor-pointer hover:bg-mist/70 transition-colors ${
-        touch ? "py-4" : "py-2.5"
-      }`}
-      onClick={onOpen}
-      title="View part details"
+      className={`relative flex items-center gap-3 px-4 ${
+        isClickable ? "cursor-pointer hover:bg-mist/70 transition-colors" : ""
+      } ${touch ? "py-4" : "py-2.5"}`}
+      onClick={handleClick}
+      title={navigate && row.current ? "Go to machine" : "View part details"}
     >
       {row.instance.isPriority ? (
         <span className="absolute left-0 inset-y-0 w-1 bg-amber-400" title="Priority part" />

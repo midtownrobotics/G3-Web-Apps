@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import { api } from "../../shared/api";
 import { getErrorMessage } from "../../shared/api-error";
 import type { Process, Subsystem } from "../../shared/types";
@@ -39,6 +38,185 @@ type PartForm = {
   processIds: number[];
 };
 
+type LocalPartData = {
+  subsystemId: number;
+  processIds: number[];
+  revision?: string;
+  name?: string;
+  quantity?: number;
+};
+
+function DrawingStatusCell({
+  part,
+  localPartData,
+}: {
+  part: PendingPart;
+  localPartData: Record<string, LocalPartData>;
+}) {
+  const [drawingExists, setDrawingExists] = useState(false);
+  const [checking, setChecking] = useState(true);
+  const revision = localPartData[part.partNumber]?.revision ?? part.revision;
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: dependencies captured via closure
+  useEffect(() => {
+    checkDrawing();
+  }, [part.partNumber, revision]);
+
+  async function checkDrawing() {
+    try {
+      setChecking(true);
+      if (!revision) {
+        setDrawingExists(false);
+        return;
+      }
+
+      const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:5174/api";
+      const res = await fetch(`${apiBase}/parts/${part.partNumber}/${revision}/drawing`);
+
+      // Check if we got an error response or can't parse as JSON
+      if (!res.ok) {
+        setDrawingExists(false);
+        return;
+      }
+
+      try {
+        // biome-ignore lint/suspicious/noExplicitAny: response type varies by content
+        const data = (await res.json()) as any;
+        if (data.error) {
+          setDrawingExists(false);
+          return;
+        }
+      } catch {
+        // If we can't parse as JSON, it's likely the PDF (binary)
+      }
+
+      setDrawingExists(true);
+    } catch {
+      setDrawingExists(false);
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  if (checking) {
+    return <span className="text-xs text-steel">…</span>;
+  }
+
+  if (drawingExists) {
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:5174/api";
+          window.open(`${apiBase}/parts/${part.partNumber}/${revision}/drawing`, "_blank");
+        }}
+        className="text-emerald-600 hover:text-emerald-700 font-semibold cursor-pointer"
+        title="Click to open cached drawing"
+      >
+        →
+      </button>
+    );
+  }
+
+  if (part.partDrawingEntityId) {
+    return (
+      <span className="text-blue-600 font-semibold" title="Drawing entity ID available">
+        ✓
+      </span>
+    );
+  }
+
+  return <span className="text-red-600 font-semibold">✕</span>;
+}
+
+function ProcessPanel({
+  partNumber,
+  processes,
+  selectedProcessIds,
+  onAddProcess,
+  onRemoveProcess,
+  onClose,
+}: {
+  partNumber: string;
+  processes: Process[];
+  selectedProcessIds: number[];
+  onAddProcess: (procId: number) => void;
+  onRemoveProcess: (idx: number) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="bg-paper w-full max-w-sm h-full shadow-lg flex flex-col">
+      <div className="border-b border-steel/25 px-6 py-4 flex items-center justify-between">
+        <h2 className="font-semibold text-ink">Processes: {partNumber}</h2>
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-steel hover:text-ink text-xl leading-none"
+        >
+          ✕
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+        <div>
+          <h3 className="text-xs font-semibold text-steel-dark mb-3">Available Processes</h3>
+          <div className="space-y-2">
+            {processes
+              .filter((p) => !selectedProcessIds.includes(p.id))
+              .map((proc) => (
+                <button
+                  key={proc.id}
+                  type="button"
+                  onClick={() => onAddProcess(proc.id)}
+                  className="w-full text-left px-3 py-2 text-sm text-steel hover:bg-mist rounded border border-steel/20 hover:border-crimson/40 transition-colors"
+                >
+                  + {proc.name}
+                </button>
+              ))}
+          </div>
+        </div>
+
+        {selectedProcessIds.length > 0 && (
+          <div>
+            <h3 className="text-xs font-semibold text-steel-dark mb-3">Selected (in order)</h3>
+            <div className="space-y-2">
+              {selectedProcessIds.map((procId, idx) => {
+                const proc = processes.find((p) => p.id === procId);
+                return (
+                  <div
+                    key={procId}
+                    className="flex items-center gap-2 px-3 py-2 bg-mist rounded border border-steel/20"
+                  >
+                    <span className="text-xs font-semibold text-steel-dark w-6">{idx + 1}.</span>
+                    <span className="text-sm text-ink flex-1">{proc?.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => onRemoveProcess(idx)}
+                      className="text-steel hover:text-crimson text-xs font-semibold"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="border-t border-steel/25 px-6 py-4 flex gap-2 justify-end">
+        <button
+          type="button"
+          onClick={onClose}
+          className="px-4 py-2 text-sm font-medium text-steel hover:text-ink border border-steel/40 rounded-lg transition-colors"
+        >
+          Done
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function IngestPartsPage() {
   const { data, loading } = useShopData();
   const touch = useTouchDevice();
@@ -46,10 +224,72 @@ export function IngestPartsPage() {
   const [pendingLoading, setPendingLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState<number | null>(null);
+  const [deletingPartNumber, setDeletingPartNumber] = useState<string | null>(null);
+  const [localPartData, setLocalPartData] = useState<Record<string, LocalPartData>>({});
+  const [editingProcessPartIdx, setEditingProcessPartIdx] = useState<number | null>(null);
+  const [ingestingAll, setIngestingAll] = useState(false);
 
   useEffect(() => {
     loadPendingParts();
   }, []);
+
+  useEffect(() => {
+    const hasUnsavedChanges = Object.keys(localPartData).length > 0;
+
+    if (hasUnsavedChanges) {
+      window.sessionStorage.setItem("shop-unsaved-changes", "true");
+    } else {
+      window.sessionStorage.removeItem("shop-unsaved-changes");
+    }
+  }, [localPartData]);
+
+  useEffect(() => {
+    const hasUnsavedChanges = Object.keys(localPartData).length > 0;
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = "";
+        return "";
+      }
+    };
+
+    const handlePopstate = (e: PopStateEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        if (!window.confirm("You have unsaved changes. Are you sure you want to leave?")) {
+          window.history.pushState(null, "", window.location.pathname);
+        }
+      }
+    };
+
+    const handleLinkClick = (e: MouseEvent) => {
+      if (!hasUnsavedChanges) return;
+
+      const target = (e.target as HTMLElement).closest("a");
+      if (!target) return;
+
+      const href = target.getAttribute("href");
+      if (!href || href.startsWith("#") || href.startsWith("?")) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (window.confirm("You have unsaved changes. Are you sure you want to leave?")) {
+        window.sessionStorage.removeItem("shop-unsaved-changes");
+        window.location.href = href;
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    window.addEventListener("popstate", handlePopstate);
+    document.addEventListener("click", handleLinkClick, true);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      window.removeEventListener("popstate", handlePopstate);
+      document.removeEventListener("click", handleLinkClick, true);
+    };
+  }, [localPartData]);
 
   async function loadPendingParts() {
     try {
@@ -71,15 +311,32 @@ export function IngestPartsPage() {
     }
   }
 
+  async function handleDeletePart(partNumber: string) {
+    setDeletingPartNumber(partNumber);
+    try {
+      // biome-ignore lint/suspicious/noExplicitAny: workaround for Hono client type generation
+      const res = await (api as any).admin.parts[":partNumber"].$delete({ param: { partNumber } });
+
+      if (!res.ok) {
+        setError(await getErrorMessage(res as unknown as Response));
+        return;
+      }
+
+      // Reload the pending parts list
+      await loadPendingParts();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete part");
+    } finally {
+      setDeletingPartNumber(null);
+    }
+  }
+
   if (loading || pendingLoading) return <PageLoading />;
 
   if (error) {
     return (
       <main className="min-h-screen bg-mist">
         <div className="max-w-2xl mx-auto px-6 py-8 space-y-5">
-          <Link to="/parts" className="text-sm text-steel hover:text-ink transition-colors">
-            ← Back to Parts
-          </Link>
           <h1 className="font-display text-4xl text-ink">Ingest Parts</h1>
           <ErrorBanner message={error} />
         </div>
@@ -91,9 +348,6 @@ export function IngestPartsPage() {
     return (
       <main className="min-h-screen bg-mist">
         <div className="max-w-2xl mx-auto px-6 py-8 space-y-5">
-          <Link to="/parts" className="text-sm text-steel hover:text-ink transition-colors">
-            ← Back to Parts
-          </Link>
           <h1 className="font-display text-4xl text-ink">Ingest Parts</h1>
           <div className="bg-paper border border-steel/30 rounded-xl p-6">
             <p className="text-sm text-steel">No pending parts to ingest.</p>
@@ -108,9 +362,6 @@ export function IngestPartsPage() {
     return (
       <main className="min-h-screen bg-mist">
         <div className="max-w-4xl mx-auto px-6 py-8 space-y-5">
-          <Link to="/parts" className="text-sm text-steel hover:text-ink transition-colors">
-            ← Back to Parts
-          </Link>
           <h1 className="font-display text-4xl text-ink">Ingest Parts</h1>
 
           <div className="bg-paper border border-steel/30 rounded-xl overflow-hidden">
@@ -121,12 +372,13 @@ export function IngestPartsPage() {
                     <th className="px-4 py-3 text-left font-semibold text-steel-dark">
                       Part Number
                     </th>
-                    <th className="px-4 py-3 text-left font-semibold text-steel-dark">
-                      Release ID
-                    </th>
-                    <th className="px-4 py-3 text-left font-semibold text-steel-dark">Entity ID</th>
-                    <th className="px-4 py-3 text-left font-semibold text-steel-dark">Drawing</th>
-                    <th className="px-4 py-3 text-right font-semibold text-steel-dark">Action</th>
+                    <th className="px-4 py-3 text-left font-semibold text-steel-dark">Rev</th>
+                    <th className="px-4 py-3 text-left font-semibold text-steel-dark">Name</th>
+                    <th className="px-4 py-3 text-left font-semibold text-steel-dark">Qty</th>
+                    <th className="px-4 py-3 text-left font-semibold text-steel-dark">Subsystem</th>
+                    <th className="px-4 py-3 text-left font-semibold text-steel-dark">Processes</th>
+                    <th className="px-4 py-3 text-center font-semibold text-steel-dark">Drawing</th>
+                    <th className="px-4 py-3 text-right font-semibold text-steel-dark">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-steel/25">
@@ -135,23 +387,73 @@ export function IngestPartsPage() {
                       key={`${part.onshapeReleaseId}-${part.partNumber}`}
                       className="hover:bg-mist transition-colors"
                     >
-                      <td className="px-4 py-3 text-ink font-medium">{part.partNumber}</td>
-                      <td className="px-4 py-3 text-steel text-xs font-mono">
-                        {part.onshapeReleaseId}
+                      <td className="px-4 py-3 text-ink font-medium font-mono text-xs">
+                        {part.partNumber}
                       </td>
-                      <td className="px-4 py-3 text-steel text-xs font-mono">
-                        {part.entityId ? `${part.entityId.slice(0, 12)}…` : "—"}
+                      <td className="px-4 py-3 text-steel text-xs">
+                        {(localPartData[part.partNumber]?.revision ?? part.revision) || "—"}
                       </td>
-                      <td className="px-4 py-3 text-steel">
-                        {part.partDrawingEntityId ? "✓" : "—"}
+                      <td className="px-4 py-3 text-ink text-xs truncate max-w-xs">
+                        {(localPartData[part.partNumber]?.name ?? part.name) || "—"}
                       </td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-4 py-3 text-steel text-xs">
+                        {localPartData[part.partNumber]?.quantity ?? part.quantity ?? 1}
+                      </td>
+                      <td className="px-4 py-3 text-steel text-xs">
+                        <select
+                          value={localPartData[part.partNumber]?.subsystemId || 0}
+                          onChange={(e) =>
+                            setLocalPartData({
+                              ...localPartData,
+                              [part.partNumber]: {
+                                ...localPartData[part.partNumber],
+                                subsystemId: Number(e.target.value),
+                                processIds: localPartData[part.partNumber]?.processIds || [],
+                                revision: localPartData[part.partNumber]?.revision,
+                                name: localPartData[part.partNumber]?.name,
+                                quantity: localPartData[part.partNumber]?.quantity,
+                              },
+                            })
+                          }
+                          className="bg-paper border border-steel/40 rounded px-2 py-1 text-xs text-ink focus:outline-none focus:border-crimson"
+                        >
+                          <option value={0}>— Select —</option>
+                          {pendingData.subsystems.map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.name}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-4 py-3 text-steel text-xs">
+                        <button
+                          type="button"
+                          onClick={() => setEditingProcessPartIdx(idx)}
+                          className="text-xs font-medium text-steel hover:text-ink underline"
+                        >
+                          {localPartData[part.partNumber]?.processIds?.length
+                            ? "Edit Processes"
+                            : "Set Processes"}
+                        </button>
+                      </td>
+                      <td className="px-4 py-3 text-steel text-center">
+                        <DrawingStatusCell part={part} localPartData={localPartData} />
+                      </td>
+                      <td className="px-4 py-3 text-right flex gap-2 justify-end">
                         <button
                           type="button"
                           onClick={() => setCurrentIndex(idx)}
                           className="text-xs font-medium text-crimson hover:text-crimson-dark underline"
                         >
-                          Ingest →
+                          Details
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeletePart(part.partNumber)}
+                          disabled={deletingPartNumber === part.partNumber}
+                          className="text-xs font-medium text-steel hover:text-steel-dark disabled:opacity-50"
+                        >
+                          {deletingPartNumber === part.partNumber ? "Deleting…" : "Delete"}
                         </button>
                       </td>
                     </tr>
@@ -160,6 +462,92 @@ export function IngestPartsPage() {
               </table>
             </div>
           </div>
+
+          {pendingData && (
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                disabled={
+                  ingestingAll ||
+                  !pendingData.parts.every((p) => localPartData[p.partNumber]?.subsystemId)
+                }
+                onClick={async () => {
+                  setIngestingAll(true);
+                  try {
+                    for (const part of pendingData.parts) {
+                      const partData = localPartData[part.partNumber];
+                      if (!partData?.subsystemId) continue;
+
+                      // biome-ignore lint/suspicious/noExplicitAny: workaround for Hono client type generation
+                      await (api as any)["part-definitions"].$post({
+                        json: {
+                          onshapePartNumber: part.partNumber,
+                          revision: partData.revision ?? part.revision ?? undefined,
+                          subsystemId: partData.subsystemId,
+                          name: partData.name ?? part.name ?? undefined,
+                          quantity: partData.quantity ?? part.quantity ?? 1,
+                          notes: part.description || undefined,
+                          partDrawingUrl: "",
+                          processIds: partData.processIds || [],
+                        },
+                      });
+                    }
+                    await loadPendingParts();
+                    setLocalPartData({});
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : "Failed to ingest parts");
+                  } finally {
+                    setIngestingAll(false);
+                  }
+                }}
+                className="px-6 py-2 text-sm font-semibold text-paper bg-crimson hover:bg-crimson-dark disabled:bg-steel/30 disabled:cursor-not-allowed rounded-lg transition-colors"
+              >
+                {ingestingAll ? "Ingesting…" : "Ingest All"}
+              </button>
+            </div>
+          )}
+
+          {editingProcessPartIdx !== null && data && (
+            <div className="fixed inset-0 bg-black/30 z-40 flex justify-end">
+              <ProcessPanel
+                partNumber={pendingData.parts[editingProcessPartIdx]?.partNumber}
+                processes={data.processes}
+                selectedProcessIds={
+                  localPartData[pendingData.parts[editingProcessPartIdx].partNumber]?.processIds ||
+                  []
+                }
+                onAddProcess={(procId) => {
+                  const partNum = pendingData.parts[editingProcessPartIdx].partNumber;
+                  setLocalPartData({
+                    ...localPartData,
+                    [partNum]: {
+                      ...localPartData[partNum],
+                      subsystemId: localPartData[partNum]?.subsystemId || 0,
+                      processIds: [...(localPartData[partNum]?.processIds || []), procId],
+                      revision: localPartData[partNum]?.revision,
+                      name: localPartData[partNum]?.name,
+                      quantity: localPartData[partNum]?.quantity,
+                    },
+                  });
+                }}
+                onRemoveProcess={(idx) => {
+                  const partNum = pendingData.parts[editingProcessPartIdx].partNumber;
+                  setLocalPartData({
+                    ...localPartData,
+                    [partNum]: {
+                      ...localPartData[partNum],
+                      subsystemId: localPartData[partNum]?.subsystemId || 0,
+                      processIds: localPartData[partNum].processIds.filter((_, i) => i !== idx),
+                      revision: localPartData[partNum]?.revision,
+                      name: localPartData[partNum]?.name,
+                      quantity: localPartData[partNum]?.quantity,
+                    },
+                  });
+                }}
+                onClose={() => setEditingProcessPartIdx(null)}
+              />
+            </div>
+          )}
         </div>
       </main>
     );
@@ -173,7 +561,10 @@ export function IngestPartsPage() {
       <div className="max-w-2xl mx-auto px-6 py-8 space-y-5">
         <button
           type="button"
-          onClick={() => setCurrentIndex(null)}
+          onClick={() => {
+            setCurrentIndex(null);
+            window.scrollTo(0, 0);
+          }}
           className="text-sm text-steel hover:text-ink transition-colors"
         >
           ← Back to List
@@ -189,6 +580,18 @@ export function IngestPartsPage() {
             part={currentPart}
             subsystems={pendingData.subsystems}
             processes={data.processes}
+            localPartData={localPartData[currentPart.partNumber]}
+            onUpdateLocalPartData={(partData) => {
+              setLocalPartData({
+                ...localPartData,
+                [currentPart.partNumber]: partData,
+              });
+            }}
+            onRemoveFromLocal={() => {
+              const newLocalData = { ...localPartData };
+              delete newLocalData[currentPart.partNumber];
+              setLocalPartData(newLocalData);
+            }}
             onNext={() => {
               if (currentIndex + 1 < pendingData.parts.length) {
                 setCurrentIndex(currentIndex + 1);
@@ -196,6 +599,7 @@ export function IngestPartsPage() {
                 setCurrentIndex(null);
               }
             }}
+            onBack={() => setCurrentIndex(null)}
             onRefresh={loadPendingParts}
             touch={touch}
           />
@@ -209,44 +613,52 @@ function PartIngestCard({
   part,
   subsystems,
   processes,
+  localPartData,
+  onUpdateLocalPartData,
+  onRemoveFromLocal,
   onNext,
   onRefresh,
   touch,
+  onBack,
 }: {
   part: PendingPart;
   subsystems: Subsystem[];
   processes: Process[];
+  localPartData?: LocalPartData;
+  onUpdateLocalPartData: (partData: LocalPartData) => void;
+  onRemoveFromLocal: () => void;
   onNext: () => void;
   onRefresh: () => void;
   touch: boolean;
+  onBack: () => void;
 }) {
   const [form, setForm] = useState<PartForm>({
     onshapePartNumber: part.partNumber,
-    revision: part.revision ?? "",
-    subsystemId: 0,
-    name: part.name ?? "",
-    quantity: part.quantity ?? 1,
+    revision: localPartData?.revision ?? part.revision ?? "",
+    subsystemId: localPartData?.subsystemId ?? 0,
+    name: localPartData?.name ?? part.name ?? "",
+    quantity: localPartData?.quantity ?? part.quantity ?? 1,
     notes: part.description ?? "",
     partDrawingUrl: "",
     isPriority: false,
-    processIds: [],
+    processIds: localPartData?.processIds ?? [],
   });
 
   const [drawingFetching, setDrawingFetching] = useState(false);
   const [drawingError, setDrawingError] = useState<string | null>(null);
   const [drawingSuccess, setDrawingSuccess] = useState(false);
-  const [showExistsAlert, setShowExistsAlert] = useState(false);
-  const [showRefetchConfirm, setShowRefetchConfirm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
   const [banner, setBanner] = useState<string | null>(null);
   const [documentId, setDocumentId] = useState<string | null>(null);
   const [existingRevisions, setExistingRevisions] = useState<string[]>([]);
   const [showDuplicateConfirm, setShowDuplicateConfirm] = useState(false);
+  const [checkingDrawing, setCheckingDrawing] = useState(true);
 
-  // Load document ID for OnShape link
+  // Load document ID and check if drawing exists
   useEffect(() => {
     loadDocumentId();
+    checkIfDrawingExists();
   }, []);
 
   async function loadDocumentId() {
@@ -262,56 +674,68 @@ function PartIngestCard({
     }
   }
 
+  async function checkIfDrawingExists() {
+    try {
+      setCheckingDrawing(true);
+      const revision = part.revision || form.revision;
+      if (!revision) {
+        return;
+      }
+      const exists = await checkDrawingExists();
+      if (exists) {
+        const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:5174/api";
+        const drawingUrl = `${apiBase}/parts/${part.partNumber}/${revision}/drawing`;
+        setForm((prev) => ({ ...prev, partDrawingUrl: drawingUrl }));
+        setDrawingSuccess(true);
+      }
+    } finally {
+      setCheckingDrawing(false);
+    }
+  }
+
   async function checkDrawingExists() {
     try {
       const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:5174/api";
-      const res = await fetch(`${apiBase}/parts/${part.partNumber}/drawing`);
-      return res.ok;
+      const revision = part.revision || form.revision;
+      const res = await fetch(`${apiBase}/parts/${part.partNumber}/${revision}/drawing`);
+
+      // Check if we got an error response (either status or body)
+      if (!res.ok) {
+        return false;
+      }
+
+      // Also check if the response contains an error message
+      try {
+        // biome-ignore lint/suspicious/noExplicitAny: response type varies by content
+        const data = (await res.json()) as any;
+        if (data.error) {
+          return false;
+        }
+      } catch {
+        // If we can't parse as JSON, assume it's the PDF (binary)
+      }
+
+      return true;
     } catch {
       return false;
     }
   }
 
   async function handleFetchDrawing() {
-    // Check if drawing already exists
-    const exists = await checkDrawingExists();
-
-    if (exists) {
-      // Show alert that drawing already exists
-      setShowExistsAlert(true);
-      return;
-    }
-
-    // No existing drawing, fetch from OnShape
     await performDrawingFetch();
-  }
-
-  function handleViewExisting() {
-    // Open existing drawing in new tab for preview
-    window.open(`/api/parts/${part.partNumber}/drawing`, "_blank");
-    setShowExistsAlert(false);
-    setShowRefetchConfirm(true);
-  }
-
-  function handleKeepExisting() {
-    // Set the drawing URL based on environment
-    const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:5174/api";
-    const drawingUrl = `${apiBase}/parts/${part.partNumber}/drawing`;
-    setForm((prev) => ({ ...prev, partDrawingUrl: drawingUrl }));
-    setShowRefetchConfirm(false);
   }
 
   async function performDrawingFetch() {
     setDrawingFetching(true);
     setDrawingError(null);
     setDrawingSuccess(false);
-    setShowRefetchConfirm(false);
 
     try {
+      const revision = part.revision || form.revision;
       // biome-ignore lint/suspicious/noExplicitAny: workaround for Hono client type generation
-      const res = await (api as any).admin.parts[":partNumber"]["fetch-drawing"].$post(
+      const res = await (api as any).admin.parts[":partNumber"][":revision"]["fetch-drawing"].$post(
         {
-          param: { partNumber: part.partNumber },
+          param: { partNumber: part.partNumber, revision },
         },
         { json: {} },
       );
@@ -322,7 +746,7 @@ function PartIngestCard({
       }
 
       const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:5174/api";
-      const drawingUrl = `${apiBase}/parts/${part.partNumber}/drawing`;
+      const drawingUrl = `${apiBase}/parts/${part.partNumber}/${revision}/drawing`;
       setForm((prev) => ({ ...prev, partDrawingUrl: drawingUrl }));
       setDrawingSuccess(true);
     } catch (err) {
@@ -340,6 +764,13 @@ function PartIngestCard({
       } else {
         next.processIds[index] = processId;
       }
+      onUpdateLocalPartData({
+        subsystemId: next.subsystemId,
+        processIds: next.processIds,
+        revision: next.revision,
+        name: next.name,
+        quantity: next.quantity,
+      });
       return next;
     });
   }
@@ -440,13 +871,13 @@ function PartIngestCard({
 
       setShowDuplicateConfirm(false);
       await onRefresh();
+      // Remove from local state so warning doesn't show
+      onRemoveFromLocal();
       // Reset errors and scroll to top
       setFormError("");
       setBanner(null);
       setDrawingError(null);
       setDrawingSuccess(false);
-      setShowExistsAlert(false);
-      setShowRefetchConfirm(false);
       window.scrollTo(0, 0);
     } catch (err) {
       setBanner(err instanceof Error ? err.message : "An error occurred");
@@ -490,14 +921,33 @@ function PartIngestCard({
           label="Revision"
           required
           value={form.revision}
-          onChange={(v) => setForm({ ...form, revision: v })}
+          onChange={(v) => {
+            setForm({ ...form, revision: v });
+            onUpdateLocalPartData({
+              subsystemId: form.subsystemId,
+              processIds: form.processIds,
+              revision: v,
+              name: form.name,
+              quantity: form.quantity,
+            });
+          }}
           placeholder="A"
         />
         <div className="space-y-1">
           <FieldLabel label="Subsystem" required />
           <select
             value={form.subsystemId}
-            onChange={(e) => setForm({ ...form, subsystemId: Number(e.target.value) })}
+            onChange={(e) => {
+              const subsystemId = Number(e.target.value);
+              setForm({ ...form, subsystemId });
+              onUpdateLocalPartData({
+                subsystemId,
+                processIds: form.processIds,
+                revision: form.revision,
+                name: form.name,
+                quantity: form.quantity,
+              });
+            }}
             className="w-full bg-paper border border-steel/40 rounded-lg px-3 py-2 text-sm text-ink focus:outline-none focus:border-crimson"
           >
             <option value={0}>Select…</option>
@@ -512,7 +962,16 @@ function PartIngestCard({
           label="Name"
           required
           value={form.name}
-          onChange={(v) => setForm({ ...form, name: v })}
+          onChange={(v) => {
+            setForm({ ...form, name: v });
+            onUpdateLocalPartData({
+              subsystemId: form.subsystemId,
+              processIds: form.processIds,
+              revision: form.revision,
+              name: v,
+              quantity: form.quantity,
+            });
+          }}
           placeholder="Same as Onshape"
         />
         <div className="space-y-1">
@@ -521,12 +980,20 @@ function PartIngestCard({
             type="number"
             min={1}
             value={form.quantity}
-            onChange={(e) =>
+            onChange={(e) => {
+              const quantity = Math.max(1, Math.floor(Number(e.target.value)));
               setForm({
                 ...form,
-                quantity: Math.max(1, Math.floor(Number(e.target.value))),
-              })
-            }
+                quantity,
+              });
+              onUpdateLocalPartData({
+                subsystemId: form.subsystemId,
+                processIds: form.processIds,
+                revision: form.revision,
+                name: form.name,
+                quantity,
+              });
+            }}
             className="w-full bg-paper border border-steel/40 rounded-lg px-3 py-2 text-sm text-ink focus:outline-none focus:border-crimson"
           />
         </div>
@@ -561,54 +1028,20 @@ function PartIngestCard({
       </div>
 
       <div className="p-3 bg-mist rounded-lg border border-steel/25 space-y-2">
-        {showExistsAlert ? (
+        {checkingDrawing ? (
           <div className="space-y-2">
-            <p className="text-xs font-medium text-steel-dark">
-              Drawing already exists for this part
-            </p>
-            <p className="text-xs text-steel">
-              Would you like to view the existing drawing to check if it needs updating?
-            </p>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={handleViewExisting}
-                className="text-xs font-medium rounded-lg px-3 py-1.5 bg-paper border border-steel/40 text-ink hover:bg-steel-tint"
-              >
-                View Existing
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowExistsAlert(false)}
-                className="text-xs font-medium rounded-lg px-3 py-1.5 bg-steel-tint border border-steel/40 text-steel-dark hover:bg-steel/20"
-              >
-                Cancel
-              </button>
-            </div>
+            <p className="text-xs font-medium text-steel-dark mb-2">Checking for drawing…</p>
           </div>
-        ) : showRefetchConfirm ? (
+        ) : drawingSuccess ? (
           <div className="space-y-2">
-            <p className="text-xs font-medium text-steel-dark">Ready to update the drawing?</p>
-            <p className="text-xs text-steel">
-              Click below to refetch the drawing from OnShape and overwrite the cached version.
-            </p>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={performDrawingFetch}
-                disabled={drawingFetching}
-                className="text-xs font-medium rounded-lg px-3 py-1.5 bg-crimson hover:bg-crimson-dark disabled:opacity-50 text-paper"
-              >
-                {drawingFetching ? "Refetching…" : "Refetch & Overwrite"}
-              </button>
-              <button
-                type="button"
-                onClick={handleKeepExisting}
-                className="text-xs font-medium rounded-lg px-3 py-1.5 bg-steel-tint border border-steel/40 text-steel-dark hover:bg-steel/20"
-              >
-                Keep Existing
-              </button>
-            </div>
+            <p className="text-xs font-medium text-steel-dark mb-2">Auto-fetch Drawing</p>
+            <button
+              type="button"
+              disabled
+              className="text-xs font-medium rounded-lg transition-colors px-3 py-1.5 w-full bg-emerald-50 border border-emerald-300 text-emerald-700 cursor-default"
+            >
+              ✓ Drawing Cached
+            </button>
           </div>
         ) : (
           <div className="space-y-2">
@@ -616,22 +1049,14 @@ function PartIngestCard({
             <button
               type="button"
               onClick={handleFetchDrawing}
-              disabled={drawingFetching || drawingSuccess}
+              disabled={drawingFetching}
               className={`text-xs font-medium rounded-lg transition-colors px-3 py-1.5 w-full ${
-                drawingSuccess
-                  ? "bg-emerald-50 border border-emerald-300 text-emerald-700 cursor-default"
-                  : drawingError
-                    ? "bg-crimson-50 border border-crimson-200 text-crimson hover:bg-crimson-100"
-                    : "bg-paper border border-steel/40 text-ink hover:bg-steel-tint"
+                drawingError
+                  ? "bg-crimson-50 border border-crimson-200 text-crimson hover:bg-crimson-100"
+                  : "bg-paper border border-steel/40 text-ink hover:bg-steel-tint"
               }`}
             >
-              {drawingFetching
-                ? "Fetching…"
-                : drawingSuccess
-                  ? "✓ Drawing Cached"
-                  : drawingError
-                    ? "⚠ Retry"
-                    : "Try Auto Fetch"}
+              {drawingFetching ? "Fetching…" : drawingError ? "⚠ Retry" : "Try Auto Fetch"}
             </button>
           </div>
         )}
@@ -755,8 +1180,6 @@ function PartIngestCard({
             setBanner(null);
             setDrawingError(null);
             setDrawingSuccess(false);
-            setShowExistsAlert(false);
-            setShowRefetchConfirm(false);
             window.scrollTo(0, 0);
             onNext();
           }}
@@ -770,12 +1193,7 @@ function PartIngestCard({
         <button
           type="button"
           onClick={() => {
-            setFormError("");
-            setBanner(null);
-            setDrawingError(null);
-            setDrawingSuccess(false);
-            setShowExistsAlert(false);
-            setShowRefetchConfirm(false);
+            onBack();
             window.scrollTo(0, 0);
           }}
           className={`ml-auto bg-paper border border-steel/40 hover:bg-mist text-ink text-sm font-medium rounded-lg transition-colors ${

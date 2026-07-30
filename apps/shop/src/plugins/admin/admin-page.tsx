@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../../shared/api";
 import { getErrorMessage } from "../../shared/api-error";
 import { enableKioskMode } from "../../shared/kiosk";
@@ -89,6 +89,11 @@ export function AdminPage() {
         {/* Section 4: OnShape Configuration */}
         <Section title="OnShape Configuration" defaultOpen={false}>
           {data ? <OnShapeConfig /> : <p className="text-sm text-steel">Loading…</p>}
+        </Section>
+
+        {/* Section 5: Slack Configuration */}
+        <Section title="Slack Configuration" defaultOpen={false}>
+          <SlackSettings />
         </Section>
       </div>
     </main>
@@ -381,6 +386,119 @@ function OnShapeConfig() {
           className="px-4 py-2 bg-steel-tint hover:bg-steel/30 text-steel-dark text-sm font-medium rounded-lg transition-colors"
         >
           Load Current
+        </button>
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          className="px-4 py-2 bg-crimson hover:bg-crimson-dark disabled:opacity-50 text-paper text-sm font-semibold rounded-lg transition-colors"
+        >
+          {saving ? "Saving…" : "Save"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SlackSettings() {
+  const [channelId, setChannelId] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [banner, setBanner] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    loadConfig();
+  }, []);
+
+  async function loadConfig() {
+    try {
+      // biome-ignore lint/suspicious/noExplicitAny: workaround for Hono client type generation
+      const res = await (api as any).admin.slack.config.$get();
+      if (!res.ok) {
+        setBanner(await getErrorMessage(res as unknown as Response));
+        return;
+      }
+      const config = (await res.json()) as { slackReleaseChannelId: string };
+      setChannelId(config.slackReleaseChannelId || "");
+      setBanner(null);
+      setLoaded(true);
+    } catch (err) {
+      setBanner(err instanceof Error ? err.message : "Failed to load Slack config");
+    }
+  }
+
+  async function handleSave() {
+    if (!channelId.trim()) {
+      setBanner("Slack channel ID is required");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      // biome-ignore lint/suspicious/noExplicitAny: workaround for Hono client type generation
+      const res = await (api as any).admin.slack.config.$post({
+        json: {
+          slackReleaseChannelId: channelId.trim(),
+        },
+      });
+
+      if (!res.ok) {
+        setBanner(await getErrorMessage(res as unknown as Response));
+        return;
+      }
+
+      setBanner("Slack channel ID updated successfully");
+      setTimeout(() => setBanner(null), 3000);
+    } catch (err) {
+      setBanner(err instanceof Error ? err.message : "Failed to save config");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!loaded) {
+    return <p className="text-sm text-steel">Loading…</p>;
+  }
+
+  return (
+    <div className="space-y-4 max-w-xl">
+      {banner && (
+        <div
+          className={`text-sm rounded-lg px-3 py-2 ${
+            banner.includes("successfully")
+              ? "text-emerald-700 bg-emerald-50 border border-emerald-300"
+              : "text-crimson-dark bg-crimson-50 border border-crimson-200"
+          }`}
+        >
+          {banner}
+        </div>
+      )}
+
+      <div className="space-y-1">
+        <label htmlFor="channel-id" className="text-xs font-medium text-steel-dark">
+          Release Notification Channel ID *
+        </label>
+        <input
+          id="channel-id"
+          type="text"
+          value={channelId}
+          onChange={(e) => setChannelId(e.target.value)}
+          placeholder="e.g. C09QYMTSGKT"
+          className="w-full bg-paper border border-steel/40 rounded-lg px-3 py-2 text-sm text-ink placeholder-steel focus:outline-none focus:border-crimson"
+        />
+        <p className="text-xs text-steel">
+          The Slack channel ID where release notifications are sent. Find it by clicking on the
+          channel name in Slack.
+        </p>
+      </div>
+
+      <div className="flex gap-2 pt-2">
+        <button
+          type="button"
+          onClick={loadConfig}
+          className="px-4 py-2 bg-steel-tint hover:bg-steel/30 text-steel-dark text-sm font-medium rounded-lg transition-colors"
+        >
+          Reload
         </button>
         <button
           type="button"

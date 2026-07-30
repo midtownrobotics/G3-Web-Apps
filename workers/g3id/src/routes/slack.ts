@@ -44,7 +44,11 @@ export const slackRouter = new Hono<AppEnv>()
     const text = event.text?.trim() ?? "";
     const workspaceId = (body.team_id as string) ?? "";
 
-    if (!slackUserId || !/^\d{6}$/.test(text)) return c.text("", 200);
+    // Extract 6-digit code from anywhere in the text
+    const codeMatch = text.match(/\d{6}/);
+    const code = codeMatch?.[0] ?? "";
+
+    if (!slackUserId || !code) return c.text("", 200);
 
     c.executionCtx.waitUntil(
       (async () => {
@@ -53,7 +57,7 @@ export const slackRouter = new Hono<AppEnv>()
         const record = await db
           .select({ type: coreSlackLinkCodes.type })
           .from(coreSlackLinkCodes)
-          .where(and(eq(coreSlackLinkCodes.code, text), eq(coreSlackLinkCodes.used, 0)))
+          .where(and(eq(coreSlackLinkCodes.code, code), eq(coreSlackLinkCodes.used, 0)))
           .get();
 
         if (!record) {
@@ -62,7 +66,7 @@ export const slackRouter = new Hono<AppEnv>()
         }
 
         const result = await handleSlackCode({
-          code: text,
+          code,
           slackUserId,
           workspaceId,
           type: record.type as "signin" | "link",
@@ -80,11 +84,15 @@ export const slackRouter = new Hono<AppEnv>()
     if (!(await verifySlackSignature(c.req.raw, rawBody, c.env))) return c.text("", 200);
 
     const params = new URLSearchParams(rawBody);
-    const code = params.get("text")?.trim() ?? "";
+    const text = params.get("text")?.trim() ?? "";
     const slackUserId = params.get("user_id") ?? "";
     const workspaceId = params.get("team_id") ?? "";
 
-    if (!/^\d{6}$/.test(code)) {
+    // Extract 6-digit code from anywhere in the text
+    const codeMatch = text.match(/\d{6}/);
+    const code = codeMatch?.[0] ?? "";
+
+    if (!code) {
       return c.json({ response_type: "ephemeral", text: "Usage: `/signin 123456`" });
     }
 
@@ -102,11 +110,15 @@ export const slackRouter = new Hono<AppEnv>()
     if (!(await verifySlackSignature(c.req.raw, rawBody, c.env))) return c.text("", 200);
 
     const params = new URLSearchParams(rawBody);
-    const code = params.get("text")?.trim() ?? "";
+    const text = params.get("text")?.trim() ?? "";
     const slackUserId = params.get("user_id") ?? "";
     const workspaceId = params.get("team_id") ?? "";
 
-    if (!/^\d{6}$/.test(code)) {
+    // Extract 6-digit code from anywhere in the text
+    const codeMatch = text.match(/\d{6}/);
+    const code = codeMatch?.[0] ?? "";
+
+    if (!code) {
       return c.json({ response_type: "ephemeral", text: "Usage: `/link 123456`" });
     }
 

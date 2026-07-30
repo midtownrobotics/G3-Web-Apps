@@ -1,8 +1,8 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { validator } from "hono/validator";
 import { createShopDb } from "../db";
-import { partDefinitionProcessBlueprints, partDefinitions, partInstances } from "../db/schema";
+import { partDefinitionProcessBlueprints, partDefinitions } from "../db/schema";
 import { requireAuth } from "../middleware/auth";
 import type { AppEnv } from "../types";
 
@@ -64,7 +64,7 @@ export const partDefinitionsRouter = new Hono<AppEnv>()
 
     if (onshapePartNumber) {
       const rows = await db
-        .select({ revision: partDefinitions.revision })
+        .select()
         .from(partDefinitions)
         .where(eq(partDefinitions.onshapePartNumber, onshapePartNumber))
         .all();
@@ -106,20 +106,19 @@ export const partDefinitionsRouter = new Hono<AppEnv>()
     const db = createShopDb(c.env.SHOP_DB);
     const now = Date.now();
 
-    // If obsoleteExisting is true, delete all existing parts with same number
+    // If obsoleteExisting is true, mark all existing parts with same number as obsolete
     if (obsoleteExisting) {
-      const existingParts = await db
-        .select({ id: partDefinitions.id })
-        .from(partDefinitions)
-        .where(eq(partDefinitions.onshapePartNumber, onshapePartNumber))
-        .all();
-
-      const existingIds = existingParts.map((p) => p.id);
-      if (existingIds.length > 0) {
-        // Delete all instances of these parts first (foreign key constraint)
-        await db.delete(partInstances).where(inArray(partInstances.partDefinitionId, existingIds));
-        // Delete the part definitions
-        await db.delete(partDefinitions).where(inArray(partDefinitions.id, existingIds));
+      try {
+        await db
+          .update(partDefinitions)
+          .set({ isObsolete: 1 })
+          .where(eq(partDefinitions.onshapePartNumber, onshapePartNumber));
+      } catch (err) {
+        console.error("[Part Definitions] Error marking obsolete parts", err);
+        return c.json(
+          { error: err instanceof Error ? err.message : "Failed to mark obsolete parts" },
+          500,
+        );
       }
     }
 

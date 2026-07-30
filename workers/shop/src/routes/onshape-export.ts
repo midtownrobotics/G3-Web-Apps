@@ -14,21 +14,28 @@ const router = new Hono<AppEnv>();
 const handleDrawingRequest = async (c: Context<AppEnv>) => {
   try {
     const partNumber = c.req.param("partNumber");
+    const revision = c.req.param("revision");
 
-    if (!partNumber) {
-      return c.json({ error: "Missing required parameter: partNumber" }, 400);
+    if (!partNumber || !revision) {
+      return c.json({ error: "Missing required parameters: partNumber or revision" }, 400);
     }
 
     let pdfBuffer: ArrayBuffer;
 
     // Check if drawing exists in R2
-    const exists = await drawingExistsInR2(partNumber, c.env);
+    const exists = await drawingExistsInR2(partNumber, revision, c.env);
 
     if (exists) {
-      console.log("[OnShape Export] Drawing found in R2, retrieving", { partNumber });
-      pdfBuffer = await retrieveDrawingFromR2(partNumber, c.env);
+      console.log("[OnShape Export] Drawing found in R2, retrieving", {
+        partNumber,
+        revision,
+      });
+      pdfBuffer = await retrieveDrawingFromR2(partNumber, revision, c.env);
     } else {
-      console.log("[OnShape Export] Drawing not in R2, exporting from OnShape", { partNumber });
+      console.log("[OnShape Export] Drawing not in R2, exporting from OnShape", {
+        partNumber,
+        revision,
+      });
       // Get export params and export from OnShape
       const params = await getDrawingExportParams(partNumber, c.env);
       pdfBuffer = await exportDrawingAsPDF(
@@ -38,7 +45,7 @@ const handleDrawingRequest = async (c: Context<AppEnv>) => {
         c.env,
       );
       // Store in R2 for future requests
-      await storeDrawingInR2(partNumber, pdfBuffer, c.env);
+      await storeDrawingInR2(partNumber, revision, pdfBuffer, c.env);
     }
 
     return c.newResponse(pdfBuffer, {
@@ -57,6 +64,6 @@ const handleDrawingRequest = async (c: Context<AppEnv>) => {
   }
 };
 
-router.get("/drawings/export/:partNumber", handleDrawingRequest);
+router.get("/drawings/export/:partNumber/:revision", handleDrawingRequest);
 
 export const onshapeExportRouter = router;

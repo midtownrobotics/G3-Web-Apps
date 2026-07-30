@@ -1,7 +1,9 @@
+import type { MessageBatch } from "@cloudflare/workers-types";
 import { sendMessage } from "@g3/slack";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createShopDb } from "./db";
+import { type BOMQueueMessage, processBOMQueue } from "./lib/bom-queue-consumer";
 import { requireAuth } from "./middleware/auth";
 import { actionsRouter } from "./routes/actions";
 import { adminPartsRouter } from "./routes/admin-parts";
@@ -100,4 +102,18 @@ const app = base
   });
 
 export type ShopApp = typeof app;
-export default app;
+
+export default {
+  fetch: app.fetch,
+  async queue(batch: MessageBatch<BOMQueueMessage>, env: AppEnv["Bindings"]) {
+    for (const msg of batch.messages) {
+      try {
+        await processBOMQueue(msg.body, env);
+        msg.ack();
+      } catch (err) {
+        console.error("[Queue] Error processing message:", err);
+        msg.retry({ delaySeconds: 30 });
+      }
+    }
+  },
+};

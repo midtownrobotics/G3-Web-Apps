@@ -17,6 +17,7 @@ export const partDefinitions = sqliteTable("part_definitions", {
   name: text("name"),
   notes: text("notes"),
   partDrawingUrl: text("part_drawing_url"),
+  isObsolete: integer("is_obsolete").notNull().default(0),
   createdAt: integer("created_at").notNull(),
 });
 
@@ -135,3 +136,14 @@ export const drawings = sqliteTable("drawings", {
   uploadedBy: text("uploaded_by"),
   createdAt: integer("created_at").notNull(),
 });
+
+export const adminSettings = sqliteTable(
+  "admin_settings",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    key: text("key").notNull().unique(),
+    value: text("value").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [unique().on(t.key)],
+);

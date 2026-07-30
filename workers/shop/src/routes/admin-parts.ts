@@ -57,11 +57,12 @@ router.get("/parts/pending", requireAuth, async (c) => {
   });
 });
 
-router.post("/parts/:partNumber/fetch-drawing", requireAuth, async (c) => {
+router.post("/parts/:partNumber/:revision/fetch-drawing", requireAuth, async (c) => {
   const partNumber = c.req.param("partNumber");
+  const revision = c.req.param("revision");
 
-  if (!partNumber) {
-    return c.json({ error: "Missing partNumber" }, 400);
+  if (!partNumber || !revision) {
+    return c.json({ error: "Missing partNumber or revision" }, 400);
   }
 
   try {
@@ -82,10 +83,13 @@ router.post("/parts/:partNumber/fetch-drawing", requireAuth, async (c) => {
       return c.json({ error: "Part drawing entity ID or version ID not available" }, 400);
     }
 
-    // Get document ID from KV storage
-    const configStr = await c.env.SESSIONS.get("onshape-config:document");
-    const config = configStr ? (JSON.parse(configStr) as { documentId?: string }) : {};
-    const documentId = config.documentId;
+    // Get document ID from database
+    const docIdSetting = await db
+      .select()
+      .from(schema.adminSettings)
+      .where(eq(schema.adminSettings.key, "onshape_document_id"))
+      .get();
+    const documentId = docIdSetting?.value;
 
     if (!documentId) {
       return c.json({ error: "Document ID not configured" }, 400);
@@ -99,8 +103,8 @@ router.post("/parts/:partNumber/fetch-drawing", requireAuth, async (c) => {
       c.env,
     );
 
-    // Store in R2
-    const r2Key = `drawings/${partNumber}.pdf`;
+    // Store in R2 with revision in path
+    const r2Key = `drawings/${partNumber}/${revision}/drawing.pdf`;
     await c.env.DRAWINGS.put(r2Key, pdfBuffer, {
       httpMetadata: {
         contentType: "application/pdf",
@@ -110,6 +114,7 @@ router.post("/parts/:partNumber/fetch-drawing", requireAuth, async (c) => {
     return c.json({
       success: true,
       partNumber,
+      revision,
       message: "Drawing fetched and cached successfully",
     });
   } catch (err) {
@@ -123,15 +128,54 @@ router.post("/parts/:partNumber/fetch-drawing", requireAuth, async (c) => {
   }
 });
 
+router.delete("/parts/:partNumber", requireAuth, async (c) => {
+  const partNumber = c.req.param("partNumber");
+
+  if (!partNumber) {
+    return c.json({ error: "Missing partNumber" }, 400);
+  }
+
+  try {
+    const db = createShopDb(c.env.SHOP_DB);
+
+    // Delete all onshapeParts with this part number
+    await db.delete(schema.onshapeParts).where(eq(schema.onshapeParts.partNumber, partNumber));
+
+    return c.json({
+      success: true,
+      partNumber,
+      message: "Part deleted successfully",
+    });
+  } catch (err) {
+    console.error("[Admin Parts] Delete error", err);
+    return c.json(
+      {
+        error: err instanceof Error ? err.message : "Failed to delete part",
+      },
+      500,
+    );
+  }
+});
+
 router.get("/onshape/config", requireAdmin, async (c) => {
-  const configStr = await c.env.SESSIONS.get("onshape-config:document");
-  const config = configStr
-    ? (JSON.parse(configStr) as { documentId?: string; mainAssemblyId?: string })
-    : {};
+  const db = createShopDb(c.env.SHOP_DB);
+
+  const [docIdSetting, mainAssemblyIdSetting] = await Promise.all([
+    db
+      .select()
+      .from(schema.adminSettings)
+      .where(eq(schema.adminSettings.key, "onshape_document_id"))
+      .get(),
+    db
+      .select()
+      .from(schema.adminSettings)
+      .where(eq(schema.adminSettings.key, "onshape_main_assembly_id"))
+      .get(),
+  ]);
 
   return c.json({
-    documentId: config.documentId || "",
-    mainAssemblyId: config.mainAssemblyId || "",
+    documentId: docIdSetting?.value || "",
+    mainAssemblyId: mainAssemblyIdSetting?.value || "",
   });
 });
 
@@ -142,14 +186,68 @@ router.post("/onshape/config", requireAdmin, async (c) => {
     return c.json({ error: "documentId is required" }, 400);
   }
 
-  const config = {
-    documentId: body.documentId.trim(),
-    mainAssemblyId: body.mainAssemblyId?.trim() || undefined,
-  };
+  const db = createShopDb(c.env.SHOP_DB);
+  const now = Math.floor(Date.now() / 1000);
 
-  await c.env.SESSIONS.put("onshape-config:document", JSON.stringify(config));
+  try {
+    // Update or insert documentId
+    const existingDocId = await db
+      .select()
+      .from(schema.adminSettings)
+      .where(eq(schema.adminSettings.key, "onshape_document_id"))
+      .get();
 
-  return c.json({ success: true, config });
+    if (existingDocId) {
+      await db
+        .update(schema.adminSettings)
+        .set({
+          value: body.documentId.trim(),
+          updatedAt: now,
+        })
+        .where(eq(schema.adminSettings.key, "onshape_document_id"));
+    } else {
+      await db.insert(schema.adminSettings).values({
+        key: "onshape_document_id",
+        value: body.documentId.trim(),
+        updatedAt: now,
+      });
+    }
+
+    // Update or insert mainAssemblyId if provided
+    if (body.mainAssemblyId?.trim()) {
+      const existingMainAssemblyId = await db
+        .select()
+        .from(schema.adminSettings)
+        .where(eq(schema.adminSettings.key, "onshape_main_assembly_id"))
+        .get();
+
+      if (existingMainAssemblyId) {
+        await db
+          .update(schema.adminSettings)
+          .set({
+            value: body.mainAssemblyId.trim(),
+            updatedAt: now,
+          })
+          .where(eq(schema.adminSettings.key, "onshape_main_assembly_id"));
+      } else {
+        await db.insert(schema.adminSettings).values({
+          key: "onshape_main_assembly_id",
+          value: body.mainAssemblyId.trim(),
+          updatedAt: now,
+        });
+      }
+    }
+
+    return c.json({
+      success: true,
+      config: {
+        documentId: body.documentId.trim(),
+        mainAssemblyId: body.mainAssemblyId?.trim() || undefined,
+      },
+    });
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : "Failed to update config" }, 500);
+  }
 });
 
 // Development only: seed test pending parts
@@ -167,7 +265,10 @@ router.get("/seed-test-parts", requireAuth, async (c) => {
       releaseId: null,
       partNumber: "1648-26-P-0475",
       versionId: "78963be1e83bad7857f14f95",
-      quantity: null,
+      quantity: 2,
+      revision: "A",
+      name: "Main Shaft Assembly",
+      description: "Primary drive shaft for the drivetrain",
     },
     {
       entityId: "afcc70bb4a69714fec574c78",
@@ -176,7 +277,10 @@ router.get("/seed-test-parts", requireAuth, async (c) => {
       releaseId: null,
       partNumber: "1648-26-P-0518",
       versionId: "78963be1e83bad7857f14f95",
-      quantity: null,
+      quantity: 4,
+      revision: "B",
+      name: "Bearing Mount Plate",
+      description: "Mounts bearings to the frame",
     },
     {
       entityId: "4c962b683afb610b63d1a054",
@@ -185,7 +289,10 @@ router.get("/seed-test-parts", requireAuth, async (c) => {
       releaseId: null,
       partNumber: "1648-26-P-0475",
       versionId: "d612752ee89b974a66c8de06",
-      quantity: null,
+      quantity: 2,
+      revision: "C",
+      name: "Main Shaft Assembly",
+      description: "Updated drive shaft with improved tolerances",
     },
     {
       entityId: "afcc70bb4a69714fec574c78",
@@ -194,7 +301,10 @@ router.get("/seed-test-parts", requireAuth, async (c) => {
       releaseId: null,
       partNumber: "1648-26-P-0518",
       versionId: "d612752ee89b974a66c8de06",
-      quantity: null,
+      quantity: 4,
+      revision: "A",
+      name: "Bearing Mount Plate",
+      description: "Updated mounting plate design",
     },
     {
       entityId: "4c962b683afb610b63d1a054",
@@ -203,7 +313,10 @@ router.get("/seed-test-parts", requireAuth, async (c) => {
       releaseId: null,
       partNumber: "1648-26-P-0475",
       versionId: "21887b33ecbae4838890a78b",
-      quantity: null,
+      quantity: 2,
+      revision: "D",
+      name: "Main Shaft Assembly",
+      description: "Final production revision",
     },
     {
       entityId: "afcc70bb4a69714fec574c78",
@@ -212,7 +325,10 @@ router.get("/seed-test-parts", requireAuth, async (c) => {
       releaseId: null,
       partNumber: "1648-26-P-0518",
       versionId: "21887b33ecbae4838890a78b",
-      quantity: null,
+      quantity: 4,
+      revision: "B",
+      name: "Bearing Mount Plate",
+      description: "Final production version",
     },
   ];
 
@@ -221,6 +337,56 @@ router.get("/seed-test-parts", requireAuth, async (c) => {
   }
 
   return c.json({ success: true, inserted: testParts.length });
+});
+
+router.get("/slack/config", requireAdmin, async (c) => {
+  const db = createShopDb(c.env.SHOP_DB);
+  const setting = await db
+    .select()
+    .from(schema.adminSettings)
+    .where(eq(schema.adminSettings.key, "slack_release_channel_id"))
+    .get();
+
+  return c.json({
+    slackReleaseChannelId: setting?.value || "",
+  });
+});
+
+router.post("/slack/config", requireAdmin, async (c) => {
+  const db = createShopDb(c.env.SHOP_DB);
+  const body = await c.req.json<{ slackReleaseChannelId: string }>();
+
+  if (!body.slackReleaseChannelId?.trim()) {
+    return c.json({ error: "Slack channel ID is required" }, 400);
+  }
+
+  try {
+    const existing = await db
+      .select()
+      .from(schema.adminSettings)
+      .where(eq(schema.adminSettings.key, "slack_release_channel_id"))
+      .get();
+
+    if (existing) {
+      await db
+        .update(schema.adminSettings)
+        .set({
+          value: body.slackReleaseChannelId.trim(),
+          updatedAt: Math.floor(Date.now() / 1000),
+        })
+        .where(eq(schema.adminSettings.key, "slack_release_channel_id"));
+    } else {
+      await db.insert(schema.adminSettings).values({
+        key: "slack_release_channel_id",
+        value: body.slackReleaseChannelId.trim(),
+        updatedAt: Math.floor(Date.now() / 1000),
+      });
+    }
+
+    return c.json({ slackReleaseChannelId: body.slackReleaseChannelId.trim() });
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : "Failed to update setting" }, 500);
+  }
 });
 
 export const adminPartsRouter = router;
