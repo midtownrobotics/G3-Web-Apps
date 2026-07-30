@@ -3,7 +3,10 @@ import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "../db/schema";
 import type { AppEnv } from "../types";
+import { exportDrawingAsPDF } from "./onshape-export";
 import { fetchAndParseBOM } from "./onshape-webhook";
+
+const DEFAULT_SLACK_CHANNEL_ID = "C09QYMTSGKT";
 
 export interface BOMQueueMessage {
   releaseId: string;
@@ -116,7 +119,54 @@ async function processSingleBOMJob(
       ].join("\n");
 
       console.log(`[BOM Queue Job] [${Date.now() - jobStartTime}ms] Sending Slack message`);
-      await sendMessage("C09QYMTSGKT", message, env);
+      const channelIdSetting = await database
+        .select()
+        .from(schema.adminSettings)
+        .where(eq(schema.adminSettings.key, "slack_release_channel_id"))
+        .get();
+      const slackChannelId = channelIdSetting?.value || DEFAULT_SLACK_CHANNEL_ID;
+      await sendMessage(slackChannelId, message, env);
+
+      // Export drawings for parts that have both drawing entity ID and revision (batched 4 at a time)
+      if (config.documentId) {
+        console.log(`[BOM Queue Job] [${Date.now() - jobStartTime}ms] Exporting drawings`);
+        const partsToExport = updatedParts.filter(
+          (p) => p.partDrawingEntityId && p.revision && p.versionId,
+        );
+
+        let drawingsExported = 0;
+        for (let i = 0; i < partsToExport.length; i += 4) {
+          const batch = partsToExport.slice(i, i + 4);
+          await Promise.all(
+            batch.map(async (part) => {
+              try {
+                const pdfBuffer = await exportDrawingAsPDF(
+                  config.documentId as string,
+                  part.versionId as string,
+                  part.partDrawingEntityId as string,
+                  env,
+                );
+
+                const r2Key = `drawings/${part.partNumber}/${part.revision}/drawing.pdf`;
+                await env.DRAWINGS.put(r2Key, pdfBuffer, {
+                  httpMetadata: {
+                    contentType: "application/pdf",
+                  },
+                });
+                drawingsExported++;
+              } catch (err) {
+                console.error(
+                  `[BOM Queue Job] Failed to export drawing for ${part.partNumber}`,
+                  err,
+                );
+              }
+            }),
+          );
+        }
+        console.log(
+          `[BOM Queue Job] [${Date.now() - jobStartTime}ms] Drawing export complete, exported ${drawingsExported} drawings`,
+        );
+      }
     }
   }
 
