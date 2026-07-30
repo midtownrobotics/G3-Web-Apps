@@ -222,11 +222,11 @@ function PartIngestCard({
 }) {
   const [form, setForm] = useState<PartForm>({
     onshapePartNumber: part.partNumber,
-    revision: part.revision || "",
+    revision: part.revision ?? "",
     subsystemId: 0,
-    name: part.name || part.partNumber,
+    name: part.name ?? "",
     quantity: part.quantity ?? 1,
-    notes: part.description || "",
+    notes: part.description ?? "",
     partDrawingUrl: "",
     isPriority: false,
     processIds: [],
@@ -392,9 +392,9 @@ function PartIngestCard({
     try {
       const createPayload = {
         onshapePartNumber: form.onshapePartNumber.trim(),
-        revision: form.revision.trim(),
+        revision: form.revision.trim() || undefined,
         subsystemId: form.subsystemId,
-        name: form.name.trim(),
+        name: form.name.trim() || undefined,
         notes: form.notes.trim() || undefined,
         partDrawingUrl: form.partDrawingUrl.trim() || undefined,
         processIds: form.processIds,

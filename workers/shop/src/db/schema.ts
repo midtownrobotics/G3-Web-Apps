@@ -9,12 +9,12 @@ export const subsystems = sqliteTable("subsystems", {
 export const partDefinitions = sqliteTable("part_definitions", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   onshapePartNumber: text("onshape_part_number").notNull(),
-  revision: text("revision").notNull(),
+  revision: text("revision"),
   subsystemId: integer("subsystem_id")
     .notNull()
     .references(() => subsystems.id),
   creator: text("creator").notNull(),
-  name: text("name").notNull(),
+  name: text("name"),
   notes: text("notes"),
   partDrawingUrl: text("part_drawing_url"),
   createdAt: integer("created_at").notNull(),
