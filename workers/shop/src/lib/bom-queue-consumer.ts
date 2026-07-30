@@ -46,24 +46,32 @@ async function processSingleBOMJob(
     return;
   }
 
-  // Get document ID and API credentials from KV storage
-  const configStr = await env.SESSIONS.get("onshape-config:document");
-  const config = configStr
-    ? (JSON.parse(configStr) as { documentId?: string; mainAssemblyId?: string })
-    : {};
-  const docId = config.documentId || "unknown";
+  // Get document ID and main assembly ID from database
+  const docIdSetting = await database
+    .select()
+    .from(schema.adminSettings)
+    .where(eq(schema.adminSettings.key, "onshape_document_id"))
+    .get();
+  const mainAssemblyIdSetting = await database
+    .select()
+    .from(schema.adminSettings)
+    .where(eq(schema.adminSettings.key, "onshape_main_assembly_id"))
+    .get();
+  const documentId = docIdSetting?.value;
+  const mainAssemblyId = mainAssemblyIdSetting?.value;
+  const docId = documentId || "unknown";
 
   // Fetch BOM data if we have the necessary IDs
-  if (config.documentId && config.mainAssemblyId && parts[0]?.versionId) {
+  if (documentId && mainAssemblyId && parts[0]?.versionId) {
     const apiKey = env.ONSHAPE_API_KEY;
     const apiSecret = env.ONSHAPE_API_SECRET;
 
     if (apiKey && apiSecret) {
       console.log(`[BOM Queue Job] [${Date.now() - jobStartTime}ms] Fetching BOM data`);
       const bomMetadata = await fetchAndParseBOM(
-        config.documentId,
+        documentId,
         parts[0].versionId,
-        config.mainAssemblyId,
+        mainAssemblyId,
         apiKey,
         apiSecret,
       );
@@ -128,7 +136,7 @@ async function processSingleBOMJob(
       await sendMessage(slackChannelId, message, env);
 
       // Export drawings for parts that have both drawing entity ID and revision (batched 4 at a time)
-      if (config.documentId) {
+      if (documentId) {
         console.log(`[BOM Queue Job] [${Date.now() - jobStartTime}ms] Exporting drawings`);
         const partsToExport = updatedParts.filter(
           (p) => p.partDrawingEntityId && p.revision && p.versionId,
@@ -141,7 +149,7 @@ async function processSingleBOMJob(
             batch.map(async (part) => {
               try {
                 const pdfBuffer = await exportDrawingAsPDF(
-                  config.documentId as string,
+                  documentId,
                   part.versionId as string,
                   part.partDrawingEntityId as string,
                   env,

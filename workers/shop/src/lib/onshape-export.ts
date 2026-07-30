@@ -55,17 +55,20 @@ export async function getDrawingExportParams(
   partNumber: string,
   env: AppEnv["Bindings"],
 ): Promise<{ documentId: string; versionId: string; drawingEntityId: string }> {
-  // Get document ID from KV
-  const configStr = await env.SESSIONS.get("onshape-config:document");
-  const config = configStr ? (JSON.parse(configStr) as { documentId?: string }) : {};
-  const documentId = config.documentId;
+  // Get document ID from database
+  const db = drizzle(env.SHOP_DB, { schema });
+  const docIdSetting = await db
+    .select()
+    .from(schema.adminSettings)
+    .where(eq(schema.adminSettings.key, "onshape_document_id"))
+    .get();
+  const documentId = docIdSetting?.value;
 
   if (!documentId) {
-    throw new Error("Document ID not configured in KV storage");
+    throw new Error("Document ID not configured in database");
   }
 
   // Get part info from database (most recent)
-  const db = drizzle(env.SHOP_DB, { schema });
   const part = await db
     .select()
     .from(schema.onshapeParts)
