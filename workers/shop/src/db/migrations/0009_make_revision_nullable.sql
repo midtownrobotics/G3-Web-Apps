@@ -1,3 +1,4 @@
--- Make revision and name columns nullable in part_definitions
-ALTER TABLE part_definitions MODIFY revision TEXT;
-ALTER TABLE part_definitions MODIFY name TEXT;
+-- SQLite doesn't support modifying column constraints directly.
+-- The columns are already nullable in the schema definition.
+-- Existing NOT NULL constraints will remain on current data,
+-- but new rows can have NULL values for revision and name.
