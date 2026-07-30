@@ -17,6 +17,7 @@ export const partDefinitions = sqliteTable("part_definitions", {
   name: text("name"),
   notes: text("notes"),
   partDrawingUrl: text("part_drawing_url"),
+  isObsolete: integer("is_obsolete").notNull().default(0),
   createdAt: integer("created_at").notNull(),
 });
 

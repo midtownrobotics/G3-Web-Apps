@@ -57,11 +57,12 @@ router.get("/parts/pending", requireAuth, async (c) => {
   });
 });
 
-router.post("/parts/:partNumber/fetch-drawing", requireAuth, async (c) => {
+router.post("/parts/:partNumber/:revision/fetch-drawing", requireAuth, async (c) => {
   const partNumber = c.req.param("partNumber");
+  const revision = c.req.param("revision");
 
-  if (!partNumber) {
-    return c.json({ error: "Missing partNumber" }, 400);
+  if (!partNumber || !revision) {
+    return c.json({ error: "Missing partNumber or revision" }, 400);
   }
 
   try {
@@ -99,8 +100,8 @@ router.post("/parts/:partNumber/fetch-drawing", requireAuth, async (c) => {
       c.env,
     );
 
-    // Store in R2
-    const r2Key = `drawings/${partNumber}.pdf`;
+    // Store in R2 with revision in path
+    const r2Key = `drawings/${partNumber}/${revision}/drawing.pdf`;
     await c.env.DRAWINGS.put(r2Key, pdfBuffer, {
       httpMetadata: {
         contentType: "application/pdf",
@@ -110,6 +111,7 @@ router.post("/parts/:partNumber/fetch-drawing", requireAuth, async (c) => {
     return c.json({
       success: true,
       partNumber,
+      revision,
       message: "Drawing fetched and cached successfully",
     });
   } catch (err) {

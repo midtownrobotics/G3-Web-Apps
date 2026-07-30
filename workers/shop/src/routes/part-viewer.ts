@@ -3,23 +3,24 @@ import type { AppEnv } from "../types";
 
 const router = new Hono<AppEnv>();
 
-router.get("/parts/:partNumber/drawing", async (c) => {
+router.get("/parts/:partNumber/:revision/drawing", async (c) => {
   try {
     const partNumber = c.req.param("partNumber");
+    const revision = c.req.param("revision");
 
-    if (!partNumber) {
-      return c.json({ error: "Missing part number" }, 400);
+    if (!partNumber || !revision) {
+      return c.json({ error: "Missing part number or revision" }, 400);
     }
 
     // Check if drawing exists in R2 (don't check if part is defined)
-    const r2Key = `drawings/${partNumber}.pdf`;
+    const r2Key = `drawings/${partNumber}/${revision}/drawing.pdf`;
     const file = await c.env.DRAWINGS.get(r2Key);
 
     if (!file) {
       return c.json(
         {
           error: "Drawing not available",
-          details: `No cached drawing found for part "${partNumber}".`,
+          details: `No cached drawing found for part "${partNumber}" revision "${revision}".`,
         },
         404,
       );

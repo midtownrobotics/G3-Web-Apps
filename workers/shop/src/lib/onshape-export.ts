@@ -5,9 +5,10 @@ import type { AppEnv } from "../types";
 
 export async function drawingExistsInR2(
   partNumber: string,
+  revision: string,
   env: AppEnv["Bindings"],
 ): Promise<boolean> {
-  const r2Key = `drawings/${partNumber}.pdf`;
+  const r2Key = `drawings/${partNumber}/${revision}/drawing.pdf`;
   try {
     const obj = await env.DRAWINGS.head(r2Key);
     return obj !== null;
@@ -18,22 +19,24 @@ export async function drawingExistsInR2(
 
 export async function retrieveDrawingFromR2(
   partNumber: string,
+  revision: string,
   env: AppEnv["Bindings"],
 ): Promise<ArrayBuffer> {
-  const r2Key = `drawings/${partNumber}.pdf`;
+  const r2Key = `drawings/${partNumber}/${revision}/drawing.pdf`;
   const obj = await env.DRAWINGS.get(r2Key);
   if (!obj) {
-    throw new Error(`Drawing not found in R2: ${partNumber}`);
+    throw new Error(`Drawing not found in R2: ${partNumber} revision ${revision}`);
   }
   return obj.arrayBuffer();
 }
 
 export async function storeDrawingInR2(
   partNumber: string,
+  revision: string,
   pdfBuffer: ArrayBuffer,
   env: AppEnv["Bindings"],
 ): Promise<string> {
-  const r2Key = `drawings/${partNumber}.pdf`;
+  const r2Key = `drawings/${partNumber}/${revision}/drawing.pdf`;
   await env.DRAWINGS.put(r2Key, pdfBuffer, {
     httpMetadata: {
       contentType: "application/pdf",
@@ -41,6 +44,7 @@ export async function storeDrawingInR2(
   });
   console.log("[OnShape Export] Stored drawing in R2", {
     partNumber,
+    revision,
     r2Key,
     size: pdfBuffer.byteLength,
   });

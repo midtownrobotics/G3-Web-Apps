@@ -504,6 +504,11 @@ export function IngestPartsPage() {
                 [currentPart.partNumber]: partData,
               });
             }}
+            onRemoveFromLocal={() => {
+              const newLocalData = { ...localPartData };
+              delete newLocalData[currentPart.partNumber];
+              setLocalPartData(newLocalData);
+            }}
             onNext={() => {
               if (currentIndex + 1 < pendingData.parts.length) {
                 setCurrentIndex(currentIndex + 1);
@@ -527,6 +532,7 @@ function PartIngestCard({
   processes,
   localPartData,
   onUpdateLocalPartData,
+  onRemoveFromLocal,
   onNext,
   onRefresh,
   touch,
@@ -537,6 +543,7 @@ function PartIngestCard({
   processes: Process[];
   localPartData?: LocalPartData;
   onUpdateLocalPartData: (partData: LocalPartData) => void;
+  onRemoveFromLocal: () => void;
   onNext: () => void;
   onRefresh: () => void;
   touch: boolean;
@@ -587,7 +594,8 @@ function PartIngestCard({
   async function checkDrawingExists() {
     try {
       const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:5174/api";
-      const res = await fetch(`${apiBase}/parts/${part.partNumber}/drawing`);
+      const revision = part.revision || form.revision;
+      const res = await fetch(`${apiBase}/parts/${part.partNumber}/${revision}/drawing`);
 
       // Check if we got an error response (either status or body)
       if (!res.ok) {
@@ -628,7 +636,8 @@ function PartIngestCard({
   function handleViewExisting() {
     // Open existing drawing in new tab for preview
     const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:5174/api";
-    window.open(`${apiBase}/parts/${part.partNumber}/drawing`, "_blank");
+    const revision = part.revision || form.revision;
+    window.open(`${apiBase}/parts/${part.partNumber}/${revision}/drawing`, "_blank");
     setShowExistsAlert(false);
     setShowRefetchConfirm(true);
   }
@@ -636,7 +645,8 @@ function PartIngestCard({
   function handleKeepExisting() {
     // Set the drawing URL based on environment
     const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:5174/api";
-    const drawingUrl = `${apiBase}/parts/${part.partNumber}/drawing`;
+    const revision = part.revision || form.revision;
+    const drawingUrl = `${apiBase}/parts/${part.partNumber}/${revision}/drawing`;
     setForm((prev) => ({ ...prev, partDrawingUrl: drawingUrl }));
     setShowRefetchConfirm(false);
   }
@@ -648,10 +658,11 @@ function PartIngestCard({
     setShowRefetchConfirm(false);
 
     try {
+      const revision = part.revision || form.revision;
       // biome-ignore lint/suspicious/noExplicitAny: workaround for Hono client type generation
-      const res = await (api as any).admin.parts[":partNumber"]["fetch-drawing"].$post(
+      const res = await (api as any).admin.parts[":partNumber"][":revision"]["fetch-drawing"].$post(
         {
-          param: { partNumber: part.partNumber },
+          param: { partNumber: part.partNumber, revision },
         },
         { json: {} },
       );
@@ -662,7 +673,7 @@ function PartIngestCard({
       }
 
       const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:5174/api";
-      const drawingUrl = `${apiBase}/parts/${part.partNumber}/drawing`;
+      const drawingUrl = `${apiBase}/parts/${part.partNumber}/${revision}/drawing`;
       setForm((prev) => ({ ...prev, partDrawingUrl: drawingUrl }));
       setDrawingSuccess(true);
     } catch (err) {
@@ -787,6 +798,8 @@ function PartIngestCard({
 
       setShowDuplicateConfirm(false);
       await onRefresh();
+      // Remove from local state so warning doesn't show
+      onRemoveFromLocal();
       // Reset errors and scroll to top
       setFormError("");
       setBanner(null);
