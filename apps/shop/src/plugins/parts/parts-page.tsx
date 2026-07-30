@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   type InstanceRow,
   type InstanceState,
@@ -47,7 +47,9 @@ const DEFAULT_FILTERS: Filters = {
 export function PartsPage() {
   const { data, loading, error, refresh } = useShopData();
   const touch = useTouchDevice();
+  const navigate = useNavigate();
   const [selectedInstanceId, setSelectedInstanceId] = useState<number | null>(null);
+  const [lookupPartNumber, setLookupPartNumber] = useState("");
 
   // Live (non-obsolete) rows split into "in production" vs. fully complete;
   // obsolete rows get their own table.
@@ -91,6 +93,36 @@ export function PartsPage() {
         </div>
 
         {error && <ErrorBanner message={error} />}
+
+        {/* Full Part Details Lookup */}
+        <div className="bg-paper border border-steel/30 rounded-xl p-5">
+          <h2 className="font-semibold text-ink mb-3">Full Part Details</h2>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={lookupPartNumber}
+              onChange={(e) => setLookupPartNumber(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && lookupPartNumber.trim()) {
+                  navigate(`/part?p=${encodeURIComponent(lookupPartNumber.trim())}`);
+                }
+              }}
+              placeholder="Enter part number (e.g., P-0042)"
+              className="flex-1 bg-paper border border-steel/40 rounded-lg px-3 py-2 text-sm text-ink placeholder-steel focus:outline-none focus:border-crimson"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                if (lookupPartNumber.trim()) {
+                  navigate(`/part?p=${encodeURIComponent(lookupPartNumber.trim())}`);
+                }
+              }}
+              className="px-4 py-2 bg-crimson hover:bg-crimson-dark text-paper text-sm font-semibold rounded-lg transition-colors"
+            >
+              View
+            </button>
+          </div>
+        </div>
 
         {data && (
           <>

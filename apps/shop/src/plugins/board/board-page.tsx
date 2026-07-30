@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api } from "../../shared/api";
 import { getErrorMessage } from "../../shared/api-error";
 import {
@@ -41,6 +41,7 @@ export function BoardPage() {
   const { data, loading, error, refresh } = useShopData();
   const navigate = useNavigate();
   const params = useParams();
+  const [searchParams] = useSearchParams();
   const kiosk = useKiosk();
   // Kiosks are tablets — always use the finger-friendly layout there.
   const touch = useTouchDevice() || kiosk.active;
@@ -54,6 +55,14 @@ export function BoardPage() {
 
   const rows = useMemo(() => (data ? buildInstanceRows(data) : []), [data]);
   const loads = useMemo(() => (data ? processLoads(rows, data.processes) : []), [rows, data]);
+
+  // Handle instance query parameter from part detail page
+  useEffect(() => {
+    const instanceParam = searchParams.get("instance");
+    if (instanceParam) {
+      setSelectedInstanceId(Number(instanceParam));
+    }
+  }, [searchParams]);
 
   // A kiosk named after a machine opens straight to that machine's queue.
   useEffect(() => {
