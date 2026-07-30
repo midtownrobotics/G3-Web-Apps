@@ -19,6 +19,7 @@ export type PartDefinition = {
   name: string;
   notes: string | null;
   partDrawingUrl: string | null;
+  isObsolete: number;
   createdAt: number;
 };
 

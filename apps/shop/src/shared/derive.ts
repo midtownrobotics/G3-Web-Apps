@@ -45,6 +45,7 @@ export function buildInstanceRows(
     if (instance.isStale && !includeStale) continue;
     const definition = defById.get(instance.partDefinitionId);
     if (!definition) continue;
+    if (definition.isObsolete) continue;
     const procs = (procsByInstance.get(instance.id) ?? []).sort((a, b) => a.index - b.index);
     const current = procs.find((p) => p.status !== "done") ?? null;
     const state: InstanceState =
