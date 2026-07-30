@@ -187,7 +187,8 @@ export function BoardPage() {
         )}
       </div>
 
-      {workingPartInstanceId && data && (
+      {workingPartInstanceId &&
+        data &&
         (() => {
           const workingRow = rows.find((r) => r.instance.id === workingPartInstanceId);
           return workingRow ? (
@@ -203,8 +204,7 @@ export function BoardPage() {
               }}
             />
           ) : null;
-        })()
-      )}
+        })()}
 
       {selectedRow && data && (
         <PartCard
@@ -339,12 +339,7 @@ function BoardList({
       ) : (
         <div className="bg-paper border border-steel/30 rounded-xl divide-y divide-steel/15">
           {rows.map((row) => (
-            <PartLine
-              key={row.instance.id}
-              row={row}
-              touch={touch}
-              navigate={navigate}
-            >
+            <PartLine key={row.instance.id} row={row} touch={touch} navigate={navigate}>
               {row.current && (
                 <Link
                   to={processPath(row.current.processId)}
@@ -405,11 +400,7 @@ function ProcessView({
         ) : (
           <div className="bg-paper border border-steel/30 rounded-xl divide-y divide-steel/15">
             {inProgress.map((row) => (
-              <PartLine
-                key={row.instance.id}
-                row={row}
-                touch={touch}
-              >
+              <PartLine key={row.instance.id} row={row} touch={touch}>
                 <button
                   type="button"
                   onClick={(e) => {
@@ -450,11 +441,7 @@ function ProcessView({
         ) : (
           <div className="bg-paper border border-steel/30 rounded-xl divide-y divide-steel/15">
             {todo.map((row) => (
-              <PartLine
-                key={row.instance.id}
-                row={row}
-                touch={touch}
-              >
+              <PartLine key={row.instance.id} row={row} touch={touch}>
                 <button
                   type="button"
                   onClick={(e) => {
@@ -480,12 +467,7 @@ function ProcessView({
         ) : (
           <div className="bg-paper border border-steel/30 rounded-xl divide-y divide-steel/15">
             {upcoming.map((row) => (
-              <PartLine
-                key={row.instance.id}
-                row={row}
-                touch={touch}
-                muted
-              >
+              <PartLine key={row.instance.id} row={row} touch={touch} muted>
                 {row.current && (
                   <span className="text-xs text-steel shrink-0">
                     Stuck at{" "}
