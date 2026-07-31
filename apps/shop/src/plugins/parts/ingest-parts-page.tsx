@@ -296,7 +296,7 @@ export function IngestPartsPage() {
       setPendingLoading(true);
       setError(null);
       // biome-ignore lint/suspicious/noExplicitAny: workaround for Hono client type generation
-      const res = await (api as any).admin.parts.pending.$get();
+      const res = await api.admin.parts.pending.$get();
       if (!res.ok) {
         setError(await getErrorMessage(res as unknown as Response));
         return;
@@ -315,7 +315,7 @@ export function IngestPartsPage() {
     setDeletingPartNumber(partNumber);
     try {
       // biome-ignore lint/suspicious/noExplicitAny: workaround for Hono client type generation
-      const res = await (api as any).admin.parts[":partNumber"].$delete({ param: { partNumber } });
+      const res = await api.admin.parts[":partNumber"].$delete({ param: { partNumber } });
 
       if (!res.ok) {
         setError(await getErrorMessage(res as unknown as Response));
@@ -479,7 +479,7 @@ export function IngestPartsPage() {
                       if (!partData?.subsystemId) continue;
 
                       // biome-ignore lint/suspicious/noExplicitAny: workaround for Hono client type generation
-                      await (api as any)["part-definitions"].$post({
+                      await api["part-definitions"].$post({
                         json: {
                           onshapePartNumber: part.partNumber,
                           revision: partData.revision ?? part.revision ?? undefined,
@@ -664,7 +664,7 @@ function PartIngestCard({
   async function loadDocumentId() {
     try {
       // biome-ignore lint/suspicious/noExplicitAny: workaround for Hono client type generation
-      const res = await (api as any).admin.onshape.config.$get();
+      const res = await api.admin.onshape.config.$get();
       if (res.ok) {
         const config = (await res.json()) as { documentId: string };
         setDocumentId(config.documentId);
@@ -733,12 +733,9 @@ function PartIngestCard({
     try {
       const revision = part.revision || form.revision;
       // biome-ignore lint/suspicious/noExplicitAny: workaround for Hono client type generation
-      const res = await (api as any).admin.parts[":partNumber"][":revision"]["fetch-drawing"].$post(
-        {
-          param: { partNumber: part.partNumber, revision },
-        },
-        { json: {} },
-      );
+      const res = await api.admin.parts[":partNumber"][":revision"]["fetch-drawing"].$post({
+        param: { partNumber: part.partNumber, revision },
+      });
 
       if (!res.ok) {
         setDrawingError(await getErrorMessage(res as unknown as Response));
@@ -778,7 +775,7 @@ function PartIngestCard({
   async function checkForDuplicates(): Promise<string[]> {
     try {
       // biome-ignore lint/suspicious/noExplicitAny: workaround for Hono client type generation
-      const res = await (api as any)["part-definitions"].$get({
+      const res = await api["part-definitions"].$get({
         query: { onshapePartNumber: form.onshapePartNumber.trim() },
       });
       if (res.ok) {
