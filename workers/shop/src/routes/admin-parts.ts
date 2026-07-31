@@ -76,11 +76,33 @@ router.post("/parts/:partNumber/:revision/fetch-drawing", requireAuth, async (c)
       .get();
 
     if (!part) {
-      return c.json({ error: "Part not found in OnShape data" }, 404);
+      return c.json(
+        {
+          error: "Part not found in OnShape data",
+          detail: `No part found with number "${partNumber}"`,
+        },
+        404,
+      );
     }
 
-    if (!part.partDrawingEntityId || !part.versionId) {
-      return c.json({ error: "Part drawing entity ID or version ID not available" }, 400);
+    if (!part.partDrawingEntityId) {
+      return c.json(
+        {
+          error: "Part has no drawing available",
+          detail: "This part exists but has no drawing in OnShape",
+        },
+        400,
+      );
+    }
+
+    if (!part.versionId) {
+      return c.json(
+        {
+          error: "Part version not available",
+          detail: "Drawing metadata is missing the version ID",
+        },
+        400,
+      );
     }
 
     // Get document ID from database
