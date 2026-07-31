@@ -6,6 +6,8 @@ import { currentWindow, validateToken } from "./token";
 import type { AppEnv } from "./types";
 
 const AUTO_SIGNOUT_MS = 12 * 60 * 60 * 1000;
+const SCHOOL_YEAR_START_MONTH = 7; // August (zero-based)
+const SCHOOL_YEAR_START_DAY = 3;
 
 const base = new Hono<AppEnv>();
 
@@ -39,6 +41,44 @@ function db(env: AppEnv["Bindings"]) {
     env.FIREBASE_CLIENT_EMAIL,
     env.FIREBASE_PRIVATE_KEY,
   );
+}
+
+async function listOpenSessions(fs: Firestore) {
+  const members = await fs.listCollection("members");
+  const nested = await Promise.all(
+    members.map(async (member) => {
+      const sessions = await fs.listCollection(`members/${member.id}/sessions`);
+      return sessions
+        .filter((session) => session.data.status === "open")
+        .map((session) => ({ session, member }));
+    }),
+  );
+  return nested.flat();
+}
+
+function schoolYear(date: Date): string {
+  const startsThisYear =
+    date.getMonth() > SCHOOL_YEAR_START_MONTH ||
+    (date.getMonth() === SCHOOL_YEAR_START_MONTH && date.getDate() >= SCHOOL_YEAR_START_DAY);
+  const start = startsThisYear ? date.getFullYear() : date.getFullYear() - 1;
+  return `${start}-${start + 1}`;
+}
+
+async function calculateSchoolYearTotals(fs: Firestore, memberId: string, year: string) {
+  const sessions = await fs.listCollection(`members/${memberId}/sessions`);
+  let totalMs = 0;
+  let completedSessions = 0;
+  for (const session of sessions) {
+    const raw = session.data.signIn;
+    const signIn = raw instanceof Date ? raw : new Date(raw as string);
+    if (Number.isNaN(signIn.getTime()) || schoolYear(signIn) !== year) continue;
+    const duration = session.data.durationMs;
+    if (typeof duration === "number" && Number.isFinite(duration)) {
+      totalMs += Math.max(0, duration);
+      completedSessions++;
+    }
+  }
+  return { totalMs, completedSessions };
 }
 
 // Firestore document key — the display-name slug joined with the G3ID id, so
@@ -85,6 +125,7 @@ const app = base
     const memberId = memberKey(c.get("userDisplayName"), c.get("userId"));
     const fs = db(c.env);
     const sessionsPath = `members/${memberId}/sessions`;
+    await autoSignOut(c.env);
 
     await fs.setDoc(`members/${memberId}`, {
       displayName: c.get("userDisplayName"),
@@ -100,7 +141,7 @@ const app = base
       signOut: null,
       durationMs: null,
       status: "open",
-      year: String(new Date().getFullYear()),
+      year: schoolYear(new Date()),
     });
 
     return c.json({ ok: true });
@@ -134,16 +175,14 @@ const app = base
       status: "completed",
     });
 
-    const year = String(new Date().getFullYear());
+    const year = schoolYear(new Date(signInMs));
     const totalPath = `members/${memberId}/totals/${year}`;
-    const existing = await fs.getDoc(totalPath);
-    const prevMs = (existing?.data?.totalMs as number) ?? 0;
-    const totalMs = prevMs + durationMs;
+    const { totalMs, completedSessions } = await calculateSchoolYearTotals(fs, memberId, year);
 
     await fs.setDoc(totalPath, {
       totalMs,
       totalHours: totalMs / 3_600_000,
-      sessions: ((existing?.data?.sessions as number) ?? 0) + 1,
+      sessions: completedSessions,
       year,
     });
 
@@ -154,8 +193,9 @@ const app = base
   .get("/admin/summary", requireAuth, async (c) => {
     if (!c.get("userIsAdmin")) return c.json({ error: "Forbidden." }, 403);
 
+    await autoSignOut(c.env);
     const fs = db(c.env);
-    const year = String(new Date().getFullYear());
+    const year = schoolYear(new Date());
     const members = await fs.listCollection("members");
 
     const summaries = await Promise.all(
@@ -172,7 +212,7 @@ const app = base
           if (Number.isNaN(signIn.getTime())) continue;
 
           if (!latestSignIn || signIn > latestSignIn) latestSignIn = signIn;
-          if (String(session.data.year ?? signIn.getFullYear()) !== year) continue;
+          if (schoolYear(signIn) !== year) continue;
 
           const isOpen = session.data.status === "open" || session.data.signOut == null;
           if (isOpen) {
@@ -211,19 +251,11 @@ const app = base
   })
   // Who's currently signed in — any logged-in user can view.
   .get("/status", requireAuth, async (c) => {
+    await autoSignOut(c.env);
     const fs = db(c.env);
-    const open = await fs.collectionGroupQuery("sessions", [
-      { field: "signOut", op: "EQUAL", value: null },
-    ]);
-
-    const signedIn = await Promise.all(
-      open.map(async (s) => {
-        const parts = s.path.split("/");
-        const memberId = parts[1];
-        if (!memberId) return "UNKNOWN";
-        const member = await fs.getDoc(`members/${memberId}`);
-        return (member?.data?.displayName as string) ?? memberId;
-      }),
+    const open = await listOpenSessions(fs);
+    const signedIn = open.map(
+      ({ member }) => (member.data.displayName as string) ?? member.id,
     );
 
     return c.json({ signedIn });
@@ -231,20 +263,37 @@ const app = base
 
 async function autoSignOut(env: AppEnv["Bindings"]) {
   const fs = db(env);
-  const cutoff = new Date(Date.now() - AUTO_SIGNOUT_MS);
-  const stale = await fs.collectionGroupQuery("sessions", [
-    { field: "signOut", op: "EQUAL", value: null },
-    { field: "signIn", op: "LESS_THAN", value: cutoff },
-  ]);
+  const now = Date.now();
+  const open = await listOpenSessions(fs);
+  const stale = open
+    .map(({ session, member }) => {
+      const raw = session.data.signIn;
+      const signIn = raw instanceof Date ? raw : new Date(raw as string);
+      return { session, member, signIn };
+    })
+    .filter(({ signIn }) => !Number.isNaN(signIn.getTime()) && now - signIn.getTime() >= AUTO_SIGNOUT_MS);
 
   await Promise.all(
-    stale.map((session) =>
-      fs.updateDoc(session.path, {
-        signOut: new Date(),
-        durationMs: null,
+    stale.map(async ({ session, member, signIn }) => {
+      await fs.updateDoc(session.path, {
+        signOut: new Date(signIn.getTime() + AUTO_SIGNOUT_MS),
+        durationMs: AUTO_SIGNOUT_MS,
         status: "auto-closed",
-      }),
-    ),
+      });
+      const year = schoolYear(signIn);
+      const totalPath = `members/${member.id}/totals/${year}`;
+      const { totalMs, completedSessions } = await calculateSchoolYearTotals(
+        fs,
+        member.id,
+        year,
+      );
+      await fs.setDoc(totalPath, {
+        totalMs,
+        totalHours: totalMs / 3_600_000,
+        sessions: completedSessions,
+        year,
+      });
+    }),
   );
   console.log(`Auto-closed ${stale.length} sessions`);
 }

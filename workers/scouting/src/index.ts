@@ -306,5 +306,114 @@ app.delete("/autos/:id", requireAuth, async (c) => {
   return c.json({ ok: true });
 });
 
+app.get("/robots", requireAuth, async (c) => {
+  const [teams, images] = await Promise.all([
+    c.env.SCOUTING_DB.prepare("SELECT * FROM robot_teams ORDER BY updated_at DESC").all<
+      Record<string, unknown>
+    >(),
+    c.env.SCOUTING_DB.prepare("SELECT * FROM robot_images ORDER BY created_at DESC").all<
+      Record<string, unknown>
+    >(),
+  ]);
+  return c.json({
+    robots: teams.results.map((team) => ({
+      id: team.id,
+      teamName: team.team_name,
+      summary: team.summary,
+      updatedAt: team.updated_at,
+      images: images.results
+        .filter((image) => image.team_id === team.id)
+        .map((image) => ({
+          id: image.id,
+          url: `/robots/images/${image.id}`,
+          createdAt: image.created_at,
+        })),
+    })),
+  });
+});
+
+app.post("/robots", requireAuth, async (c) => {
+  const form = await c.req.formData();
+  const teamName = text(form.get("teamName"), 120);
+  if (!teamName) return c.json({ error: "Team name is required." }, 400);
+  const teamId = id("robot");
+  const now = Date.now();
+  await c.env.SCOUTING_DB.prepare(
+    "INSERT INTO robot_teams (id, team_name, summary, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+  )
+    .bind(teamId, teamName, text(form.get("summary"), 3000), c.get("userId"), now, now)
+    .run();
+  const files = form.getAll("images").filter((value): value is File => value instanceof File);
+  for (const file of files.slice(0, 20)) {
+    if (!file.type.startsWith("image/") || file.size > 12 * 1024 * 1024) continue;
+    const imageId = id("robot_image");
+    const extension = file.type === "image/jpeg" ? "jpg" : file.type === "image/webp" ? "webp" : "png";
+    const key = `robot-images/${teamId}/${imageId}.${extension}`;
+    await c.env.FIELD_MAPS.put(key, await file.arrayBuffer(), {
+      httpMetadata: { contentType: file.type },
+    });
+    await c.env.SCOUTING_DB.prepare(
+      "INSERT INTO robot_images (id, team_id, r2_key, content_type, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+    )
+      .bind(imageId, teamId, key, file.type, c.get("userId"), now)
+      .run();
+  }
+  return c.json({ id: teamId }, 201);
+});
+
+app.post("/robots/:id/images", requireAuth, async (c) => {
+  const form = await c.req.formData();
+  const files = form.getAll("images").filter((value): value is File => value instanceof File);
+  const now = Date.now();
+  for (const file of files.slice(0, 20)) {
+    if (!file.type.startsWith("image/") || file.size > 12 * 1024 * 1024) continue;
+    const imageId = id("robot_image");
+    const extension = file.type === "image/jpeg" ? "jpg" : file.type === "image/webp" ? "webp" : "png";
+    const key = `robot-images/${c.req.param("id")}/${imageId}.${extension}`;
+    await c.env.FIELD_MAPS.put(key, await file.arrayBuffer(), {
+      httpMetadata: { contentType: file.type },
+    });
+    await c.env.SCOUTING_DB.prepare(
+      "INSERT INTO robot_images (id, team_id, r2_key, content_type, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+    )
+      .bind(imageId, c.req.param("id"), key, file.type, c.get("userId"), now)
+      .run();
+  }
+  await c.env.SCOUTING_DB.prepare("UPDATE robot_teams SET updated_at = ? WHERE id = ?")
+    .bind(now, c.req.param("id"))
+    .run();
+  return c.json({ ok: true });
+});
+
+app.get("/robots/images/:imageId", requireAuth, async (c) => {
+  const image = await c.env.SCOUTING_DB.prepare(
+    "SELECT r2_key, content_type FROM robot_images WHERE id = ?",
+  )
+    .bind(c.req.param("imageId"))
+    .first<{ r2_key: string; content_type: string }>();
+  if (!image) return c.json({ error: "Image not found." }, 404);
+  const object = await c.env.FIELD_MAPS.get(image.r2_key);
+  if (!object) return c.json({ error: "Image not found." }, 404);
+  return new Response(object.body, {
+    headers: { "Content-Type": image.content_type, "Cache-Control": "private, max-age=300" },
+  });
+});
+
+app.delete("/robots/:id", requireAuth, async (c) => {
+  const images = await c.env.SCOUTING_DB.prepare(
+    "SELECT r2_key FROM robot_images WHERE team_id = ?",
+  )
+    .bind(c.req.param("id"))
+    .all<{ r2_key: string }>();
+  await Promise.all(images.results.map((image) => c.env.FIELD_MAPS.delete(image.r2_key)));
+  await c.env.SCOUTING_DB.prepare("DELETE FROM robot_images WHERE team_id = ?")
+    .bind(c.req.param("id"))
+    .run();
+  await c.env.SCOUTING_DB.prepare("DELETE FROM robot_teams WHERE id = ?")
+    .bind(c.req.param("id"))
+    .run();
+  return c.json({ ok: true });
+});
+
 export type ScoutingApp = typeof app;
 export default app;

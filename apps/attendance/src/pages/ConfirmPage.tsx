@@ -184,7 +184,7 @@ export default function ConfirmPage({ action, w }: Props) {
             )}
             {status.action === "signout" && status.totalHours != null && (
               <p className="select__state-duration">
-                TOTAL THIS YEAR — {status.totalHours.toFixed(2)}h
+                TOTAL HOURS THIS SCHOOL YEAR — {status.totalHours.toFixed(2)}h
               </p>
             )}
             <p className="confirm__redirect">Returning to apps in {redirectIn}s…</p>

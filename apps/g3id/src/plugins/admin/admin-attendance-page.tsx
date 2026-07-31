@@ -29,7 +29,7 @@ function relativeDate(iso: string | null): string {
 
 export function AdminAttendancePage() {
   const [members, setMembers] = useState<MemberSummary[]>([]);
-  const [year, setYear] = useState<string>(String(new Date().getFullYear()));
+  const [year, setYear] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -90,7 +90,7 @@ export function AdminAttendancePage() {
 
       <div className="flex items-baseline justify-between mb-8">
         <h1 className="text-3xl font-bold text-white">Attendance Summary</h1>
-        <span className="text-sm text-secondary-200">{year} totals</span>
+        <span className="text-sm text-secondary-200">Total Hours {year}</span>
       </div>
 
       {!loading && !error && (
@@ -131,7 +131,7 @@ export function AdminAttendancePage() {
                 <th className="px-4 py-3 font-medium">Name</th>
                 <th className="px-4 py-3 font-medium">Status</th>
                 <th className="px-4 py-3 font-medium">Last Sign-In</th>
-                <th className="px-4 py-3 font-medium text-right">Total Hours ({year})</th>
+                <th className="px-4 py-3 font-medium text-right">Total Hours {year}</th>
               </tr>
             </thead>
             <tbody>
