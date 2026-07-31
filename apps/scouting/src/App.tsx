@@ -13,6 +13,7 @@ import {
   Menu,
   Monitor,
   Moon,
+  Octagon,
   Pencil,
   Plus,
   RotateCcw,
@@ -25,7 +26,6 @@ import {
   Type,
   Upload,
   X,
-  Octagon,
 } from "lucide-react";
 import {
   type ComponentType,
@@ -44,11 +44,7 @@ import {
   saveFieldMapPreset,
   saveLocalFieldMap,
 } from "./local-field-maps";
-import {
-  type ParsedTrajectory,
-  parseTrajectoryFile,
-  trajectoryToPng,
-} from "./trajectory-files";
+import { type ParsedTrajectory, parseTrajectoryFile, trajectoryToPng } from "./trajectory-files";
 
 type Page = "overview" | "tiers" | "maps" | "autos" | "robots";
 type User = { userId: string; displayName: string; email: string; isAdmin: boolean };
@@ -597,9 +593,15 @@ function MapCanvas({
       context.moveTo(start.x, start.y);
       context.lineTo(end.x, end.y);
       context.moveTo(end.x, end.y);
-      context.lineTo(end.x - head * Math.cos(angle - Math.PI / 6), end.y - head * Math.sin(angle - Math.PI / 6));
+      context.lineTo(
+        end.x - head * Math.cos(angle - Math.PI / 6),
+        end.y - head * Math.sin(angle - Math.PI / 6),
+      );
       context.moveTo(end.x, end.y);
-      context.lineTo(end.x - head * Math.cos(angle + Math.PI / 6), end.y - head * Math.sin(angle + Math.PI / 6));
+      context.lineTo(
+        end.x - head * Math.cos(angle + Math.PI / 6),
+        end.y - head * Math.sin(angle + Math.PI / 6),
+      );
       context.stroke();
       return;
     }
@@ -898,8 +900,6 @@ function FieldMaps() {
             <article
               className="map-card"
               key={map.id}
-              role="button"
-              tabIndex={0}
               onClick={() => edit(map)}
               onKeyDown={(event) => {
                 if (event.key === "Enter" || event.key === " ") edit(map);
@@ -1030,7 +1030,9 @@ function AutoLibrary() {
         <span>{filtered.length} routines</span>
       </div>
       {saveMessage && (
-        <div className={saveMessage === "Saved for everyone" ? "save-status success" : "save-status"}>
+        <div
+          className={saveMessage === "Saved for everyone" ? "save-status success" : "save-status"}
+        >
           {saveMessage}
         </div>
       )}
@@ -1098,8 +1100,6 @@ function AutoLibrary() {
               <article
                 className="auto-card"
                 key={auto.id}
-                role="button"
-                tabIndex={0}
                 onClick={() => setSelectedAuto(auto)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") {
@@ -1108,52 +1108,52 @@ function AutoLibrary() {
                   }
                 }}
               >
-              {auto.imageUrl && (
-                <img
-                  className="auto-card-image"
-                  src={`${API_URL}${auto.imageUrl}`}
-                  alt={`${auto.name} autonomous routine`}
-                />
-              )}
-              <header>
-                <span className="auto-icon">
-                  <G3Logo size={24} />
-                </span>
-                <div>
-                  <span>{auto.team ? `Team ${auto.team}` : "Unassigned team"}</span>
-                  <h3>{auto.name}</h3>
-                </div>
-                <button
-                  type="button"
-                  aria-label={`Delete ${auto.name}`}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    if (
-                      window.confirm(
-                        `Delete “${auto.name}”? This removes it for everyone and cannot be undone.`,
-                      )
-                    ) {
-                      void remove(auto.id);
-                    }
-                  }}
-                >
-                  <Trash2 size={15} />
-                </button>
-              </header>
-              <p>{auto.description || "No description added."}</p>
-              {auto.steps.length > 0 && (
-                <ol>
-                  {auto.steps.map((step, index) => (
-                    <li key={`${auto.id}-${step}`}>
-                      <span>{index + 1}</span>
-                      {step}
-                    </li>
-                  ))}
-                </ol>
-              )}
-              <footer>
-                <small>{timeAgo(auto.updatedAt)}</small>
-              </footer>
+                {auto.imageUrl && (
+                  <img
+                    className="auto-card-image"
+                    src={`${API_URL}${auto.imageUrl}`}
+                    alt={`${auto.name} autonomous routine`}
+                  />
+                )}
+                <header>
+                  <span className="auto-icon">
+                    <G3Logo size={24} />
+                  </span>
+                  <div>
+                    <span>{auto.team ? `Team ${auto.team}` : "Unassigned team"}</span>
+                    <h3>{auto.name}</h3>
+                  </div>
+                  <button
+                    type="button"
+                    aria-label={`Delete ${auto.name}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      if (
+                        window.confirm(
+                          `Delete “${auto.name}”? This removes it for everyone and cannot be undone.`,
+                        )
+                      ) {
+                        void remove(auto.id);
+                      }
+                    }}
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </header>
+                <p>{auto.description || "No description added."}</p>
+                {auto.steps.length > 0 && (
+                  <ol>
+                    {auto.steps.map((step, index) => (
+                      <li key={`${auto.id}-${step}`}>
+                        <span>{index + 1}</span>
+                        {step}
+                      </li>
+                    ))}
+                  </ol>
+                )}
+                <footer>
+                  <small>{timeAgo(auto.updatedAt)}</small>
+                </footer>
               </article>
             ))}
           </div>
@@ -1179,7 +1179,11 @@ function AutoLibrary() {
         />
       )}
       {selectedAuto && (
-        <div className="auto-dialog-backdrop" role="presentation" onClick={() => setSelectedAuto(null)}>
+        <div
+          className="auto-dialog-backdrop"
+          role="presentation"
+          onClick={() => setSelectedAuto(null)}
+        >
           <div
             className="auto-dialog"
             role="dialog"
@@ -1359,7 +1363,9 @@ function RobotLibrary() {
             </label>
             <label className="wide robot-image-upload">
               Robot pictures
-              <span>{images.length ? `${images.length} selected` : "Select one or many images"}</span>
+              <span>
+                {images.length ? `${images.length} selected` : "Select one or many images"}
+              </span>
               <input
                 type="file"
                 accept="image/*"
@@ -1386,8 +1392,6 @@ function RobotLibrary() {
               <article
                 className="robot-card"
                 key={robot.id}
-                role="button"
-                tabIndex={0}
                 onClick={() => setSelected(robot)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") setSelected(robot);

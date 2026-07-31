@@ -347,7 +347,8 @@ app.post("/robots", requireAuth, async (c) => {
   for (const file of files.slice(0, 20)) {
     if (!file.type.startsWith("image/") || file.size > 12 * 1024 * 1024) continue;
     const imageId = id("robot_image");
-    const extension = file.type === "image/jpeg" ? "jpg" : file.type === "image/webp" ? "webp" : "png";
+    const extension =
+      file.type === "image/jpeg" ? "jpg" : file.type === "image/webp" ? "webp" : "png";
     const key = `robot-images/${teamId}/${imageId}.${extension}`;
     await c.env.FIELD_MAPS.put(key, await file.arrayBuffer(), {
       httpMetadata: { contentType: file.type },
@@ -368,7 +369,8 @@ app.post("/robots/:id/images", requireAuth, async (c) => {
   for (const file of files.slice(0, 20)) {
     if (!file.type.startsWith("image/") || file.size > 12 * 1024 * 1024) continue;
     const imageId = id("robot_image");
-    const extension = file.type === "image/jpeg" ? "jpg" : file.type === "image/webp" ? "webp" : "png";
+    const extension =
+      file.type === "image/jpeg" ? "jpg" : file.type === "image/webp" ? "webp" : "png";
     const key = `robot-images/${c.req.param("id")}/${imageId}.${extension}`;
     await c.env.FIELD_MAPS.put(key, await file.arrayBuffer(), {
       httpMetadata: { contentType: file.type },

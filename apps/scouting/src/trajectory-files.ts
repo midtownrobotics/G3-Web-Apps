@@ -24,7 +24,11 @@ function pointFrom(value: unknown): TrajectoryPoint | null {
     numberValue(value[1]) !== null &&
     numberValue(value[2]) !== null
   ) {
-    return { x: numberValue(value[1])!, y: numberValue(value[2])! };
+    const x = numberValue(value[1]);
+    const y = numberValue(value[2]);
+    if (x !== null && y !== null) {
+      return { x, y };
+    }
   }
   if (!value || typeof value !== "object") return null;
   const item = value as Record<string, unknown>;
@@ -87,15 +91,12 @@ export async function parseTrajectoryFile(file: File): Promise<ParsedTrajectory>
   const points = choreo.length > 1 ? choreo : pathPlanner.length > 1 ? pathPlanner : discovered;
   if (points.length < 2) {
     const keys = Object.keys(data).slice(0, 6).join(", ");
-    throw new Error(
-      `No coordinates found in this .traj file${keys ? ` (found: ${keys})` : ""}.`,
-    );
+    throw new Error(`No coordinates found in this .traj file${keys ? ` (found: ${keys})` : ""}.`);
   }
   return {
     format: choreo.length > 1 ? "Choreo" : "PathPlanner",
     name:
-      (typeof data.name === "string" && data.name) ||
-      file.name.replace(/\.(traj|path|json)$/i, ""),
+      (typeof data.name === "string" && data.name) || file.name.replace(/\.(traj|path|json)$/i, ""),
     points,
   };
 }

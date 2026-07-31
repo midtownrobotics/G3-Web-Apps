@@ -254,9 +254,7 @@ const app = base
     await autoSignOut(c.env);
     const fs = db(c.env);
     const open = await listOpenSessions(fs);
-    const signedIn = open.map(
-      ({ member }) => (member.data.displayName as string) ?? member.id,
-    );
+    const signedIn = open.map(({ member }) => (member.data.displayName as string) ?? member.id);
 
     return c.json({ signedIn });
   });
@@ -271,7 +269,9 @@ async function autoSignOut(env: AppEnv["Bindings"]) {
       const signIn = raw instanceof Date ? raw : new Date(raw as string);
       return { session, member, signIn };
     })
-    .filter(({ signIn }) => !Number.isNaN(signIn.getTime()) && now - signIn.getTime() >= AUTO_SIGNOUT_MS);
+    .filter(
+      ({ signIn }) => !Number.isNaN(signIn.getTime()) && now - signIn.getTime() >= AUTO_SIGNOUT_MS,
+    );
 
   await Promise.all(
     stale.map(async ({ session, member, signIn }) => {
@@ -282,11 +282,7 @@ async function autoSignOut(env: AppEnv["Bindings"]) {
       });
       const year = schoolYear(signIn);
       const totalPath = `members/${member.id}/totals/${year}`;
-      const { totalMs, completedSessions } = await calculateSchoolYearTotals(
-        fs,
-        member.id,
-        year,
-      );
+      const { totalMs, completedSessions } = await calculateSchoolYearTotals(fs, member.id, year);
       await fs.setDoc(totalPath, {
         totalMs,
         totalHours: totalMs / 3_600_000,
