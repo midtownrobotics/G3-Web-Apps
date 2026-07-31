@@ -123,7 +123,7 @@ async function processSingleBOMJob(
     • <https://shop.g3robotics.com/part?p=${part.partNumber}|Shop SW Link>${partLink}${drawingLink}
           `;
         }),
-        "\nClick <https://shop.g3robotics.com/ingest|here> to open the Shop SW part ingest page.",
+        "\nClick <https://shop.g3robotics.com/ingest|here> to assign production processes.",
       ].join("\n");
 
       console.log(`[BOM Queue Job] [${Date.now() - jobStartTime}ms] Sending Slack message`);
