@@ -732,6 +732,12 @@ function PartIngestCard({
 
     try {
       const revision = part.revision || form.revision;
+
+      if (!revision || !part.partNumber) {
+        setDrawingError("Revision and part number are required for auto-fetch.")
+        return;
+      }
+
       // biome-ignore lint/suspicious/noExplicitAny: workaround for Hono client type generation
       const res = await api.admin.parts[":partNumber"][":revision"]["fetch-drawing"].$post({
         param: { partNumber: part.partNumber, revision },
