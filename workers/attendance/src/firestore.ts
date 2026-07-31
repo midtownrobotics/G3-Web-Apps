@@ -210,8 +210,9 @@ export class Firestore {
     });
 
     const rawJson = await res.json();
-    console.log('QUERY URL:', url);
-    console.log('QUERY RESPONSE:', JSON.stringify(rawJson));
+    if (!res.ok) {
+      throw new Error(`Firestore query failed (${res.status}) for ${collectionPath}`);
+    }
     const rows = rawJson as FirestoreRunQueryRow[];
     return rows
       .filter(r => r?.document)
@@ -289,7 +290,11 @@ export class Firestore {
       }),
     });
 
-    const rows = (await res.json()) as FirestoreRunQueryRow[];
+    const body = await res.json();
+    if (!res.ok) {
+      throw new Error(`Firestore collection-group query failed (${res.status}) for ${collectionId}`);
+    }
+    const rows = body as FirestoreRunQueryRow[];
 
     return rows
       .filter(r => r?.document)
