@@ -429,7 +429,7 @@ function PartsTable({
           <span className="w-3.5 shrink-0" />
           <span className="flex-1 min-w-0">Part</span>
           <span className="w-44 shrink-0 hidden sm:block">Number / Rev</span>
-          <span className="w-36 shrink-0 hidden md:block">Last process</span>
+          <span className="w-36 shrink-0 hidden md:block">Current process</span>
           <span className="w-28 shrink-0">Status</span>
         </div>
 
