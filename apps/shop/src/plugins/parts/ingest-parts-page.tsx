@@ -576,7 +576,12 @@ export function IngestPartsPage() {
                 type="button"
                 disabled={
                   ingestingAll ||
-                  !pendingData.parts.every((p) => localPartData[p.partNumber]?.subsystemId)
+                  !pendingData.parts.every((p) => {
+                    const partData = localPartData[p.partNumber];
+                    const revision = partData?.revision ?? p.revision;
+                    const name = partData?.name ?? p.name;
+                    return partData?.subsystemId && revision && name;
+                  })
                 }
                 onClick={async () => {
                   setIngestingAll(true);
