@@ -289,7 +289,7 @@ export function PartCard({
                     className="accent-crimson w-4 h-4 disabled:opacity-50"
                   />
                   <span className="text-ink">
-                    {row.instance.isPriority ? "Priority part" : "Standard"}
+                    Priority
                   </span>
                 </label>
               </dd>

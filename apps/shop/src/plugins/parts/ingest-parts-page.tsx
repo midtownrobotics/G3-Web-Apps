@@ -129,6 +129,84 @@ function DrawingStatusCell({
   return <span className="text-red-600 font-semibold">✕</span>;
 }
 
+function ProcessSelector({
+  processes,
+  selectedProcessIds,
+  onAddProcess,
+  onRemoveProcess,
+  onOpenFull,
+}: {
+  processes: Process[];
+  selectedProcessIds: number[];
+  onAddProcess: (procId: number) => void;
+  onRemoveProcess: (idx: number) => void;
+  onOpenFull: () => void;
+}) {
+  const maxInline = 3;
+  const availableProcesses = processes.filter((p) => !selectedProcessIds.includes(p.id));
+
+  return (
+    <div className="flex gap-1 items-center">
+      {[0, 1, 2].map((slot) => {
+        const procId = selectedProcessIds[slot];
+        const proc = procId ? processes.find((p) => p.id === procId) : null;
+
+        return (
+          <div key={slot} className="flex items-center gap-1">
+            <select
+              value={procId || ""}
+              onChange={(e) => {
+                const newId = Number(e.target.value);
+                if (!newId && procId) {
+                  onRemoveProcess(slot);
+                } else if (newId && newId !== procId) {
+                  if (procId) {
+                    onRemoveProcess(slot);
+                    setTimeout(() => onAddProcess(newId), 0);
+                  } else {
+                    onAddProcess(newId);
+                  }
+                }
+              }}
+              className="bg-paper border border-steel/40 rounded px-2 py-1 text-xs text-ink focus:outline-none focus:border-crimson"
+            >
+              <option value="">—</option>
+              {proc && (
+                <option value={procId} key={procId}>
+                  {proc.name}
+                </option>
+              )}
+              {availableProcesses.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        );
+      })}
+      {selectedProcessIds.length > maxInline && (
+        <button
+          type="button"
+          onClick={onOpenFull}
+          className="text-xs font-medium text-crimson hover:text-crimson-dark underline ml-2"
+        >
+          +{selectedProcessIds.length - maxInline}
+        </button>
+      )}
+      {selectedProcessIds.length <= maxInline && selectedProcessIds.length < processes.length && (
+        <button
+          type="button"
+          onClick={onOpenFull}
+          className="text-xs font-medium text-steel hover:text-ink underline ml-2"
+        >
+          More
+        </button>
+      )}
+    </div>
+  );
+}
+
 function ProcessPanel({
   partNumber,
   processes,
@@ -336,7 +414,7 @@ export function IngestPartsPage() {
   if (error) {
     return (
       <main className="min-h-screen bg-mist">
-        <div className="max-w-2xl mx-auto px-6 py-8 space-y-5">
+        <div className="max-w-full mx-auto px-6 py-8 space-y-5">
           <h1 className="font-display text-4xl text-ink">Ingest Parts</h1>
           <ErrorBanner message={error} />
         </div>
@@ -347,7 +425,7 @@ export function IngestPartsPage() {
   if (!pendingData || pendingData.parts.length === 0) {
     return (
       <main className="min-h-screen bg-mist">
-        <div className="max-w-2xl mx-auto px-6 py-8 space-y-5">
+        <div className="max-w-full mx-auto px-6 py-8 space-y-5">
           <h1 className="font-display text-4xl text-ink">Ingest Parts</h1>
           <div className="bg-paper border border-steel/30 rounded-xl p-6">
             <p className="text-sm text-steel">No pending parts to ingest.</p>
@@ -361,7 +439,7 @@ export function IngestPartsPage() {
   if (currentIndex === null) {
     return (
       <main className="min-h-screen bg-mist">
-        <div className="max-w-4xl mx-auto px-6 py-8 space-y-5">
+        <div className="max-w-full mx-auto px-6 py-8 space-y-5">
           <h1 className="font-display text-4xl text-ink">Ingest Parts</h1>
 
           <div className="bg-paper border border-steel/30 rounded-xl overflow-hidden">
@@ -426,15 +504,44 @@ export function IngestPartsPage() {
                         </select>
                       </td>
                       <td className="px-4 py-3 text-steel text-xs">
-                        <button
-                          type="button"
-                          onClick={() => setEditingProcessPartIdx(idx)}
-                          className="text-xs font-medium text-steel hover:text-ink underline"
-                        >
-                          {localPartData[part.partNumber]?.processIds?.length
-                            ? "Edit Processes"
-                            : "Set Processes"}
-                        </button>
+                        {data && (
+                          <ProcessSelector
+                            processes={data.processes}
+                            selectedProcessIds={localPartData[part.partNumber]?.processIds || []}
+                            onAddProcess={(procId) => {
+                              setLocalPartData({
+                                ...localPartData,
+                                [part.partNumber]: {
+                                  ...localPartData[part.partNumber],
+                                  subsystemId: localPartData[part.partNumber]?.subsystemId || 0,
+                                  processIds: [
+                                    ...(localPartData[part.partNumber]?.processIds || []),
+                                    procId,
+                                  ],
+                                  revision: localPartData[part.partNumber]?.revision,
+                                  name: localPartData[part.partNumber]?.name,
+                                  quantity: localPartData[part.partNumber]?.quantity,
+                                },
+                              });
+                            }}
+                            onRemoveProcess={(idx) => {
+                              setLocalPartData({
+                                ...localPartData,
+                                [part.partNumber]: {
+                                  ...localPartData[part.partNumber],
+                                  subsystemId: localPartData[part.partNumber]?.subsystemId || 0,
+                                  processIds: localPartData[part.partNumber].processIds.filter(
+                                    (_, i) => i !== idx,
+                                  ),
+                                  revision: localPartData[part.partNumber]?.revision,
+                                  name: localPartData[part.partNumber]?.name,
+                                  quantity: localPartData[part.partNumber]?.quantity,
+                                },
+                              });
+                            }}
+                            onOpenFull={() => setEditingProcessPartIdx(idx)}
+                          />
+                        )}
                       </td>
                       <td className="px-4 py-3 text-steel text-center">
                         <DrawingStatusCell part={part} localPartData={localPartData} />
@@ -732,6 +839,12 @@ function PartIngestCard({
 
     try {
       const revision = part.revision || form.revision;
+
+      if (!revision || !part.partNumber) {
+        setDrawingError("Revision and part number are required for auto-fetch.");
+        return;
+      }
+
       // biome-ignore lint/suspicious/noExplicitAny: workaround for Hono client type generation
       const res = await api.admin.parts[":partNumber"][":revision"]["fetch-drawing"].$post({
         param: { partNumber: part.partNumber, revision },
