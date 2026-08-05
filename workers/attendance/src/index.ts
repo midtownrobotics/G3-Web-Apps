@@ -73,6 +73,12 @@ async function calculateSchoolYearTotals(fs: Firestore, memberId: string, year: 
     const signIn = raw instanceof Date ? raw : new Date(raw as string);
     if (Number.isNaN(signIn.getTime()) || schoolYear(signIn) !== year) continue;
     const duration = session.data.durationMs;
+    // Auto-closed sessions are invalid and never count toward attendance,
+    // including records created before this rule stored a zero duration.
+    if (session.data.status === "auto-closed") {
+      completedSessions++;
+      continue;
+    }
     if (typeof duration === "number" && Number.isFinite(duration)) {
       totalMs += Math.max(0, duration);
       completedSessions++;
@@ -167,12 +173,17 @@ const app = base
     const signInRaw = session?.data?.signIn;
     const signInMs =
       signInRaw instanceof Date ? signInRaw.getTime() : new Date(signInRaw as string).getTime();
-    const durationMs = Date.now() - signInMs;
+    if (!Number.isFinite(signInMs)) {
+      return c.json({ error: "INVALID_SESSION" }, 500);
+    }
+    const elapsedMs = Date.now() - signInMs;
+    const timedOut = elapsedMs >= AUTO_SIGNOUT_MS;
+    const durationMs = timedOut ? 0 : Math.max(0, elapsedMs);
 
     await fs.updateDoc(session.path, {
-      signOut: new Date(),
+      signOut: timedOut ? new Date(signInMs + AUTO_SIGNOUT_MS) : new Date(),
       durationMs,
-      status: "completed",
+      status: timedOut ? "auto-closed" : "completed",
     });
 
     const year = schoolYear(new Date(signInMs));
@@ -220,6 +231,8 @@ const app = base
             totalMs += Math.max(0, Date.now() - signIn.getTime());
             continue;
           }
+
+          if (session.data.status === "auto-closed") continue;
 
           const durationMs = session.data.durationMs;
           if (typeof durationMs === "number" && Number.isFinite(durationMs)) {
@@ -277,7 +290,7 @@ async function autoSignOut(env: AppEnv["Bindings"]) {
     stale.map(async ({ session, member, signIn }) => {
       await fs.updateDoc(session.path, {
         signOut: new Date(signIn.getTime() + AUTO_SIGNOUT_MS),
-        durationMs: AUTO_SIGNOUT_MS,
+        durationMs: 0,
         status: "auto-closed",
       });
       const year = schoolYear(signIn);
