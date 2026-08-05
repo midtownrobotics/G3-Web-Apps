@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { API, redirectToLogin } from "../utils/auth";
-import { type PageType, VALID_WINDOWS, WINDOW_MS } from "../utils/token";
+import type { PageType } from "../utils/token";
 import "./ConfirmPage.css";
 
 interface Props {
@@ -25,9 +25,11 @@ const ALL_APPS_URL = "https://web.g3robotics.com";
 const REDIRECT_SECONDS = 5;
 
 function tokenValid(w: string): boolean {
-  const win = Number.parseInt(w, 10);
-  const current = Math.floor(Date.now() / WINDOW_MS);
-  return !Number.isNaN(win) && current - win <= VALID_WINDOWS && win <= current;
+  const win = Number(w);
+  // The worker uses the same clock that issued the kiosk code and is the sole
+  // expiry authority. A local time check falsely rejected codes on phones whose
+  // clocks differed from the server.
+  return Number.isSafeInteger(win) && win >= 0;
 }
 
 function formatDuration(ms: number): string {

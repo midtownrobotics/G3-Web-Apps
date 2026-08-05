@@ -1,7 +1,6 @@
 export type PageType = "signin" | "signout";
 
 export const WINDOW_MS = 30_000;
-export const VALID_WINDOWS = 4; // 4 × 30s = 2 minutes
 
 export function currentWindow(): number {
   return Math.floor(Date.now() / WINDOW_MS);
