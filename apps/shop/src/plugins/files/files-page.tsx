@@ -7,6 +7,7 @@ import { useAuthUser } from "../../shared/use-auth";
 type Drawing = {
   id: number;
   partNumber: string;
+  revision: string;
   filename: string;
   r2Key: string;
   fileSize: number | null;
@@ -55,10 +56,11 @@ export function FilesPage() {
   async function handlePrint(drawing: Drawing) {
     setPrintingId(drawing.id);
     try {
-      // Fetch the PDF from the drawing download endpoint
-      const downloadRes = await api.drawings[":drawingId"].download.$get({
-        param: { drawingId: drawing.id.toString() },
-      });
+      // Fetch the PDF from the drawing endpoint
+      const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
+      const downloadRes = await fetch(
+        `${apiBase}/parts/${drawing.partNumber}/${drawing.revision}/drawing`,
+      );
 
       if (!downloadRes.ok) {
         setError("Failed to download drawing for printing");
@@ -68,17 +70,14 @@ export function FilesPage() {
       const pdfBuffer = await downloadRes.arrayBuffer();
 
       // Send to print API through backend proxy with PDF bytes
-      const printRes = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL ?? ""}/print?title=${drawing.filename}`,
-        {
-          method: "POST",
-          headers: {
-            "content-type": "application/pdf",
-          },
-          body: pdfBuffer,
-          credentials: "include",
+      const printRes = await fetch(`${apiBase}/print?title=${drawing.filename}`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/pdf",
         },
-      );
+        body: pdfBuffer,
+        credentials: "include",
+      });
 
       const printData = (await printRes.json()) as { ok: boolean; jobId?: string; error?: string };
       if (!printData.ok) {
@@ -227,7 +226,7 @@ export function FilesPage() {
                         {printingId === drawing.id ? "Printing…" : "Print"}
                       </button>
                       <a
-                        href={`${import.meta.env.VITE_API_BASE_URL ?? ""}/drawings/${drawing.id}/download`}
+                        href={`${import.meta.env.VITE_API_BASE_URL ?? ""}/parts/${drawing.partNumber}/${drawing.revision}/drawing`}
                         download={drawing.filename}
                         className="px-3 py-1.5 text-xs font-medium border border-steel/40 text-steel hover:text-ink rounded transition-colors"
                       >
