@@ -15,6 +15,7 @@ import { partDefinitionsRouter } from "./routes/part-definitions";
 import { partInstanceProcessesRouter } from "./routes/part-instance-processes";
 import { partInstancesRouter } from "./routes/part-instances";
 import { partViewerRouter } from "./routes/part-viewer";
+import { printRouter } from "./routes/print";
 import { processesRouter } from "./routes/processes";
 import { subsystemsRouter } from "./routes/subsystems";
 import type { AppEnv } from "./types";
@@ -56,6 +57,7 @@ const app = base
     }),
   )
   .route("/drawings", drawingsRouter)
+  .route("/print", printRouter)
   .route("/onshape", onshapeExportRouter)
   .route("", partViewerRouter)
   // Proxy logout to g3id so the shop app can end sessions (and clean up kiosk
