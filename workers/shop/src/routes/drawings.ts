@@ -8,13 +8,49 @@ export const drawingsRouter = new Hono<AppEnv>()
   .get("/", async (c) => {
     try {
       const db = drizzle(c.env.SHOP_DB, { schema });
-      const drawings = await db.select().from(schema.drawings).orderBy(schema.drawings.partNumber);
+      const r2Objects = await c.env.DRAWINGS.list({ prefix: "drawings/" });
 
-      const totalSize = drawings.reduce((sum, d) => sum + (d.fileSize || 0), 0);
+      const drawings: Array<{
+        id: number;
+        partNumber: string;
+        filename: string;
+        r2Key: string;
+        fileSize: number;
+        uploadedBy: string | null;
+        createdAt: number;
+      }> = [];
+
       const partCounts = new Map<string, number>();
-      for (const d of drawings) {
-        partCounts.set(d.partNumber, (partCounts.get(d.partNumber) || 0) + 1);
+      let totalSize = 0;
+
+      for (const obj of r2Objects.objects) {
+        const match = obj.key.match(/^drawings\/(.+?)(?:\/|$)/);
+        if (!match) continue;
+
+        const partNumber = match[1];
+        const fileSize = obj.size || 0;
+        totalSize += fileSize;
+        partCounts.set(partNumber, (partCounts.get(partNumber) || 0) + 1);
+
+        // Try to get metadata from DB if it exists
+        const dbRecord = await db
+          .select()
+          .from(schema.drawings)
+          .where(eq(schema.drawings.r2Key, obj.key))
+          .get();
+
+        drawings.push({
+          id: dbRecord?.id || 0,
+          partNumber,
+          filename: obj.key.split("/").pop() || obj.key,
+          r2Key: obj.key,
+          fileSize,
+          uploadedBy: dbRecord?.uploadedBy || null,
+          createdAt: dbRecord?.createdAt || Math.floor(obj.uploaded?.getTime() / 1000 || Date.now() / 1000),
+        });
       }
+
+      drawings.sort((a, b) => a.partNumber.localeCompare(b.partNumber));
 
       return c.json({
         drawings,
