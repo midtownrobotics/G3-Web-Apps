@@ -13,6 +13,7 @@ export const drawingsRouter = new Hono<AppEnv>()
       const drawings: Array<{
         id: number;
         partNumber: string;
+        revision: string;
         filename: string;
         r2Key: string;
         fileSize: number;
@@ -24,10 +25,10 @@ export const drawingsRouter = new Hono<AppEnv>()
       let totalSize = 0;
 
       for (const obj of r2Objects.objects) {
-        const match = obj.key.match(/^drawings\/(.+?)(?:\/|$)/);
+        const match = obj.key.match(/^drawings\/([^/]+)\/([^/]+)\/drawing\.pdf$/);
         if (!match) continue;
 
-        const partNumber = match[1];
+        const [, partNumber, revision] = match;
         const fileSize = obj.size || 0;
         totalSize += fileSize;
         partCounts.set(partNumber, (partCounts.get(partNumber) || 0) + 1);
@@ -42,7 +43,8 @@ export const drawingsRouter = new Hono<AppEnv>()
         drawings.push({
           id: dbRecord?.id || 0,
           partNumber,
-          filename: obj.key.split("/").pop() || obj.key,
+          revision,
+          filename: `${partNumber}_${revision}.pdf`,
           r2Key: obj.key,
           fileSize,
           uploadedBy: dbRecord?.uploadedBy || null,
@@ -50,7 +52,7 @@ export const drawingsRouter = new Hono<AppEnv>()
         });
       }
 
-      drawings.sort((a, b) => a.partNumber.localeCompare(b.partNumber));
+      drawings.sort((a, b) => a.partNumber.localeCompare(b.partNumber) || a.revision.localeCompare(b.revision));
 
       return c.json({
         drawings,
