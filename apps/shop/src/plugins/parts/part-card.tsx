@@ -288,9 +288,7 @@ export function PartCard({
                     onChange={(e) => setPriority(e.target.checked)}
                     className="accent-crimson w-4 h-4 disabled:opacity-50"
                   />
-                  <span className="text-ink">
-                    Priority
-                  </span>
+                  <span className="text-ink">Priority</span>
                 </label>
               </dd>
             </dl>

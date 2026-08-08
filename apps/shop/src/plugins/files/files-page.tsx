@@ -68,14 +68,17 @@ export function FilesPage() {
       const pdfBuffer = await downloadRes.arrayBuffer();
 
       // Send to print API through backend proxy with PDF bytes
-      const printRes = await fetch(`${import.meta.env.VITE_API_BASE_URL ?? ""}/print?title=${drawing.filename}`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/pdf",
+      const printRes = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL ?? ""}/print?title=${drawing.filename}`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/pdf",
+          },
+          body: pdfBuffer,
+          credentials: "include",
         },
-        body: pdfBuffer,
-        credentials: "include",
-      });
+      );
 
       const printData = (await printRes.json()) as { ok: boolean; jobId?: string; error?: string };
       if (!printData.ok) {
@@ -94,18 +97,22 @@ export function FilesPage() {
   async function handleTestPrint() {
     setTestPrinting(true);
     try {
-      const testContent = "G3 Robotics Shop - Test Print\n\nIf you're seeing this, the printer is working!";
+      const testContent =
+        "G3 Robotics Shop - Test Print\n\nIf you're seeing this, the printer is working!";
       const encoder = new TextEncoder();
       const testBuffer = encoder.encode(testContent);
 
-      const printRes = await fetch(`${import.meta.env.VITE_API_BASE_URL ?? ""}/print?title=test-print`, {
-        method: "POST",
-        headers: {
-          "content-type": "text/plain",
+      const printRes = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL ?? ""}/print?title=test-print`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "text/plain",
+          },
+          body: testBuffer,
+          credentials: "include",
         },
-        body: testBuffer,
-        credentials: "include",
-      });
+      );
 
       const printData = (await printRes.json()) as { ok: boolean; jobId?: string; error?: string };
       if (!printData.ok) {
