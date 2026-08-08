@@ -48,11 +48,14 @@ export const drawingsRouter = new Hono<AppEnv>()
           r2Key: obj.key,
           fileSize,
           uploadedBy: dbRecord?.uploadedBy || null,
-          createdAt: dbRecord?.createdAt || Math.floor(obj.uploaded?.getTime() / 1000 || Date.now() / 1000),
+          createdAt:
+            dbRecord?.createdAt || Math.floor(obj.uploaded?.getTime() / 1000 || Date.now() / 1000),
         });
       }
 
-      drawings.sort((a, b) => a.partNumber.localeCompare(b.partNumber) || a.revision.localeCompare(b.revision));
+      drawings.sort(
+        (a, b) => a.partNumber.localeCompare(b.partNumber) || a.revision.localeCompare(b.revision),
+      );
 
       return c.json({
         drawings,
