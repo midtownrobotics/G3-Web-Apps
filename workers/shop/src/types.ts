@@ -11,6 +11,7 @@ export type AppEnv = {
     ONSHAPE_WEBHOOK_KEY_SECONDARY: string;
     SLACK_BOT_TOKEN: string;
     SLACK_SIGNING_SECRET: string;
+    PRINT_TOKEN: string;
     DRAWINGS: R2Bucket;
     BOM_QUEUE: Queue;
   };
