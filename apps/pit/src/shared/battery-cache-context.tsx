@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { type ReactNode, createContext, useContext, useEffect, useState } from "react";
 import type { Battery } from "./getters/types";
 
 type BatteryCacheContextType = {

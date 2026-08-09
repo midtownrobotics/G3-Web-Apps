@@ -1,5 +1,5 @@
-import { jsPDF } from "jspdf";
 import JsBarcode from "jsbarcode";
+import { jsPDF } from "jspdf";
 
 type Battery = {
   id: number;

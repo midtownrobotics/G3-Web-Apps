@@ -1,4 +1,4 @@
-import { createContext, useState, useContext, ReactNode } from "react";
+import { type ReactNode, createContext, useContext, useState } from "react";
 
 type FullscreenContextType = {
   isFullscreen: boolean;

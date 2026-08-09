@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../shared/api";
 import { getErrorMessage } from "../../shared/api-error";
-import { fetchBatteries } from "../../shared/getters/batteries";
 import { generateBatteryAndStatesPDF } from "../../shared/generate-state-labels";
+import { fetchBatteries } from "../../shared/getters/batteries";
 import type { Battery, BatteryState } from "../../shared/getters/types";
 
 const POLL_INTERVAL_MS = 3000;
@@ -600,7 +600,10 @@ export function BatteriesPage() {
                     <p className="text-sm text-gray-500">No batteries available</p>
                   ) : (
                     batteries.map((battery) => (
-                      <label key={battery.id} className="flex items-center gap-3 cursor-pointer p-2 hover:bg-gray-100 rounded">
+                      <label
+                        key={battery.id}
+                        className="flex items-center gap-3 cursor-pointer p-2 hover:bg-gray-100 rounded"
+                      >
                         <input
                           type="checkbox"
                           checked={selectedForLabels.has(battery.id)}
@@ -609,7 +612,9 @@ export function BatteriesPage() {
                         />
                         <div className="flex-1">
                           <p className="text-sm font-medium">{battery.name}</p>
-                          <p className="text-xs text-gray-500">BAT-{String(battery.id).padStart(4, "0")}</p>
+                          <p className="text-xs text-gray-500">
+                            BAT-{String(battery.id).padStart(4, "0")}
+                          </p>
                         </div>
                       </label>
                     ))
@@ -628,7 +633,10 @@ export function BatteriesPage() {
                     { code: "ST-BRKN", label: "Broken" },
                     { code: "ST-ROBT", label: "In Robot" },
                   ].map((state) => (
-                    <label key={state.code} className="flex items-center gap-3 cursor-pointer p-2 hover:bg-gray-100 rounded">
+                    <label
+                      key={state.code}
+                      className="flex items-center gap-3 cursor-pointer p-2 hover:bg-gray-100 rounded"
+                    >
                       <input
                         type="checkbox"
                         checked={selectedStates.has(state.code)}
@@ -665,7 +673,9 @@ export function BatteriesPage() {
                 <button
                   type="button"
                   onClick={handleGenerateLabels}
-                  disabled={(selectedForLabels.size === 0 && selectedStates.size === 0) || generatingLabels}
+                  disabled={
+                    (selectedForLabels.size === 0 && selectedStates.size === 0) || generatingLabels
+                  }
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
                 >
                   {generatingLabels ? "Generating…" : "Generate PDF"}

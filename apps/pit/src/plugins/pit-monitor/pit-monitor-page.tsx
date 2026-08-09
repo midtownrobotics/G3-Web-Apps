@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { api } from "../../shared/api";
+import { useBatteryCache } from "../../shared/battery-cache-context";
+import { useFullscreen } from "../../shared/fullscreen-context";
 import { fetchBatteries } from "../../shared/getters/batteries";
 import { fetchAllIssues } from "../../shared/getters/issues";
 import { fetchLists } from "../../shared/getters/lists";
-import { useFullscreen } from "../../shared/fullscreen-context";
-import { useBatteryCache } from "../../shared/battery-cache-context";
 import type { Battery, ChecklistIssueSummary, ChecklistList } from "../../shared/getters/types";
 
 const REFRESH_MS = 5000;
@@ -306,7 +306,8 @@ function RankingSection({
                 {ranking.epa > 0 && (
                   <>
                     {" · "}
-                    <span className="text-gray-900 font-semibold">{ranking.epa.toFixed(1)}</span> EPA
+                    <span className="text-gray-900 font-semibold">{ranking.epa.toFixed(1)}</span>{" "}
+                    EPA
                   </>
                 )}
               </p>
@@ -514,9 +515,7 @@ function ChecklistSection({
       <div className="space-y-2 pt-2 border-t border-gray-200">
         <h2 className="text-xs font-bold uppercase tracking-widest text-gray-600">
           Open Issues{" "}
-          {issues.length > 0 && (
-            <span className="text-gray-900 normal-case">{issues.length}</span>
-          )}
+          {issues.length > 0 && <span className="text-gray-900 normal-case">{issues.length}</span>}
         </h2>
         {issues.length === 0 ? (
           <p className="text-green-600 text-sm font-semibold">No open issues ✓</p>

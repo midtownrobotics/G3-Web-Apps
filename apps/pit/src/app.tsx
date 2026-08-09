@@ -1,11 +1,11 @@
 import { useEffect } from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { plugins } from "./plugins.config";
+import { BarcodeScanDisplay } from "./shared/barcode-scan-display";
+import { BatteryCacheProvider } from "./shared/battery-cache-context";
+import { FullscreenProvider, useFullscreen } from "./shared/fullscreen-context";
 import { NavBar } from "./shared/nav-bar";
 import { OfflineBanner } from "./shared/offline-banner";
-import { BarcodeScanDisplay } from "./shared/barcode-scan-display";
-import { FullscreenProvider, useFullscreen } from "./shared/fullscreen-context";
-import { BatteryCacheProvider } from "./shared/battery-cache-context";
 import { prefetchAll } from "./shared/prefetch";
 
 function AppContent() {

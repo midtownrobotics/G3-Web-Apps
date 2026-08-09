@@ -28,6 +28,7 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
     [],
   );
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: location is used to trigger re-fetch on navigation
   useEffect(() => {
     api.auth.me.$get().then(async (res) => {
       if (res.ok) {
@@ -51,7 +52,10 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
   return (
     <>
       <nav className="sticky top-0 z-50 bg-gray-800 px-6 flex items-center gap-8 h-14">
-        <Link to="/" className="font-display text-2xl font-bold text-primary-400 tracking-wide leading-none">
+        <Link
+          to="/"
+          className="font-display text-2xl font-bold text-primary-400 tracking-wide leading-none"
+        >
           G3ID
         </Link>
 

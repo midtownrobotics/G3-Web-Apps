@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { api } from "./api";
-import { fetchBatteries } from "./getters/batteries";
 import { useBarcodeScan } from "./barcode-scanner";
 import { useBatteryCache } from "./battery-cache-context";
+import { fetchBatteries } from "./getters/batteries";
 import type { BatteryState } from "./getters/types";
 
 const STATE_CODE_MAP: Record<string, BatteryState> = {
@@ -15,9 +15,12 @@ const STATE_CODE_MAP: Record<string, BatteryState> = {
 
 export function BarcodeScanDisplay() {
   const { batteries, setBatteries } = useBatteryCache();
-  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(
+    null,
+  );
 
   // Fetch batteries once if not cached
+  // biome-ignore lint/correctness/useExhaustiveDependencies: fetch once on mount only
   useEffect(() => {
     if (batteries.length === 0) {
       fetchBatteries()
@@ -35,7 +38,7 @@ export function BarcodeScanDisplay() {
     console.log(`[BarcodeScan] Complete: ${stateCode} -> ${batteryCode}`);
 
     // Extract battery ID from BAT-0000 format
-    const batteryId = parseInt(batteryCode.slice(4), 10);
+    const batteryId = Number.parseInt(batteryCode.slice(4), 10);
     const state = STATE_CODE_MAP[stateCode];
 
     if (!state) {
@@ -53,17 +56,20 @@ export function BarcodeScanDisplay() {
 
       if (!res.ok) {
         const error = await res.text();
-        console.error(`[BarcodeScan] API error:`, error);
+        console.error("[BarcodeScan] API error:", error);
         setFeedback({ type: "error", message: "Failed to update battery" });
       } else {
-        console.log(`[BarcodeScan] ✓ Battery updated successfully`);
+        console.log("[BarcodeScan] ✓ Battery updated successfully");
         const batteryName = getBatteryName(batteryId);
         setFeedback({ type: "success", message: `${batteryName} → ${state}` });
         setTimeout(() => setFeedback(null), 2000);
       }
     } catch (err) {
-      console.error(`[BarcodeScan] Exception:`, err);
-      setFeedback({ type: "error", message: err instanceof Error ? err.message : "Error updating battery" });
+      console.error("[BarcodeScan] Exception:", err);
+      setFeedback({
+        type: "error",
+        message: err instanceof Error ? err.message : "Error updating battery",
+      });
     }
   };
 
@@ -88,7 +94,9 @@ export function BarcodeScanDisplay() {
         }`}
       >
         <div className="max-w-2xl mx-auto flex items-center gap-3">
-          <div className={`text-xl ${feedback.type === "success" ? "text-green-600" : "text-red-600"}`}>
+          <div
+            className={`text-xl ${feedback.type === "success" ? "text-green-600" : "text-red-600"}`}
+          >
             {feedback.type === "success" ? "✓" : "✗"}
           </div>
           <p
@@ -127,7 +135,11 @@ export function BarcodeScanDisplay() {
               <div>
                 <p className="text-xs text-blue-700 uppercase tracking-wide">State</p>
                 <p className="text-lg font-bold text-gray-900">
-                  {scan.stateCode ? getStateLabel(scan.stateCode) : waitingForState ? "Waiting…" : "—"}
+                  {scan.stateCode
+                    ? getStateLabel(scan.stateCode)
+                    : waitingForState
+                      ? "Waiting…"
+                      : "—"}
                 </p>
               </div>
             </div>
@@ -146,7 +158,7 @@ export function BarcodeScanDisplay() {
                 <p className="text-xs text-blue-700 uppercase tracking-wide">Battery</p>
                 <p className="text-lg font-bold text-gray-900">
                   {scan.batteryCode
-                    ? getBatteryName(parseInt(scan.batteryCode.slice(4), 10))
+                    ? getBatteryName(Number.parseInt(scan.batteryCode.slice(4), 10))
                     : waitingForBattery
                       ? "Waiting…"
                       : "—"}
