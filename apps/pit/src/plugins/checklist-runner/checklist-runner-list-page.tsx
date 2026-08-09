@@ -75,8 +75,8 @@ export function ChecklistRunnerListPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <p className="text-gray-400">Loading…</p>
+      <main className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <p className="text-gray-600">Loading…</p>
       </main>
     );
   }
@@ -87,7 +87,7 @@ export function ChecklistRunnerListPage() {
   const allDone = totalChecked === totalItems && totalItems > 0;
 
   return (
-    <main className="min-h-screen bg-gray-950 text-white">
+    <main className="min-h-screen bg-gray-100 text-gray-900">
       <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold tracking-tight">Checklists</h1>
@@ -95,14 +95,14 @@ export function ChecklistRunnerListPage() {
             <button
               type="button"
               onClick={() => setConfirmReset(true)}
-              className="text-sm text-gray-500 hover:text-red-400 transition-colors"
+              className="text-sm text-gray-600 hover:text-red-400 transition-colors"
             >
               Reset All
             </button>
           )}
           {confirmReset && (
             <div className="flex items-center gap-3">
-              <span className="text-sm text-gray-400">Reset all checklists?</span>
+              <span className="text-sm text-gray-600">Reset all checklists?</span>
               <button
                 type="button"
                 onClick={handleGlobalReset}
@@ -130,12 +130,12 @@ export function ChecklistRunnerListPage() {
         {totalItems > 0 && (
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
-              <span className={allDone ? "text-green-400 font-semibold" : "text-gray-400"}>
+              <span className={allDone ? "text-green-400 font-semibold" : "text-gray-600"}>
                 {allDone ? "All done!" : `${totalChecked} of ${totalItems} items complete`}
               </span>
               <span className="text-gray-600 text-xs">{Math.round(globalProgress * 100)}%</span>
             </div>
-            <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
               <div
                 className={`h-full rounded-full transition-all duration-300 ${allDone ? "bg-green-500" : "bg-red-500"}`}
                 style={{ width: `${globalProgress * 100}%` }}
@@ -145,7 +145,7 @@ export function ChecklistRunnerListPage() {
         )}
 
         {lists.length === 0 ? (
-          <p className="text-gray-500 text-center py-12">
+          <p className="text-gray-600 text-center py-12">
             No checklists yet.{" "}
             <button
               type="button"
@@ -166,31 +166,31 @@ export function ChecklistRunnerListPage() {
                   key={list.id}
                   type="button"
                   onClick={() => navigate(`/checklists/${list.id}`)}
-                  className="w-full bg-gray-900 hover:bg-gray-800 border border-gray-700 hover:border-gray-600 rounded-xl p-5 text-left transition-colors group"
+                  className="w-full bg-white hover:bg-gray-100 border border-gray-300 hover:border-gray-600 rounded-xl p-5 text-left transition-colors group"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-lg font-semibold text-white group-hover:text-red-400 transition-colors truncate">
+                      <p className="text-lg font-semibold text-gray-900 group-hover:text-red-400 transition-colors truncate">
                         {list.name}
                       </p>
                       {list.description && (
-                        <p className="text-sm text-gray-500 mt-0.5 truncate">{list.description}</p>
+                        <p className="text-sm text-gray-600 mt-0.5 truncate">{list.description}</p>
                       )}
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
                       <span
-                        className={`text-xs rounded-full px-2 py-0.5 ${listDone ? "bg-green-900 text-green-400" : "bg-gray-800 text-gray-500"}`}
+                        className={`text-xs rounded-full px-2 py-0.5 ${listDone ? "bg-green-900 text-green-400" : "bg-gray-100 text-gray-600"}`}
                       >
                         {list.checkedCount}/{list.itemCount}
                       </span>
-                      <span className="text-gray-500 group-hover:text-red-400 transition-colors">
+                      <span className="text-gray-600 group-hover:text-red-400 transition-colors">
                         →
                       </span>
                     </div>
                   </div>
 
                   {list.itemCount > 0 && (
-                    <div className="mt-3 h-1 bg-gray-800 rounded-full overflow-hidden">
+                    <div className="mt-3 h-1 bg-gray-100 rounded-full overflow-hidden">
                       <div
                         className={`h-full rounded-full transition-all duration-300 ${listDone ? "bg-green-500" : "bg-red-500"}`}
                         style={{ width: `${listProgress * 100}%` }}
@@ -205,21 +205,21 @@ export function ChecklistRunnerListPage() {
 
         {/* Issues */}
         {issues.length > 0 && (
-          <div className="space-y-3 pt-2 border-t border-gray-800">
-            <div className="text-lg font-semibold text-gray-200">
+          <div className="space-y-3 pt-2 border-t border-gray-200">
+            <div className="text-lg font-semibold text-secondary-900">
               Issues{" "}
-              <span className="text-sm font-normal text-yellow-500">{issues.length} open</span>
+              <span className="text-sm font-normal text-secondary-900">{issues.length} open</span>
             </div>
 
             <div className="space-y-2">
               {issues.map((issue) => (
                 <div
                   key={issue.id}
-                  className="bg-gray-900 border border-yellow-900/50 rounded-xl px-4 py-3"
+                  className="bg-white border border-yellow-300 rounded-xl px-4 py-3"
                 >
                   {confirmDeleteIssueId === issue.id ? (
                     <div className="flex items-center gap-3">
-                      <span className="text-xs text-gray-400 flex-1 truncate">
+                      <span className="text-xs text-gray-600 flex-1 truncate">
                         Delete this issue?
                       </span>
                       <button
@@ -240,7 +240,7 @@ export function ChecklistRunnerListPage() {
                   ) : (
                     <div className="flex items-start gap-3 group/issue">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm text-yellow-200/80">{issue.text}</p>
+                        <p className="text-sm text-gray-900">{issue.text}</p>
                         <p className="text-xs text-gray-600 mt-1">
                           {issue.listName} · {issue.itemName}
                         </p>

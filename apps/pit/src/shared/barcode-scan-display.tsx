@@ -83,17 +83,17 @@ export function BarcodeScanDisplay() {
       <div
         className={`border-b px-4 py-3 ${
           feedback.type === "success"
-            ? "bg-green-900/40 border-green-700"
-            : "bg-red-900/40 border-red-700"
+            ? "bg-green-100 border-green-300"
+            : "bg-red-100 border-red-300"
         }`}
       >
         <div className="max-w-2xl mx-auto flex items-center gap-3">
-          <div className={`text-xl ${feedback.type === "success" ? "text-green-400" : "text-red-400"}`}>
+          <div className={`text-xl ${feedback.type === "success" ? "text-green-600" : "text-red-600"}`}>
             {feedback.type === "success" ? "✓" : "✗"}
           </div>
           <p
             className={`text-sm font-semibold ${
-              feedback.type === "success" ? "text-green-300" : "text-red-300"
+              feedback.type === "success" ? "text-green-700" : "text-red-700"
             }`}
           >
             {feedback.message}
@@ -110,10 +110,10 @@ export function BarcodeScanDisplay() {
   const waitingForBattery = stateScanned && !batteryScanned;
 
   return (
-    <div className="bg-blue-900/40 border-b border-blue-700 px-4 py-3">
+    <div className="bg-blue-100 border-b border-blue-300 px-4 py-3">
       <div className="max-w-2xl mx-auto flex items-center gap-4">
         <div className="flex-1">
-          <p className="text-sm text-blue-300 uppercase tracking-widest font-semibold mb-1">
+          <p className="text-sm text-blue-700 uppercase tracking-widest font-semibold mb-1">
             Scanning
           </p>
           <div className="flex items-center gap-8">
@@ -125,15 +125,15 @@ export function BarcodeScanDisplay() {
                 } ${waitingForState && "animate-pulse"}`}
               />
               <div>
-                <p className="text-xs text-blue-300 uppercase tracking-wide">State</p>
-                <p className="text-lg font-bold text-white">
+                <p className="text-xs text-blue-700 uppercase tracking-wide">State</p>
+                <p className="text-lg font-bold text-gray-900">
                   {scan.stateCode ? getStateLabel(scan.stateCode) : waitingForState ? "Waiting…" : "—"}
                 </p>
               </div>
             </div>
 
             {/* Arrow */}
-            <div className="text-blue-400 text-xl">↔</div>
+            <div className="text-blue-600 text-xl">↔</div>
 
             {/* Battery */}
             <div className="flex items-center gap-3">
@@ -143,8 +143,8 @@ export function BarcodeScanDisplay() {
                 } ${waitingForBattery && "animate-pulse"}`}
               />
               <div>
-                <p className="text-xs text-blue-300 uppercase tracking-wide">Battery</p>
-                <p className="text-lg font-bold text-white">
+                <p className="text-xs text-blue-700 uppercase tracking-wide">Battery</p>
+                <p className="text-lg font-bold text-gray-900">
                   {scan.batteryCode
                     ? getBatteryName(parseInt(scan.batteryCode.slice(4), 10))
                     : waitingForBattery
