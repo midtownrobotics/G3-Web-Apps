@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../../shared/api";
 import { getErrorMessage } from "../../shared/api-error";
 import { fetchBatteries } from "../../shared/getters/batteries";
+import { generateBatteryAndStatesPDF } from "../../shared/generate-state-labels";
 import type { Battery, BatteryState } from "../../shared/getters/types";
 
 const POLL_INTERVAL_MS = 3000;
@@ -103,6 +104,11 @@ export function BatteriesPage() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [editingVoltageId, setEditingVoltageId] = useState<number | null>(null);
   const [voltageInput, setVoltageInput] = useState("");
+
+  const [showLabelsModal, setShowLabelsModal] = useState(false);
+  const [selectedForLabels, setSelectedForLabels] = useState<Set<number>>(new Set());
+  const [selectedStates, setSelectedStates] = useState<Set<string>>(new Set());
+  const [generatingLabels, setGeneratingLabels] = useState(false);
 
   const voltageInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -241,6 +247,42 @@ export function BatteriesPage() {
     }
   }
 
+  async function handleGenerateLabels() {
+    const batteriesToPrint = batteries.filter((b) => selectedForLabels.has(b.id));
+    const statesToPrint = Array.from(selectedStates);
+    setGeneratingLabels(true);
+    try {
+      await generateBatteryAndStatesPDF(batteriesToPrint, statesToPrint);
+      setShowLabelsModal(false);
+      setSelectedForLabels(new Set());
+      setSelectedStates(new Set());
+    } catch (err) {
+      setBanner(err instanceof Error ? err.message : "Failed to generate labels");
+    } finally {
+      setGeneratingLabels(false);
+    }
+  }
+
+  function toggleBatterySelection(batteryId: number) {
+    const updated = new Set(selectedForLabels);
+    if (updated.has(batteryId)) {
+      updated.delete(batteryId);
+    } else {
+      updated.add(batteryId);
+    }
+    setSelectedForLabels(updated);
+  }
+
+  function toggleStateSelection(state: string) {
+    const updated = new Set(selectedStates);
+    if (updated.has(state)) {
+      updated.delete(state);
+    } else {
+      updated.add(state);
+    }
+    setSelectedStates(updated);
+  }
+
   if (loading) {
     return (
       <main className="min-h-screen bg-gray-950 flex items-center justify-center">
@@ -259,20 +301,31 @@ export function BatteriesPage() {
   return (
     <main className="min-h-screen bg-gray-950 text-white">
       <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
           <h1 className="text-3xl font-bold tracking-tight">Batteries</h1>
-          {!adding && (
-            <button
-              type="button"
-              onClick={() => {
-                setAdding(true);
-                setBanner(null);
-              }}
-              className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-sm font-semibold rounded-lg transition-colors"
-            >
-              + Add Battery
-            </button>
-          )}
+          <div className="flex gap-2">
+            {!adding && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShowLabelsModal(true)}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-lg transition-colors"
+                >
+                  📄 Print Labels
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAdding(true);
+                    setBanner(null);
+                  }}
+                  className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-sm font-semibold rounded-lg transition-colors"
+                >
+                  + Add Battery
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         {banner && (
@@ -529,6 +582,98 @@ export function BatteriesPage() {
             );
           })}
         </div>
+
+        {/* Labels Modal (Batteries + States) */}
+        {showLabelsModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-gray-900 rounded-lg shadow-xl max-w-md w-full p-6 space-y-4">
+              <h2 className="text-xl font-bold">Print Labels</h2>
+              <p className="text-sm text-gray-400">
+                Select batteries and/or states to print on a single PDF.
+              </p>
+
+              {/* Batteries Section */}
+              <div>
+                <h3 className="text-sm font-semibold mb-2">Batteries</h3>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {batteries.length === 0 ? (
+                    <p className="text-sm text-gray-500">No batteries available</p>
+                  ) : (
+                    batteries.map((battery) => (
+                      <label key={battery.id} className="flex items-center gap-3 cursor-pointer p-2 hover:bg-gray-800 rounded">
+                        <input
+                          type="checkbox"
+                          checked={selectedForLabels.has(battery.id)}
+                          onChange={() => toggleBatterySelection(battery.id)}
+                          className="w-4 h-4"
+                        />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium">{battery.name}</p>
+                          <p className="text-xs text-gray-500">BAT-{String(battery.id).padStart(4, "0")}</p>
+                        </div>
+                      </label>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* States Section */}
+              <div>
+                <h3 className="text-sm font-semibold mb-2">States</h3>
+                <div className="space-y-2">
+                  {[
+                    { code: "ST-IDLE", label: "Idle" },
+                    { code: "ST-CHAR", label: "Charging" },
+                    { code: "ST-NXUP", label: "Next Up" },
+                    { code: "ST-BRKN", label: "Broken" },
+                    { code: "ST-ROBT", label: "In Robot" },
+                  ].map((state) => (
+                    <label key={state.code} className="flex items-center gap-3 cursor-pointer p-2 hover:bg-gray-800 rounded">
+                      <input
+                        type="checkbox"
+                        checked={selectedStates.has(state.code)}
+                        onChange={() => toggleStateSelection(state.code)}
+                        className="w-4 h-4"
+                      />
+                      <div>
+                        <p className="text-sm font-medium">{state.label}</p>
+                        <p className="text-xs text-gray-500">{state.code}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {(selectedForLabels.size > 0 || selectedStates.size > 0) && (
+                <p className="text-xs text-gray-400">
+                  {selectedForLabels.size} batteries, {selectedStates.size} states
+                </p>
+              )}
+
+              <div className="flex gap-3 justify-end pt-4 border-t border-gray-700">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowLabelsModal(false);
+                    setSelectedForLabels(new Set());
+                    setSelectedStates(new Set());
+                  }}
+                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleGenerateLabels}
+                  disabled={(selectedForLabels.size === 0 && selectedStates.size === 0) || generatingLabels}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
+                >
+                  {generatingLabels ? "Generating…" : "Generate PDF"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </main>
   );

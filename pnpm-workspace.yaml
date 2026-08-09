@@ -13,6 +13,7 @@ onlyBuiltDependencies:
 # pnpm v11+ (local)
 allowBuilds:
   "@biomejs/biome": true
+  core-js: false
   esbuild: true
   sharp: true
   workerd: true

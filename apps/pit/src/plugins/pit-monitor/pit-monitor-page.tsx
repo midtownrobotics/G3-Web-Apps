@@ -3,6 +3,8 @@ import { api } from "../../shared/api";
 import { fetchBatteries } from "../../shared/getters/batteries";
 import { fetchAllIssues } from "../../shared/getters/issues";
 import { fetchLists } from "../../shared/getters/lists";
+import { useFullscreen } from "../../shared/fullscreen-context";
+import { useBatteryCache } from "../../shared/battery-cache-context";
 import type { Battery, ChecklistIssueSummary, ChecklistList } from "../../shared/getters/types";
 
 const REFRESH_MS = 5000;
@@ -541,12 +543,30 @@ function ChecklistSection({
 // ── Root ───────────────────────────────────────────────────────────────────
 
 export function PitMonitorPage() {
+  const { isFullscreen, setFullscreen } = useFullscreen();
+  const { setBatteries: setCachedBatteries } = useBatteryCache();
   const [batteries, setBatteries] = useState<Battery[]>([]);
   const [lists, setLists] = useState<ChecklistList[]>([]);
   const [issues, setIssues] = useState<ChecklistIssueSummary[]>([]);
   const [monitor, setMonitor] = useState<MonitorData | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const handleFullscreen = async () => {
+    if (!isFullscreen) {
+      try {
+        await document.documentElement.requestFullscreen();
+        setFullscreen(true);
+      } catch (err) {
+        console.error("Fullscreen request failed:", err);
+      }
+    } else {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      }
+      setFullscreen(false);
+    }
+  };
 
   async function loadAll() {
     const [b, l, i, m] = await Promise.all([
@@ -559,6 +579,7 @@ export function PitMonitorPage() {
         .catch(() => null),
     ]);
     setBatteries(b);
+    setCachedBatteries(b);
     setLists(l);
     setIssues(i);
     setMonitor(m);
@@ -591,9 +612,19 @@ export function PitMonitorPage() {
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-800 pb-4">
           <h1 className="text-2xl font-black tracking-tight">G3 Pit Monitor</h1>
-          {lastUpdated && (
-            <p className="text-xs text-gray-600">Updated {lastUpdated.toLocaleTimeString()}</p>
-          )}
+          <div className="flex items-center gap-4">
+            {lastUpdated && (
+              <p className="text-xs text-gray-600">Updated {lastUpdated.toLocaleTimeString()}</p>
+            )}
+            <button
+              type="button"
+              onClick={handleFullscreen}
+              className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-white text-sm font-semibold rounded-lg transition-colors"
+              title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+            >
+              {isFullscreen ? "Exit" : "⛶ Fullscreen"}
+            </button>
+          </div>
         </div>
 
         {/* Nexus status — full width, only if data available */}
