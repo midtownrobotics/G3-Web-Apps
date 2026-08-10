@@ -522,24 +522,20 @@ const app = base
     const enteringRobot = state === "In Robot" && existing.state !== "In Robot";
     const baseUseCount = typeof existing.useCount === "number" ? existing.useCount : 0;
     const newUseCount = enteringRobot ? baseUseCount + 1 : baseUseCount;
-    if (tracksVoltage) {
+    await db
+      .update(batteries)
+      .set({
+        state,
+        stateSince: Date.now(),
+      })
+      .where(eq(batteries.id, id));
+    if (!tracksVoltage) {
+      await db.update(batteries).set({ voltage: null }).where(eq(batteries.id, id));
+    }
+    if (enteringRobot) {
       await db
         .update(batteries)
-        .set({
-          state,
-          stateSince: Date.now(),
-          useCount: newUseCount,
-        })
-        .where(eq(batteries.id, id));
-    } else {
-      await db
-        .update(batteries)
-        .set({
-          state,
-          stateSince: Date.now(),
-          voltage: null,
-          useCount: newUseCount,
-        })
+        .set({ useCount: newUseCount })
         .where(eq(batteries.id, id));
     }
     const [updated] = await db.select().from(batteries).where(eq(batteries.id, id));
