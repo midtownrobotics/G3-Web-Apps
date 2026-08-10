@@ -520,14 +520,15 @@ const app = base
     const tracksVoltage = state === "In Robot" || state === "Next Up";
     // Count a use each time the battery newly enters the robot.
     const enteringRobot = state === "In Robot" && existing.state !== "In Robot";
-    const newUseCount = enteringRobot ? ((existing.useCount as number) ?? 0) + 1 : ((existing.useCount as number) ?? 0);
+    const baseUseCount = Number(existing.useCount) || 0;
+    const newUseCount = enteringRobot ? baseUseCount + 1 : baseUseCount;
     await db
       .update(batteries)
       .set({
         state,
         stateSince: Date.now(),
         voltage: tracksVoltage ? existing.voltage ?? null : null,
-        useCount: newUseCount,
+        useCount: newUseCount as unknown as typeof batteries.useCount,
       })
       .where(eq(batteries.id, id));
     const [updated] = await db.select().from(batteries).where(eq(batteries.id, id));
