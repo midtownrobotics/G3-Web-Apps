@@ -520,7 +520,7 @@ const app = base
     const tracksVoltage = state === "In Robot" || state === "Next Up";
     // Count a use each time the battery newly enters the robot.
     const enteringRobot = state === "In Robot" && existing.state !== "In Robot";
-    const baseUseCount = Number(existing.useCount) || 0;
+    const baseUseCount = typeof existing.useCount === "number" ? existing.useCount : 0;
     const newUseCount = enteringRobot ? baseUseCount + 1 : baseUseCount;
     await db
       .update(batteries)
