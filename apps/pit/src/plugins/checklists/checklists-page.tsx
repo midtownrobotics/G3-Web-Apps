@@ -63,14 +63,14 @@ export function ChecklistsPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <p className="text-gray-400">Loading…</p>
+      <main className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <p className="text-gray-600">Loading…</p>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-gray-950 text-white">
+    <main className="min-h-screen bg-gray-100 text-gray-900">
       <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold tracking-tight">Checklists</h1>
@@ -81,7 +81,7 @@ export function ChecklistsPage() {
                 setCreating(true);
                 setBanner(null);
               }}
-              className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-sm font-semibold rounded-lg transition-colors"
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition-colors"
             >
               + New List
             </button>
@@ -95,7 +95,7 @@ export function ChecklistsPage() {
         )}
 
         {creating && (
-          <div className="bg-gray-900 rounded-xl border border-gray-700 p-5 space-y-3">
+          <div className="bg-white rounded-xl border border-gray-300 p-5 space-y-3">
             <span className="font-semibold text-gray-200">New Checklist</span>
             <input
               type="text"
@@ -109,7 +109,7 @@ export function ChecklistsPage() {
                 if (e.key === "Enter") handleCreate();
                 if (e.key === "Escape") setCreating(false);
               }}
-              className="mt-4 w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-red-500"
+              className="mt-4 w-full bg-gray-100 border border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder-gray-500 focus:outline-none focus:border-red-500"
               // biome-ignore lint/a11y/noAutofocus: intentional — user just opened the create form
               autoFocus
             />
@@ -118,14 +118,14 @@ export function ChecklistsPage() {
               value={newDesc}
               onChange={(e) => setNewDesc(e.target.value)}
               rows={2}
-              className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-red-500 resize-none"
+              className="w-full bg-gray-100 border border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder-gray-500 focus:outline-none focus:border-red-500 resize-none"
             />
             {createError && <p className="text-red-400 text-xs">{createError}</p>}
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={handleCreate}
-                className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-sm font-semibold rounded-lg transition-colors"
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-lg transition-colors"
               >
                 Create
               </button>
@@ -146,7 +146,7 @@ export function ChecklistsPage() {
         )}
 
         {lists.length === 0 && !creating && (
-          <p className="text-gray-500 text-center py-12">
+          <p className="text-gray-600 text-center py-12">
             No checklists yet. Create one to get started.
           </p>
         )}
@@ -161,12 +161,12 @@ export function ChecklistsPage() {
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") navigate(`/editor/${list.id}`);
               }}
-              className="bg-gray-900 hover:bg-gray-800 rounded-xl border border-gray-700 p-5 cursor-pointer transition-colors"
+              className="bg-white hover:bg-gray-100 rounded-xl border border-gray-300 p-5 cursor-pointer transition-colors"
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-3 min-w-0">
-                  <span className="text-lg font-semibold text-white truncate">{list.name}</span>
-                  <span className="text-xs text-gray-500 bg-gray-800 rounded-full px-2 py-0.5 shrink-0">
+                  <span className="text-lg font-semibold text-gray-900 truncate">{list.name}</span>
+                  <span className="text-xs text-gray-600 bg-gray-100 rounded-full px-2 py-0.5 shrink-0">
                     {list.itemCount} {list.itemCount === 1 ? "item" : "items"}
                   </span>
                 </div>
@@ -178,7 +178,7 @@ export function ChecklistsPage() {
                       e.stopPropagation();
                       navigate(`/editor/${list.id}`);
                     }}
-                    className="p-1.5 text-gray-500 hover:text-gray-200 rounded transition-colors"
+                    className="p-1.5 text-gray-600 hover:text-gray-200 rounded transition-colors"
                   >
                     ✎
                   </button>
@@ -189,22 +189,22 @@ export function ChecklistsPage() {
                       e.stopPropagation();
                       setConfirmDelete(list.id);
                     }}
-                    className="p-1.5 text-gray-500 hover:text-red-400 rounded transition-colors"
+                    className="p-1.5 text-gray-600 hover:text-red-400 rounded transition-colors"
                   >
                     ✕
                   </button>
                 </div>
               </div>
 
-              {list.description && <p className="text-sm text-gray-500 mt-1">{list.description}</p>}
+              {list.description && <p className="text-sm text-gray-600 mt-1">{list.description}</p>}
 
               {confirmDelete === list.id && (
                 <div
                   onClick={(e) => e.stopPropagation()}
                   onKeyDown={(e) => e.stopPropagation()}
-                  className="mt-3 pt-3 border-t border-gray-700 flex items-center gap-3"
+                  className="mt-3 pt-3 border-t border-gray-300 flex items-center gap-3"
                 >
-                  <span className="text-sm text-gray-400">Delete this list and all its items?</span>
+                  <span className="text-sm text-gray-600">Delete this list and all its items?</span>
                   <button
                     type="button"
                     onClick={() => handleDelete(list.id)}

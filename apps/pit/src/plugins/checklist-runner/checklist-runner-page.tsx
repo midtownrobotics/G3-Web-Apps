@@ -124,16 +124,16 @@ export function ChecklistRunnerPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <p className="text-gray-400">Loading…</p>
+      <main className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <p className="text-gray-600">Loading…</p>
       </main>
     );
   }
 
   if (notFound || !list) {
     return (
-      <main className="min-h-screen bg-gray-950 flex flex-col items-center justify-center gap-4">
-        <p className="text-gray-400">Checklist not found.</p>
+      <main className="min-h-screen bg-gray-100 flex flex-col items-center justify-center gap-4">
+        <p className="text-gray-600">Checklist not found.</p>
         <button
           type="button"
           onClick={() => navigate("/checklists")}
@@ -159,13 +159,13 @@ export function ChecklistRunnerPage() {
   }, {});
 
   return (
-    <main className="min-h-screen bg-gray-950 text-white">
+    <main className="min-h-screen bg-gray-100 text-gray-900">
       <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
         <div className="flex items-center justify-between">
           <button
             type="button"
             onClick={() => navigate("/checklists")}
-            className="text-sm text-gray-500 hover:text-gray-300 transition-colors"
+            className="text-sm text-gray-600 hover:text-gray-700 transition-colors"
           >
             ← Back
           </button>
@@ -173,7 +173,7 @@ export function ChecklistRunnerPage() {
             <button
               type="button"
               onClick={handleReset}
-              className="text-sm text-gray-500 hover:text-red-400 transition-colors"
+              className="text-sm text-gray-600 hover:text-red-400 transition-colors"
             >
               Reset
             </button>
@@ -188,18 +188,18 @@ export function ChecklistRunnerPage() {
 
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{list.name}</h1>
-          {list.description && <p className="text-sm text-gray-500 mt-1">{list.description}</p>}
+          {list.description && <p className="text-sm text-gray-600 mt-1">{list.description}</p>}
         </div>
 
         {totalCount > 0 && (
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
-              <span className={allDone ? "text-green-400 font-semibold" : "text-gray-400"}>
+              <span className={allDone ? "text-green-400 font-semibold" : "text-gray-600"}>
                 {allDone ? "All done!" : `${doneCount} of ${totalCount} complete`}
               </span>
               <span className="text-gray-600 text-xs">{Math.round(progress * 100)}%</span>
             </div>
-            <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
               <div
                 className={`h-full rounded-full transition-all duration-300 ${allDone ? "bg-green-500" : "bg-red-500"}`}
                 style={{ width: `${progress * 100}%` }}
@@ -225,7 +225,7 @@ export function ChecklistRunnerPage() {
               if (item.type === "topic") {
                 return (
                   <div key={item.id} className="pt-3 pb-1 first:pt-0">
-                    <p className="text-xs font-bold uppercase tracking-widest text-gray-500 border-b border-gray-800 pb-2">
+                    <p className="text-xs font-bold uppercase tracking-widest text-gray-600 border-b border-gray-200 pb-2">
                       {item.name}
                     </p>
                   </div>
@@ -239,7 +239,7 @@ export function ChecklistRunnerPage() {
                 <div
                   key={item.id}
                   className={`rounded-xl border transition-all ${
-                    isChecked ? "border-gray-800" : "border-gray-700"
+                    isChecked ? "border-gray-200" : "border-gray-300"
                   }`}
                 >
                   {/* Checkbox row */}
@@ -247,7 +247,7 @@ export function ChecklistRunnerPage() {
                     type="button"
                     onClick={() => toggle(item)}
                     className={`w-full flex items-start gap-4 p-4 text-left rounded-xl transition-colors ${
-                      isChecked ? "bg-gray-900 opacity-60" : "bg-gray-900 hover:bg-gray-800"
+                      isChecked ? "bg-white opacity-60" : "bg-white hover:bg-gray-100"
                     }`}
                   >
                     <div
@@ -269,13 +269,13 @@ export function ChecklistRunnerPage() {
                     </div>
                     <div className="min-w-0">
                       <p
-                        className={`text-base font-medium transition-colors ${isChecked ? "line-through text-gray-500" : "text-white"}`}
+                        className={`text-base font-medium transition-colors ${isChecked ? "line-through text-gray-600" : "text-gray-900"}`}
                       >
                         {item.name}
                       </p>
                       {item.description && (
                         <p
-                          className={`text-sm mt-0.5 ${isChecked ? "text-gray-600" : "text-gray-500"}`}
+                          className={`text-sm mt-0.5 ${isChecked ? "text-gray-600" : "text-gray-600"}`}
                         >
                           {item.description}
                         </p>
@@ -285,12 +285,12 @@ export function ChecklistRunnerPage() {
 
                   {/* Issues section */}
                   {(itemIssues.length > 0 || addingIssueForItemId === item.id) && (
-                    <div className="px-4 pb-3 space-y-1.5 border-t border-gray-800 pt-2">
+                    <div className="px-4 pb-3 space-y-1.5 border-t border-gray-200 pt-2">
                       {itemIssues.map((issue) => (
                         <div key={issue.id}>
                           {confirmDeleteIssueId === issue.id ? (
                             <div className="flex items-center gap-3 py-0.5">
-                              <span className="text-xs text-gray-400 flex-1 truncate">
+                              <span className="text-xs text-gray-600 flex-1 truncate">
                                 Delete "{issue.text}"?
                               </span>
                               <button
@@ -313,10 +313,10 @@ export function ChecklistRunnerPage() {
                               <button
                                 type="button"
                                 onClick={() => setConfirmDeleteIssueId(issue.id)}
-                                className="mt-0.5 w-4 h-4 rounded border border-yellow-600 hover:bg-yellow-900/30 shrink-0 transition-colors"
+                                className="mt-0.5 w-4 h-4 rounded border border-gray-400 hover:bg-gray-300 shrink-0 transition-colors"
                                 title="Mark resolved"
                               />
-                              <p className="text-sm flex-1 leading-snug text-yellow-200/80">
+                              <p className="text-sm flex-1 leading-snug text-gray-900">
                                 {issue.text}
                               </p>
                             </div>
@@ -338,14 +338,14 @@ export function ChecklistRunnerPage() {
                                 setNewIssueText("");
                               }
                             }}
-                            className="flex-1 bg-gray-800 border border-gray-600 rounded-lg px-3 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-yellow-600"
+                            className="flex-1 bg-gray-100 border border-gray-600 rounded-lg px-3 py-1.5 text-sm text-gray-900 placeholder-gray-500 focus:outline-none focus:border-yellow-300"
                             // biome-ignore lint/a11y/noAutofocus: intentional — user just opened the issue form
                             autoFocus
                           />
                           <button
                             type="button"
                             onClick={() => handleAddIssue(item.id)}
-                            className="px-3 py-1.5 bg-yellow-700 hover:bg-yellow-600 text-white text-xs font-semibold rounded-lg"
+                            className="px-3 py-1.5 bg-yellow-100 hover:bg-yellow-100 text-gray-900 text-xs font-semibold rounded-lg"
                           >
                             Add
                           </button>
@@ -367,7 +367,7 @@ export function ChecklistRunnerPage() {
                             setAddingIssueForItemId(item.id);
                             setNewIssueText("");
                           }}
-                          className="text-xs text-gray-600 hover:text-yellow-500 transition-colors pt-0.5"
+                          className="text-xs text-gray-600 hover:text-gray-900 transition-colors pt-0.5"
                         >
                           + Add issue
                         </button>
@@ -384,7 +384,7 @@ export function ChecklistRunnerPage() {
                           setAddingIssueForItemId(item.id);
                           setNewIssueText("");
                         }}
-                        className="text-xs text-gray-700 hover:text-yellow-500 transition-colors"
+                        className="text-xs text-gray-700 hover:text-gray-900 transition-colors"
                       >
                         + Add issue
                       </button>

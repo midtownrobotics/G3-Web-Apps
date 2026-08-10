@@ -61,23 +61,23 @@ export function AdminPage() {
 
   if (authLoading || loading) {
     return (
-      <main className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <p className="text-gray-500">Loading…</p>
+      <main className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <p className="text-gray-600">Loading…</p>
       </main>
     );
   }
 
   if (!isAdmin) {
     return (
-      <main className="min-h-screen bg-gray-950 flex flex-col items-center justify-center gap-2">
-        <p className="text-gray-300 text-lg font-semibold">Access denied</p>
+      <main className="min-h-screen bg-gray-100 flex flex-col items-center justify-center gap-2">
+        <p className="text-gray-700 text-lg font-semibold">Access denied</p>
         <p className="text-gray-600 text-sm">You must be an admin to view this page.</p>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-gray-950 text-white">
+    <main className="min-h-screen bg-gray-100 text-gray-900">
       <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
         <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
 
@@ -87,10 +87,10 @@ export function AdminPage() {
           </p>
         )}
 
-        <div className="bg-gray-900 rounded-xl border border-gray-700 p-5 space-y-5">
+        <div className="bg-white rounded-xl border border-gray-300 p-5 space-y-5">
           <div>
             <h2 className="text-lg font-semibold text-gray-200">Event & API Configuration</h2>
-            <p className="text-sm text-gray-500 mt-0.5">
+            <p className="text-sm text-gray-600 mt-0.5">
               Team {teamNumber}. Nexus and TBA event keys can be different (especially for
               offseason).
             </p>
@@ -143,7 +143,7 @@ export function AdminPage() {
               type="button"
               onClick={handleSave}
               disabled={saving}
-              className="px-4 py-2 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors"
+              className="px-4 py-2 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-gray-900 text-sm font-semibold rounded-lg transition-colors"
             >
               {saving ? "Saving…" : "Save"}
             </button>
@@ -177,7 +177,7 @@ function Field({
   const [show, setShow] = useState(false);
   return (
     <div className="space-y-1.5">
-      <label htmlFor={id} className="text-sm font-medium text-gray-400">
+      <label htmlFor={id} className="text-sm font-medium text-gray-600">
         {label}
       </label>
       <div className="flex gap-2">
@@ -190,13 +190,13 @@ function Field({
             onChange(e.target.value);
             onSaved();
           }}
-          className="flex-1 bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-red-500 font-mono"
+          className="flex-1 bg-gray-100 border border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder-gray-500 focus:outline-none focus:border-red-500 font-mono"
         />
         {secret && (
           <button
             type="button"
             onClick={() => setShow((s) => !s)}
-            className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs rounded-lg shrink-0"
+            className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs rounded-lg shrink-0"
           >
             {show ? "Hide" : "Show"}
           </button>
