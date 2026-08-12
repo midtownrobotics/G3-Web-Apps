@@ -493,7 +493,6 @@ function PartLine({
   children?: React.ReactNode;
 }) {
   return (
-    // biome-ignore lint/a11y/useKeyWithClickEvents: row is a convenience target; nested controls remain keyboard-accessible
     <div
       className={`relative flex items-center gap-3 px-4 cursor-pointer hover:bg-mist/70 transition-colors ${
         touch ? "py-4" : "py-2.5"

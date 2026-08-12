@@ -456,7 +456,6 @@ function PartRow({
     ? { label: "Obsolete", badge: "bg-steel-tint text-steel-dark border-steel/40" }
     : STATE_META[row.state];
   return (
-    // biome-ignore lint/a11y/useKeyWithClickEvents: row is a convenience target; the nested process link stays keyboard-accessible
     <div
       className={`relative flex items-center gap-3 px-3 cursor-pointer hover:bg-mist/70 transition-colors ${
         touch ? "py-4" : "py-2.5"
