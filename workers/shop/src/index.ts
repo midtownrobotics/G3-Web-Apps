@@ -1,9 +1,12 @@
+import type { MessageBatch } from "@cloudflare/workers-types";
 import { sendMessage } from "@g3/slack";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createShopDb } from "./db";
+import { type BOMQueueMessage, processBOMQueue } from "./lib/bom-queue-consumer";
 import { requireAuth } from "./middleware/auth";
 import { actionsRouter } from "./routes/actions";
+import { adminPartsRouter } from "./routes/admin-parts";
 import { drawingsRouter } from "./routes/drawings";
 import { clearPresence, kioskPresenceRouter } from "./routes/kiosk-presence";
 import { onshapeExportRouter } from "./routes/onshape-export";
@@ -12,6 +15,7 @@ import { partDefinitionsRouter } from "./routes/part-definitions";
 import { partInstanceProcessesRouter } from "./routes/part-instance-processes";
 import { partInstancesRouter } from "./routes/part-instances";
 import { partViewerRouter } from "./routes/part-viewer";
+import { printRouter } from "./routes/print";
 import { processesRouter } from "./routes/processes";
 import { subsystemsRouter } from "./routes/subsystems";
 import type { AppEnv } from "./types";
@@ -53,6 +57,7 @@ const app = base
     }),
   )
   .route("/drawings", drawingsRouter)
+  .route("/print", printRouter)
   .route("/onshape", onshapeExportRouter)
   .route("", partViewerRouter)
   // Proxy logout to g3id so the shop app can end sessions (and clean up kiosk
@@ -92,10 +97,25 @@ const app = base
   .route("/part-instance-processes", partInstanceProcessesRouter)
   .route("/actions", actionsRouter)
   .route("/kiosk-presence", kioskPresenceRouter)
+  .route("/admin", adminPartsRouter)
   .get("/slack-test", async (c) => {
     c.executionCtx.waitUntil(sendMessage("C09QYMTSGKT", "test but now from shop sw worker", c.env));
     return c.text("200", 200);
   });
 
 export type ShopApp = typeof app;
-export default app;
+
+export default {
+  fetch: app.fetch,
+  async queue(batch: MessageBatch<BOMQueueMessage>, env: AppEnv["Bindings"]) {
+    for (const msg of batch.messages) {
+      try {
+        await processBOMQueue(msg.body, env);
+        msg.ack();
+      } catch (err) {
+        console.error("[Queue] Error processing message:", err);
+        msg.retry({ delaySeconds: 30 });
+      }
+    }
+  },
+};

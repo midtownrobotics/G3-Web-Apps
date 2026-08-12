@@ -60,6 +60,17 @@ const reorderBlueprintValidator = validator("json", (value, c): { processIds: nu
 export const partDefinitionsRouter = new Hono<AppEnv>()
   .get("/", requireAuth, async (c) => {
     const db = createShopDb(c.env.SHOP_DB);
+    const onshapePartNumber = c.req.query("onshapePartNumber");
+
+    if (onshapePartNumber) {
+      const rows = await db
+        .select()
+        .from(partDefinitions)
+        .where(eq(partDefinitions.onshapePartNumber, onshapePartNumber))
+        .all();
+      return c.json(rows);
+    }
+
     const rows = await db.select().from(partDefinitions).all();
     return c.json(rows);
   })
@@ -72,10 +83,19 @@ export const partDefinitionsRouter = new Hono<AppEnv>()
       notes?: string;
       partDrawingUrl?: string;
       processIds?: number[];
+      obsoleteExisting?: boolean;
     }>();
 
-    const { onshapePartNumber, revision, subsystemId, name, notes, partDrawingUrl, processIds } =
-      body;
+    const {
+      onshapePartNumber,
+      revision,
+      subsystemId,
+      name,
+      notes,
+      partDrawingUrl,
+      processIds,
+      obsoleteExisting,
+    } = body;
     if (!onshapePartNumber || !revision || !subsystemId || !name) {
       return c.json(
         { error: "onshapePartNumber, revision, subsystemId, and name are required." },
@@ -85,6 +105,22 @@ export const partDefinitionsRouter = new Hono<AppEnv>()
 
     const db = createShopDb(c.env.SHOP_DB);
     const now = Date.now();
+
+    // If obsoleteExisting is true, mark all existing parts with same number as obsolete
+    if (obsoleteExisting) {
+      try {
+        await db
+          .update(partDefinitions)
+          .set({ isObsolete: 1 })
+          .where(eq(partDefinitions.onshapePartNumber, onshapePartNumber));
+      } catch (err) {
+        console.error("[Part Definitions] Error marking obsolete parts", err);
+        return c.json(
+          { error: err instanceof Error ? err.message : "Failed to mark obsolete parts" },
+          500,
+        );
+      }
+    }
 
     const partDef = await db
       .insert(partDefinitions)

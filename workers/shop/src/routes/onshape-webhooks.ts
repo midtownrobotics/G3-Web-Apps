@@ -89,7 +89,7 @@ router.post("/events", async (c) => {
   ) {
     const { objectId: releaseId, timestamp } = webhookData;
     if (releaseId && timestamp) {
-      c.executionCtx.waitUntil(processReleaseEvent(releaseId, timestamp, c.env));
+      c.executionCtx.waitUntil(processReleaseEvent(releaseId, timestamp, c.env, c.env.BOM_QUEUE));
     }
     return c.json({ ok: true });
   }

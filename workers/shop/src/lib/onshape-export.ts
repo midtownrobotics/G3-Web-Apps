@@ -5,9 +5,10 @@ import type { AppEnv } from "../types";
 
 export async function drawingExistsInR2(
   partNumber: string,
+  revision: string,
   env: AppEnv["Bindings"],
 ): Promise<boolean> {
-  const r2Key = `drawings/${partNumber}.pdf`;
+  const r2Key = `drawings/${partNumber}/${revision}/drawing.pdf`;
   try {
     const obj = await env.DRAWINGS.head(r2Key);
     return obj !== null;
@@ -18,22 +19,24 @@ export async function drawingExistsInR2(
 
 export async function retrieveDrawingFromR2(
   partNumber: string,
+  revision: string,
   env: AppEnv["Bindings"],
 ): Promise<ArrayBuffer> {
-  const r2Key = `drawings/${partNumber}.pdf`;
+  const r2Key = `drawings/${partNumber}/${revision}/drawing.pdf`;
   const obj = await env.DRAWINGS.get(r2Key);
   if (!obj) {
-    throw new Error(`Drawing not found in R2: ${partNumber}`);
+    throw new Error(`Drawing not found in R2: ${partNumber} revision ${revision}`);
   }
   return obj.arrayBuffer();
 }
 
 export async function storeDrawingInR2(
   partNumber: string,
+  revision: string,
   pdfBuffer: ArrayBuffer,
   env: AppEnv["Bindings"],
 ): Promise<string> {
-  const r2Key = `drawings/${partNumber}.pdf`;
+  const r2Key = `drawings/${partNumber}/${revision}/drawing.pdf`;
   await env.DRAWINGS.put(r2Key, pdfBuffer, {
     httpMetadata: {
       contentType: "application/pdf",
@@ -41,6 +44,7 @@ export async function storeDrawingInR2(
   });
   console.log("[OnShape Export] Stored drawing in R2", {
     partNumber,
+    revision,
     r2Key,
     size: pdfBuffer.byteLength,
   });
@@ -51,17 +55,20 @@ export async function getDrawingExportParams(
   partNumber: string,
   env: AppEnv["Bindings"],
 ): Promise<{ documentId: string; versionId: string; drawingEntityId: string }> {
-  // Get document ID from KV
-  const configStr = await env.SESSIONS.get("onshape-config:document");
-  const config = configStr ? (JSON.parse(configStr) as { documentId?: string }) : {};
-  const documentId = config.documentId;
+  // Get document ID from database
+  const db = drizzle(env.SHOP_DB, { schema });
+  const docIdSetting = await db
+    .select()
+    .from(schema.adminSettings)
+    .where(eq(schema.adminSettings.key, "onshape_document_id"))
+    .get();
+  const documentId = docIdSetting?.value;
 
   if (!documentId) {
-    throw new Error("Document ID not configured in KV storage");
+    throw new Error("Document ID not configured in database");
   }
 
   // Get part info from database (most recent)
-  const db = drizzle(env.SHOP_DB, { schema });
   const part = await db
     .select()
     .from(schema.onshapeParts)

@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../../shared/api";
+import { useBatteryCache } from "../../shared/battery-cache-context";
+import { useFullscreen } from "../../shared/fullscreen-context";
 import { fetchBatteries } from "../../shared/getters/batteries";
 import { fetchAllIssues } from "../../shared/getters/issues";
 import { fetchLists } from "../../shared/getters/lists";
@@ -85,9 +87,9 @@ function formatTime(ms?: number | null): string {
 }
 
 function voltageColor(v: number): string {
-  if (v >= 12.5) return "text-green-400";
-  if (v >= 12.0) return "text-yellow-400";
-  return "text-red-400";
+  if (v >= 12.5) return "text-green-600";
+  if (v >= 12.0) return "text-gray-900";
+  return "text-red-600";
 }
 
 function teamInMatch(m: NexusMatch, team: string): boolean {
@@ -129,17 +131,17 @@ function NexusSection({ nexus, teamNumber }: { nexus: NexusData; teamNumber: str
     <div className="grid grid-cols-3 gap-2">
       {onDeck && (
         <div
-          className={`rounded-xl p-2.5 border ${teamInMatch(onDeck, teamNumber) ? "bg-red-600/40 border-red-400 ring-2 ring-red-400" : "bg-red-900/30 border-red-700"}`}
+          className={`rounded-xl p-2.5 border ${teamInMatch(onDeck, teamNumber) ? "bg-red-100 border-red-300 ring-2 ring-red-400" : "bg-red-100 border-red-300"}`}
         >
           <div className="space-y-1">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-red-300">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-red-600">
               On Deck {teamInMatch(onDeck, teamNumber) && "!"}
             </p>
-            <p className="text-lg font-black text-white">{onDeck.label}</p>
+            <p className="text-lg font-black text-gray-900">{onDeck.label}</p>
             {onDeck.times.estimatedOnFieldTime && (
               <div>
-                <p className="text-[10px] text-gray-400">On field in</p>
-                <p className="text-sm font-bold text-red-300 tabular-nums">
+                <p className="text-[10px] text-gray-600">On field in</p>
+                <p className="text-sm font-bold text-red-600 tabular-nums">
                   <Countdown targetMs={onDeck.times.estimatedOnFieldTime} />
                 </p>
               </div>
@@ -150,17 +152,17 @@ function NexusSection({ nexus, teamNumber }: { nexus: NexusData; teamNumber: str
 
       {nowQueuing && (
         <div
-          className={`rounded-xl p-2.5 border ${teamInMatch(nowQueuing, teamNumber) ? "bg-yellow-600/30 border-yellow-400 ring-2 ring-yellow-400" : "bg-yellow-900/20 border-yellow-700"}`}
+          className={`rounded-xl p-2.5 border ${teamInMatch(nowQueuing, teamNumber) ? "bg-yellow-100 border-yellow-300 ring-2 ring-yellow-400" : "bg-yellow-100 border-yellow-700"}`}
         >
           <div className="space-y-1">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-yellow-300">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-900">
               Now Queuing {teamInMatch(nowQueuing, teamNumber) && "!"}
             </p>
-            <p className="text-lg font-black text-white">{nowQueuing.label}</p>
+            <p className="text-lg font-black text-gray-900">{nowQueuing.label}</p>
             {nowQueuing.times.estimatedOnFieldTime && (
               <div>
-                <p className="text-[10px] text-gray-400">On field in</p>
-                <p className="text-sm font-bold text-yellow-300 tabular-nums">
+                <p className="text-[10px] text-gray-600">On field in</p>
+                <p className="text-sm font-bold text-gray-900 tabular-nums">
                   <Countdown targetMs={nowQueuing.times.estimatedOnFieldTime} />
                 </p>
               </div>
@@ -171,17 +173,17 @@ function NexusSection({ nexus, teamNumber }: { nexus: NexusData; teamNumber: str
 
       {queuingSoon && (
         <div
-          className={`rounded-xl p-2.5 border ${teamInMatch(queuingSoon, teamNumber) ? "bg-emerald-700/30 border-emerald-400 ring-2 ring-emerald-400" : "bg-emerald-900/20 border-emerald-800"}`}
+          className={`rounded-xl p-2.5 border ${teamInMatch(queuingSoon, teamNumber) ? "bg-emerald-50 border-emerald-400 ring-2 ring-emerald-400" : "bg-emerald-50 border-emerald-300"}`}
         >
           <div className="space-y-1">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-300">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600">
               Queuing Soon {teamInMatch(queuingSoon, teamNumber) && "!"}
             </p>
-            <p className="text-lg font-black text-white">{queuingSoon.label}</p>
+            <p className="text-lg font-black text-gray-900">{queuingSoon.label}</p>
             {queuingSoon.times.estimatedQueueTime && (
               <div>
-                <p className="text-[10px] text-gray-400">Queue in</p>
-                <p className="text-sm font-bold text-emerald-300 tabular-nums">
+                <p className="text-[10px] text-gray-600">Queue in</p>
+                <p className="text-sm font-bold text-emerald-600 tabular-nums">
                   <Countdown targetMs={queuingSoon.times.estimatedQueueTime} />
                 </p>
               </div>
@@ -208,13 +210,13 @@ function UpcomingMatchesSection({
 
   return (
     <div className="space-y-2">
-      <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500">
+      <h2 className="text-xs font-bold uppercase tracking-widest text-gray-600">
         Upcoming Matches
       </h2>
-      <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
+      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-800 text-gray-500 text-xs uppercase tracking-wide">
+            <tr className="border-b border-gray-200 text-gray-600 text-xs uppercase tracking-wide">
               <th className="text-left px-4 py-2 font-semibold">Match</th>
               <th className="text-left px-4 py-2 font-semibold">Queue</th>
               <th className="text-left px-4 py-2 font-semibold">Start</th>
@@ -224,24 +226,24 @@ function UpcomingMatchesSection({
           </thead>
           <tbody>
             {upcoming.map((m) => (
-              <tr key={m.label} className="border-b border-gray-800/50 last:border-0">
-                <td className="px-4 py-2.5 font-semibold text-white">{m.label}</td>
-                <td className="px-4 py-2.5 text-gray-400 tabular-nums">
+              <tr key={m.label} className="border-b border-gray-200/50 last:border-0">
+                <td className="px-4 py-2.5 font-semibold text-gray-900">{m.label}</td>
+                <td className="px-4 py-2.5 text-gray-600 tabular-nums">
                   {m.times.actualQueueTime
                     ? formatTime(m.times.actualQueueTime)
                     : m.times.estimatedQueueTime
                       ? formatTime(m.times.estimatedQueueTime)
                       : "—"}
                 </td>
-                <td className="px-4 py-2.5 text-gray-400 tabular-nums">
+                <td className="px-4 py-2.5 text-gray-600 tabular-nums">
                   {formatTime(m.times.estimatedStartTime)}
                 </td>
                 <td className="px-4 py-2.5">
                   <span
                     className={
                       m.blueTeams?.includes(teamNumber)
-                        ? "text-blue-300 font-bold"
-                        : "text-gray-500"
+                        ? "text-blue-600 font-bold"
+                        : "text-gray-600"
                     }
                   >
                     {m.blueTeams?.filter(Boolean).join(", ")}
@@ -250,7 +252,7 @@ function UpcomingMatchesSection({
                 <td className="px-4 py-2.5">
                   <span
                     className={
-                      m.redTeams?.includes(teamNumber) ? "text-red-300 font-bold" : "text-gray-500"
+                      m.redTeams?.includes(teamNumber) ? "text-red-600 font-bold" : "text-gray-600"
                     }
                   >
                     {m.redTeams?.filter(Boolean).join(", ")}
@@ -276,35 +278,36 @@ function RankingSection({
 }) {
   return (
     <div className="space-y-2">
-      <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500">Ranking</h2>
-      <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+      <h2 className="text-xs font-bold uppercase tracking-widest text-gray-600">Ranking</h2>
+      <div className="bg-white border border-gray-200 rounded-2xl p-5">
         <div className="flex gap-6 items-start">
           {/* Left: rank info */}
           <div className="flex gap-6 shrink-0">
             {ranking.rank !== null && (
-              <p className="text-6xl font-black text-white leading-none">
-                <span className="text-2xl text-gray-500 font-normal">#</span>
+              <p className="text-6xl font-black text-gray-900 leading-none">
+                <span className="text-2xl text-gray-600 font-normal">#</span>
                 {ranking.rank}
               </p>
             )}
             <div className="space-y-1 text-sm">
-              <p className="text-gray-300">
-                <span className="text-green-400 font-bold">{ranking.wins}W</span>
+              <p className="text-gray-700">
+                <span className="text-green-600 font-bold">{ranking.wins}W</span>
                 {" — "}
-                <span className="text-red-400 font-bold">{ranking.losses}L</span>
+                <span className="text-red-600 font-bold">{ranking.losses}L</span>
                 {ranking.ties > 0 && (
                   <>
                     {" — "}
-                    <span className="text-gray-400 font-bold">{ranking.ties}T</span>
+                    <span className="text-gray-600 font-bold">{ranking.ties}T</span>
                   </>
                 )}
               </p>
-              <p className="text-gray-400">
-                <span className="text-white font-semibold">{ranking.rp}</span> RP
+              <p className="text-gray-600">
+                <span className="text-gray-900 font-semibold">{ranking.rp}</span> RP
                 {ranking.epa > 0 && (
                   <>
                     {" · "}
-                    <span className="text-white font-semibold">{ranking.epa.toFixed(1)}</span> EPA
+                    <span className="text-gray-900 font-semibold">{ranking.epa.toFixed(1)}</span>{" "}
+                    EPA
                   </>
                 )}
               </p>
@@ -313,19 +316,19 @@ function RankingSection({
 
           {/* Right: context table if available */}
           {contextRankings && (
-            <div className="flex-1 pl-6 border-l border-gray-700">
+            <div className="flex-1 pl-6 border-l border-gray-300">
               <div className="grid grid-cols-2 gap-4">
                 {/* Left: context (around us) */}
                 <div className="space-y-2">
-                  <p className="text-xs text-gray-500 font-semibold">Around Us</p>
+                  <p className="text-xs text-gray-600 font-semibold">Around Us</p>
                   <div className="space-y-1">
                     {contextRankings.context.map((r) => (
                       <div
                         key={r.team}
                         className={`flex justify-between px-2.5 py-1.5 rounded text-sm ${
                           r.team === teamNumber
-                            ? "bg-red-900/40 text-red-200 font-semibold"
-                            : "text-gray-300"
+                            ? "bg-red-100 text-red-700 font-semibold"
+                            : "text-gray-700"
                         }`}
                       >
                         <span>#{r.rank}</span>
@@ -337,15 +340,15 @@ function RankingSection({
 
                 {/* Right: top 3 */}
                 <div className="space-y-2">
-                  <p className="text-xs text-gray-500 font-semibold">Top 3</p>
+                  <p className="text-xs text-gray-600 font-semibold">Top 3</p>
                   <div className="space-y-1">
                     {contextRankings.top3.map((r) => (
                       <div
                         key={r.team}
                         className={`flex justify-between px-2.5 py-1.5 rounded text-sm ${
                           r.team === teamNumber
-                            ? "bg-red-900/40 text-red-200 font-semibold"
-                            : "text-gray-300"
+                            ? "bg-red-100 text-red-700 font-semibold"
+                            : "text-gray-700"
                         }`}
                       >
                         <span>#{r.rank}</span>
@@ -372,17 +375,17 @@ function BatteriesSection({ batteries }: { batteries: Battery[] }) {
 
   return (
     <div className="space-y-2">
-      <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500">Batteries</h2>
-      <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+      <h2 className="text-xs font-bold uppercase tracking-widest text-gray-600">Batteries</h2>
+      <div className="bg-white border border-gray-200 rounded-2xl p-5">
         <div className="grid grid-cols-3 gap-3">
-          <div className="bg-red-900/30 border border-red-700 rounded-xl p-3">
-            <p className="text-xs font-bold uppercase tracking-widest text-red-400 mb-2">
+          <div className="bg-red-100 border border-red-300 rounded-xl p-3">
+            <p className="text-xs font-bold uppercase tracking-widest text-red-600 mb-2">
               In Robot
             </p>
             {inRobot ? (
               <div className="space-y-1">
-                <p className="text-xl font-black text-white">{inRobot.name}</p>
-                <p className="text-xs text-gray-400">
+                <p className="text-xl font-black text-gray-900">{inRobot.name}</p>
+                <p className="text-xs text-gray-600">
                   <ElapsedTime sinceMs={inRobot.stateSince} />
                 </p>
                 {inRobot.voltage != null && (
@@ -398,14 +401,14 @@ function BatteriesSection({ batteries }: { batteries: Battery[] }) {
             )}
           </div>
 
-          <div className="bg-emerald-900/30 border border-emerald-600 rounded-xl p-3">
-            <p className="text-xs font-bold uppercase tracking-widest text-emerald-400 mb-2">
+          <div className="bg-emerald-50 border border-emerald-300 rounded-xl p-3">
+            <p className="text-xs font-bold uppercase tracking-widest text-emerald-600 mb-2">
               Next Up
             </p>
             {nextUp ? (
               <div className="space-y-1">
-                <p className="text-xl font-black text-white">{nextUp.name}</p>
-                <p className="text-xs text-gray-400">
+                <p className="text-xl font-black text-gray-900">{nextUp.name}</p>
+                <p className="text-xs text-gray-600">
                   <ElapsedTime sinceMs={nextUp.stateSince} />
                 </p>
                 {nextUp.voltage != null && (
@@ -421,14 +424,14 @@ function BatteriesSection({ batteries }: { batteries: Battery[] }) {
             )}
           </div>
 
-          <div className="bg-blue-900/20 border border-blue-800 rounded-xl p-3">
-            <p className="text-xs font-bold uppercase tracking-widest text-blue-400 mb-2">
+          <div className="bg-blue-100 border border-blue-800 rounded-xl p-3">
+            <p className="text-xs font-bold uppercase tracking-widest text-blue-600 mb-2">
               Charging
             </p>
             {longestCharging ? (
               <div className="space-y-1">
-                <p className="text-xl font-black text-white">{longestCharging.name}</p>
-                <p className="text-xs text-gray-400 tabular-nums">
+                <p className="text-xl font-black text-gray-900">{longestCharging.name}</p>
+                <p className="text-xs text-gray-600 tabular-nums">
                   <ElapsedTime sinceMs={longestCharging.stateSince} />
                 </p>
               </div>
@@ -458,23 +461,23 @@ function ChecklistSection({
     <div className="space-y-4">
       {/* Progress */}
       <div className="space-y-3">
-        <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500">
+        <h2 className="text-xs font-bold uppercase tracking-widest text-gray-600">
           Checklist Progress
         </h2>
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <span
-              className={`text-sm font-semibold ${allDone ? "text-green-400" : "text-gray-300"}`}
+              className={`text-sm font-semibold ${allDone ? "text-green-600" : "text-gray-700"}`}
             >
               {allDone ? "All done!" : `${totalChecked} / ${totalItems} complete`}
             </span>
             <span
-              className={`text-lg font-black tabular-nums ${allDone ? "text-green-400" : "text-white"}`}
+              className={`text-lg font-black tabular-nums ${allDone ? "text-green-600" : "text-gray-900"}`}
             >
               {globalPct}%
             </span>
           </div>
-          <div className="h-3 bg-gray-800 rounded-full overflow-hidden">
+          <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
             <div
               className={`h-full rounded-full transition-all duration-500 ${allDone ? "bg-green-500" : "bg-red-500"}`}
               style={{ width: `${globalPct}%` }}
@@ -489,14 +492,14 @@ function ChecklistSection({
             return (
               <div key={list.id} className="space-y-1">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-400 truncate">{list.name}</span>
+                  <span className="text-sm text-gray-600 truncate">{list.name}</span>
                   <span
-                    className={`text-sm font-semibold tabular-nums shrink-0 ml-3 ${done ? "text-green-400" : "text-gray-300"}`}
+                    className={`text-sm font-semibold tabular-nums shrink-0 ml-3 ${done ? "text-green-600" : "text-gray-700"}`}
                   >
                     {list.checkedCount}/{list.itemCount}
                   </span>
                 </div>
-                <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all duration-500 ${done ? "bg-green-500" : "bg-red-500"}`}
                     style={{ width: `${pct}%` }}
@@ -509,23 +512,21 @@ function ChecklistSection({
       </div>
 
       {/* Issues */}
-      <div className="space-y-2 pt-2 border-t border-gray-800">
-        <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500">
+      <div className="space-y-2 pt-2 border-t border-gray-200">
+        <h2 className="text-xs font-bold uppercase tracking-widest text-gray-600">
           Open Issues{" "}
-          {issues.length > 0 && (
-            <span className="text-yellow-500 normal-case">{issues.length}</span>
-          )}
+          {issues.length > 0 && <span className="text-gray-900 normal-case">{issues.length}</span>}
         </h2>
         {issues.length === 0 ? (
-          <p className="text-green-400 text-sm font-semibold">No open issues ✓</p>
+          <p className="text-green-600 text-sm font-semibold">No open issues ✓</p>
         ) : (
           <div className="space-y-2">
             {issues.map((issue) => (
               <div
                 key={issue.id}
-                className="bg-yellow-900/20 border border-yellow-900/50 rounded-xl px-4 py-3"
+                className="bg-yellow-100 border border-yellow-300 rounded-xl px-4 py-3"
               >
-                <p className="text-sm text-yellow-200/90 leading-snug">{issue.text}</p>
+                <p className="text-sm text-gray-900/90 leading-snug">{issue.text}</p>
                 <p className="text-xs text-gray-600 mt-0.5">
                   {issue.listName} · {issue.itemName}
                 </p>
@@ -541,12 +542,30 @@ function ChecklistSection({
 // ── Root ───────────────────────────────────────────────────────────────────
 
 export function PitMonitorPage() {
+  const { isFullscreen, setFullscreen } = useFullscreen();
+  const { setBatteries: setCachedBatteries } = useBatteryCache();
   const [batteries, setBatteries] = useState<Battery[]>([]);
   const [lists, setLists] = useState<ChecklistList[]>([]);
   const [issues, setIssues] = useState<ChecklistIssueSummary[]>([]);
   const [monitor, setMonitor] = useState<MonitorData | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const handleFullscreen = async () => {
+    if (!isFullscreen) {
+      try {
+        await document.documentElement.requestFullscreen();
+        setFullscreen(true);
+      } catch (err) {
+        console.error("Fullscreen request failed:", err);
+      }
+    } else {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      }
+      setFullscreen(false);
+    }
+  };
 
   async function loadAll() {
     const [b, l, i, m] = await Promise.all([
@@ -559,6 +578,7 @@ export function PitMonitorPage() {
         .catch(() => null),
     ]);
     setBatteries(b);
+    setCachedBatteries(b);
     setLists(l);
     setIssues(i);
     setMonitor(m);
@@ -575,8 +595,8 @@ export function PitMonitorPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <p className="text-gray-500 text-lg">Loading…</p>
+      <main className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <p className="text-gray-600 text-lg">Loading…</p>
       </main>
     );
   }
@@ -586,14 +606,24 @@ export function PitMonitorPage() {
   const nexus = monitor?.nexus;
 
   return (
-    <main className="min-h-screen bg-gray-950 text-white">
+    <main className="min-h-screen bg-gray-100 text-gray-900">
       <div className="px-6 py-5 space-y-5">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-800 pb-4">
+        <div className="flex items-center justify-between border-b border-gray-200 pb-4">
           <h1 className="text-2xl font-black tracking-tight">G3 Pit Monitor</h1>
-          {lastUpdated && (
-            <p className="text-xs text-gray-600">Updated {lastUpdated.toLocaleTimeString()}</p>
-          )}
+          <div className="flex items-center gap-4">
+            {lastUpdated && (
+              <p className="text-xs text-gray-600">Updated {lastUpdated.toLocaleTimeString()}</p>
+            )}
+            <button
+              type="button"
+              onClick={handleFullscreen}
+              className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-900 text-sm font-semibold rounded-lg transition-colors"
+              title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+            >
+              {isFullscreen ? "Exit" : "⛶ Fullscreen"}
+            </button>
+          </div>
         </div>
 
         {/* Nexus status — full width, only if data available */}

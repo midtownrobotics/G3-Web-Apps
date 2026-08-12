@@ -9,14 +9,15 @@ export const subsystems = sqliteTable("subsystems", {
 export const partDefinitions = sqliteTable("part_definitions", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   onshapePartNumber: text("onshape_part_number").notNull(),
-  revision: text("revision").notNull(),
+  revision: text("revision"),
   subsystemId: integer("subsystem_id")
     .notNull()
     .references(() => subsystems.id),
   creator: text("creator").notNull(),
-  name: text("name").notNull(),
+  name: text("name"),
   notes: text("notes"),
   partDrawingUrl: text("part_drawing_url"),
+  isObsolete: integer("is_obsolete").notNull().default(0),
   createdAt: integer("created_at").notNull(),
 });
 
@@ -118,6 +119,9 @@ export const onshapeParts = sqliteTable(
     partNumber: text("part_number").notNull(),
     versionId: text("version_id"),
     quantity: integer("quantity"),
+    revision: text("revision"),
+    name: text("name"),
+    description: text("description"),
     createdAt: integer("created_at").notNull(),
   },
   (t) => [unique().on(t.onshapeReleaseId, t.partNumber)],
@@ -132,3 +136,14 @@ export const drawings = sqliteTable("drawings", {
   uploadedBy: text("uploaded_by"),
   createdAt: integer("created_at").notNull(),
 });
+
+export const adminSettings = sqliteTable(
+  "admin_settings",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    key: text("key").notNull().unique(),
+    value: text("value").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [unique().on(t.key)],
+);

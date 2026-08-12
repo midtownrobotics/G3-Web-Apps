@@ -133,7 +133,7 @@ export function HomePage() {
   const tiles = TILES.filter((t) => !t.adminOnly || isAdmin);
 
   return (
-    <main className="min-h-screen bg-gray-950 text-white">
+    <main className="min-h-screen bg-gray-100 text-gray-900">
       <div className="max-w-3xl mx-auto px-4 py-12 sm:py-16 space-y-10">
         <div className="text-center space-y-3">
           <h1 className="text-5xl sm:text-6xl font-bold tracking-tight">G3 Pit Software</h1>
@@ -147,16 +147,16 @@ export function HomePage() {
             <Link
               key={tile.to}
               to={tile.to}
-              className="group bg-gray-900 hover:bg-gray-800 border border-gray-800 hover:border-red-600 rounded-2xl p-5 flex items-center gap-4 transition-colors"
+              className="group bg-white hover:bg-gray-100 border border-gray-200 hover:border-red-600 rounded-2xl p-5 flex items-center gap-4 transition-colors"
             >
-              <div className="shrink-0 w-12 h-12 rounded-xl bg-gray-800 group-hover:bg-red-600/20 flex items-center justify-center text-red-400 transition-colors">
+              <div className="shrink-0 w-12 h-12 rounded-xl bg-gray-100 group-hover:bg-red-600/20 flex items-center justify-center text-red-400 transition-colors">
                 {tile.icon}
               </div>
               <div className="min-w-0">
-                <p className="text-lg font-semibold text-white group-hover:text-red-400 transition-colors">
+                <p className="text-lg font-semibold text-gray-900 group-hover:text-red-400 transition-colors">
                   {tile.label}
                 </p>
-                <p className="text-sm text-gray-500 truncate">{tile.desc}</p>
+                <p className="text-sm text-gray-600 truncate">{tile.desc}</p>
               </div>
               <span className="ml-auto text-gray-600 group-hover:text-red-400 transition-colors">
                 →
