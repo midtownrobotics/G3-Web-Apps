@@ -862,7 +862,8 @@ function FieldMaps({ user }: { user: User }) {
     ]);
     setCanShare(permission.canShare);
     setMaps((current) => {
-      for (const map of current) if (map.imageUrl.startsWith("blob:")) URL.revokeObjectURL(map.imageUrl);
+      for (const map of current)
+        if (map.imageUrl.startsWith("blob:")) URL.revokeObjectURL(map.imageUrl);
       return [
         ...shared.fieldMaps.map((map) => ({
           ...map,
@@ -906,7 +907,10 @@ function FieldMaps({ user }: { user: User }) {
       data.set("name", map.name);
       data.set("eventName", map.eventName);
       data.set("notes", map.notes);
-      data.set("image", new File([map.image], `${map.name}.png`, { type: map.image.type || "image/png" }));
+      data.set(
+        "image",
+        new File([map.image], `${map.name}.png`, { type: map.image.type || "image/png" }),
+      );
       await api("/field-maps", { method: "POST", body: data });
       setMapMessage(`“${map.name}” is now shared with the team.`);
       await load();
@@ -961,14 +965,20 @@ function FieldMaps({ user }: { user: User }) {
               placeholder="person@example.com"
               aria-label="G3ID email"
             />
-            <button type="submit" className="primary-button"><Plus size={16} /> Give access</button>
+            <button type="submit" className="primary-button">
+              <Plus size={16} /> Give access
+            </button>
           </form>
           {publishers.length > 0 && (
             <div className="publisher-list">
               {publishers.map((publisher) => (
                 <span key={publisher.email}>
                   {publisher.email}
-                  <button type="button" aria-label={`Remove ${publisher.email}`} onClick={() => revokeAccess(publisher.email)}>
+                  <button
+                    type="button"
+                    aria-label={`Remove ${publisher.email}`}
+                    onClick={() => revokeAccess(publisher.email)}
+                  >
                     <X size={14} />
                   </button>
                 </span>
@@ -981,7 +991,10 @@ function FieldMaps({ user }: { user: User }) {
       <div className="section-title">
         <div>
           <h2>Saved maps</h2>
-          <span>{maps.filter((map) => map.shared).length} shared · {maps.filter((map) => !map.shared).length} on this device</span>
+          <span>
+            {maps.filter((map) => map.shared).length} shared ·{" "}
+            {maps.filter((map) => !map.shared).length} on this device
+          </span>
         </div>
       </div>
       {maps.length ? (
@@ -997,7 +1010,9 @@ function FieldMaps({ user }: { user: User }) {
             >
               <img src={map.imageUrl} alt={map.name} />
               <div>
-                <span className="card-kicker">{map.shared ? "Shared with team" : map.eventName || "Personal map"}</span>
+                <span className="card-kicker">
+                  {map.shared ? "Shared with team" : map.eventName || "Personal map"}
+                </span>
                 <h3>{map.name}</h3>
                 <p>{map.notes || "No notes added."}</p>
                 <footer>
@@ -1007,7 +1022,10 @@ function FieldMaps({ user }: { user: User }) {
                       type="button"
                       aria-label={`Share ${map.name} with the team`}
                       title="Share with team"
-                      onClick={(event) => { event.stopPropagation(); void share(map); }}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void share(map);
+                      }}
                     >
                       <Upload size={15} />
                     </button>
@@ -1392,7 +1410,7 @@ function AutoRouteDrawing({ onChange }: { onChange: (file: File | null) => void 
 
   useEffect(() => {
     const field = new window.Image();
-    field.onload = () => render(strokes);
+    field.onload = () => render([]);
     field.src = "/field-2026.svg";
     fieldRef.current = field;
   }, [render]);
@@ -1417,7 +1435,9 @@ function AutoRouteDrawing({ onChange }: { onChange: (file: File | null) => void 
   function move(event: ReactPointerEvent<HTMLCanvasElement>) {
     if (!drawing.current) return;
     const next = strokes.map((stroke, index) =>
-      index === strokes.length - 1 ? { ...stroke, points: [...stroke.points, point(event)] } : stroke,
+      index === strokes.length - 1
+        ? { ...stroke, points: [...stroke.points, point(event)] }
+        : stroke,
     );
     setStrokes(next);
     render(next);
@@ -1452,7 +1472,11 @@ function AutoRouteDrawing({ onChange }: { onChange: (file: File | null) => void 
             />
           ))}
         </div>
-        <button type="button" disabled={!strokes.length} onClick={() => replaceStrokes(strokes.slice(0, -1))}>
+        <button
+          type="button"
+          disabled={!strokes.length}
+          onClick={() => replaceStrokes(strokes.slice(0, -1))}
+        >
           <RotateCcw size={15} /> Undo
         </button>
         <button type="button" disabled={!strokes.length} onClick={() => replaceStrokes([])}>
@@ -1469,7 +1493,9 @@ function AutoRouteDrawing({ onChange }: { onChange: (file: File | null) => void 
         onPointerUp={finish}
         onPointerCancel={finish}
       />
-      <span className="field-help">Use separate strokes for each part of the route. Undo removes the last stroke.</span>
+      <span className="field-help">
+        Use separate strokes for each part of the route. Undo removes the last stroke.
+      </span>
     </div>
   );
 }
