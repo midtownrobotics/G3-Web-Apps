@@ -62,8 +62,10 @@ type FieldMap = {
   eventName: string;
   notes: string;
   imageUrl: string;
-  image: Blob;
+  image?: Blob;
   updatedAt: number;
+  shared?: boolean;
+  createdBy?: string;
 };
 type AutoRoutine = {
   id: string;
@@ -489,7 +491,7 @@ function MapCanvas({
   }, [loadImage, useRebuiltField]);
 
   useEffect(() => {
-    if (!editingMap) return;
+    if (!editingMap?.image) return;
     loadImage(editingMap.image);
     setName(editingMap.name);
     setEventName(editingMap.eventName);
@@ -845,30 +847,86 @@ function MapCanvas({
   );
 }
 
-function FieldMaps() {
+function FieldMaps({ user }: { user: User }) {
   const [maps, setMaps] = useState<FieldMap[]>([]);
   const [editingMap, setEditingMap] = useState<FieldMap | null>(null);
+  const [canShare, setCanShare] = useState(false);
+  const [publishers, setPublishers] = useState<{ email: string; created_at: number }[]>([]);
+  const [publisherEmail, setPublisherEmail] = useState("");
+  const [mapMessage, setMapMessage] = useState("");
   const load = useCallback(async () => {
-    const stored = await listLocalFieldMaps();
+    const [stored, shared, permission] = await Promise.all([
+      listLocalFieldMaps(),
+      api<{ fieldMaps: Omit<FieldMap, "image">[] }>("/field-maps"),
+      api<{ canShare: boolean }>("/field-map-permissions"),
+    ]);
+    setCanShare(permission.canShare);
     setMaps((current) => {
-      for (const map of current) URL.revokeObjectURL(map.imageUrl);
-      return stored.map((map) => ({
-        id: map.id,
-        name: map.name,
-        eventName: map.eventName,
-        notes: map.notes,
-        imageUrl: URL.createObjectURL(map.image),
-        image: map.image,
-        updatedAt: map.updatedAt,
-      }));
+      for (const map of current) if (map.imageUrl.startsWith("blob:")) URL.revokeObjectURL(map.imageUrl);
+      return [
+        ...shared.fieldMaps.map((map) => ({
+          ...map,
+          shared: true,
+          imageUrl: `${API_URL}${map.imageUrl}`,
+        })),
+        ...stored.map((map) => ({
+          id: map.id,
+          name: map.name,
+          eventName: map.eventName,
+          notes: map.notes,
+          imageUrl: URL.createObjectURL(map.image),
+          image: map.image,
+          updatedAt: map.updatedAt,
+          shared: false,
+        })),
+      ];
     });
-  }, []);
+    if (user.isAdmin) {
+      const access = await api<{ publishers: { email: string; created_at: number }[] }>(
+        "/field-map-publishers",
+      );
+      setPublishers(access.publishers);
+    }
+  }, [user.isAdmin]);
   useEffect(() => {
     load().catch(() => undefined);
   }, [load]);
 
-  async function remove(id: string) {
-    await deleteLocalFieldMap(id);
+  async function remove(map: FieldMap) {
+    if (map.shared) await api(`/field-maps/${map.id}`, { method: "DELETE" });
+    else await deleteLocalFieldMap(map.id);
+    await load();
+  }
+
+  async function share(map: FieldMap) {
+    if (!map.image) return;
+    setMapMessage("");
+    try {
+      const data = new FormData();
+      data.set("name", map.name);
+      data.set("eventName", map.eventName);
+      data.set("notes", map.notes);
+      data.set("image", new File([map.image], `${map.name}.png`, { type: map.image.type || "image/png" }));
+      await api("/field-maps", { method: "POST", body: data });
+      setMapMessage(`“${map.name}” is now shared with the team.`);
+      await load();
+    } catch (error) {
+      setMapMessage(error instanceof Error ? error.message : "Could not share this map.");
+    }
+  }
+
+  async function grantAccess(event: SyntheticEvent) {
+    event.preventDefault();
+    await api("/field-map-publishers", {
+      method: "POST",
+      body: JSON.stringify({ email: publisherEmail }),
+    });
+    setPublisherEmail("");
+    await load();
+  }
+
+  async function revokeAccess(email: string) {
+    await api(`/field-map-publishers/${encodeURIComponent(email)}`, { method: "DELETE" });
     await load();
   }
 
@@ -888,10 +946,42 @@ function FieldMaps() {
         </div>
       </div>
       <MapCanvas onSaved={load} editingMap={editingMap} />
+      {user.isAdmin && (
+        <div className="map-sharing-access">
+          <div>
+            <h2>Map sharing access</h2>
+            <span>Admins can always share. Add specific people by their G3ID email.</span>
+          </div>
+          <form onSubmit={grantAccess}>
+            <input
+              type="email"
+              required
+              value={publisherEmail}
+              onChange={(event) => setPublisherEmail(event.target.value)}
+              placeholder="person@example.com"
+              aria-label="G3ID email"
+            />
+            <button type="submit" className="primary-button"><Plus size={16} /> Give access</button>
+          </form>
+          {publishers.length > 0 && (
+            <div className="publisher-list">
+              {publishers.map((publisher) => (
+                <span key={publisher.email}>
+                  {publisher.email}
+                  <button type="button" aria-label={`Remove ${publisher.email}`} onClick={() => revokeAccess(publisher.email)}>
+                    <X size={14} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {mapMessage && <div className="save-status success">{mapMessage}</div>}
       <div className="section-title">
         <div>
           <h2>Saved maps</h2>
-          <span>{maps.length} saved on this device</span>
+          <span>{maps.filter((map) => map.shared).length} shared · {maps.filter((map) => !map.shared).length} on this device</span>
         </div>
       </div>
       {maps.length ? (
@@ -900,28 +990,40 @@ function FieldMaps() {
             <article
               className="map-card"
               key={map.id}
-              onClick={() => edit(map)}
+              onClick={() => !map.shared && edit(map)}
               onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") edit(map);
+                if (!map.shared && (event.key === "Enter" || event.key === " ")) edit(map);
               }}
             >
               <img src={map.imageUrl} alt={map.name} />
               <div>
-                <span className="card-kicker">{map.eventName || "General strategy"}</span>
+                <span className="card-kicker">{map.shared ? "Shared with team" : map.eventName || "Personal map"}</span>
                 <h3>{map.name}</h3>
                 <p>{map.notes || "No notes added."}</p>
                 <footer>
                   <span>{timeAgo(map.updatedAt)}</span>
-                  <button
-                    type="button"
-                    aria-label={`Delete ${map.name}`}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      remove(map.id);
-                    }}
-                  >
-                    <Trash2 size={15} />
-                  </button>
+                  {!map.shared && canShare && (
+                    <button
+                      type="button"
+                      aria-label={`Share ${map.name} with the team`}
+                      title="Share with team"
+                      onClick={(event) => { event.stopPropagation(); void share(map); }}
+                    >
+                      <Upload size={15} />
+                    </button>
+                  )}
+                  {(!map.shared || user.isAdmin || map.createdBy === user.userId) && (
+                    <button
+                      type="button"
+                      aria-label={`Delete ${map.name}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void remove(map);
+                      }}
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  )}
                 </footer>
               </div>
             </article>
@@ -943,6 +1045,8 @@ function AutoLibrary() {
     team: "",
   });
   const [trajectory, setTrajectory] = useState<ParsedTrajectory | null>(null);
+  const [routeInput, setRouteInput] = useState<"upload" | "draw">("upload");
+  const [drawnRoute, setDrawnRoute] = useState<File | null>(null);
   const [trajectoryError, setTrajectoryError] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
@@ -972,10 +1076,12 @@ function AutoLibrary() {
       data.set("team", form.team);
       data.set("description", "");
       data.set("steps", "[]");
-      if (trajectory) data.set("image", await trajectoryToPng(trajectory));
+      if (routeInput === "draw" && drawnRoute) data.set("image", drawnRoute);
+      else if (trajectory) data.set("image", await trajectoryToPng(trajectory));
       await api("/autos", { method: "POST", body: data });
       setForm({ name: "", team: "" });
       setTrajectory(null);
+      setDrawnRoute(null);
       setTrajectoryError("");
       setFormOpen(false);
       setSaveMessage("Saved for everyone");
@@ -1064,23 +1170,49 @@ function AutoLibrary() {
                 placeholder="1648"
               />
             </label>
-            <label className="wide">
-              Choreo or PathPlanner route
-              <span className="field-help">
-                A .traj or .path file will be plotted automatically.
-              </span>
-              <span className="trajectory-upload">
-                <Upload size={17} />
-                {trajectory ? trajectory.name : "Upload trajectory"}
-                <input
-                  type="file"
-                  accept=".traj,.path,.json,application/json"
-                  onChange={(event) => importTrajectory(event.target.files?.[0])}
-                />
-              </span>
-              {trajectory && <TrajectoryPreview trajectory={trajectory} />}
-              {trajectoryError && <span className="field-error">{trajectoryError}</span>}
-            </label>
+            <div className="wide auto-route-input">
+              <span className="route-input-label">Route</span>
+              <div className="route-input-tabs" role="tablist" aria-label="Route input method">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={routeInput === "upload"}
+                  className={routeInput === "upload" ? "active" : ""}
+                  onClick={() => setRouteInput("upload")}
+                >
+                  <Upload size={16} /> Upload
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={routeInput === "draw"}
+                  className={routeInput === "draw" ? "active" : ""}
+                  onClick={() => setRouteInput("draw")}
+                >
+                  <Pencil size={16} /> Draw an auto
+                </button>
+              </div>
+              {routeInput === "upload" ? (
+                <>
+                  <span className="field-help">
+                    A .traj or .path file will be plotted automatically.
+                  </span>
+                  <label className="trajectory-upload">
+                    <Upload size={17} />
+                    {trajectory ? trajectory.name : "Upload trajectory"}
+                    <input
+                      type="file"
+                      accept=".traj,.path,.json,application/json"
+                      onChange={(event) => importTrajectory(event.target.files?.[0])}
+                    />
+                  </label>
+                  {trajectory && <TrajectoryPreview trajectory={trajectory} />}
+                  {trajectoryError && <span className="field-error">{trajectoryError}</span>}
+                </>
+              ) : (
+                <AutoRouteDrawing onChange={setDrawnRoute} />
+              )}
+            </div>
             <div className="wide form-actions">
               <button type="button" className="secondary-button" onClick={() => setFormOpen(false)}>
                 Cancel
@@ -1210,6 +1342,135 @@ function AutoLibrary() {
         </div>
       )}
     </section>
+  );
+}
+
+type RouteStroke = { color: string; points: { x: number; y: number }[] };
+
+function AutoRouteDrawing({ onChange }: { onChange: (file: File | null) => void }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const fieldRef = useRef<HTMLImageElement | null>(null);
+  const drawing = useRef(false);
+  const [strokes, setStrokes] = useState<RouteStroke[]>([]);
+  const [color, setColor] = useState("#a71433");
+
+  const render = useCallback((items: RouteStroke[]) => {
+    const canvas = canvasRef.current;
+    const field = fieldRef.current;
+    const context = canvas?.getContext("2d");
+    if (!canvas || !context) return;
+    context.fillStyle = "#17191d";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    if (field?.complete) context.drawImage(field, 0, 0, canvas.width, canvas.height);
+    for (const stroke of items) {
+      if (!stroke.points.length) continue;
+      context.strokeStyle = "rgba(255,255,255,.9)";
+      context.lineWidth = 16;
+      context.lineCap = "round";
+      context.lineJoin = "round";
+      context.beginPath();
+      stroke.points.forEach((point, index) =>
+        index ? context.lineTo(point.x, point.y) : context.moveTo(point.x, point.y),
+      );
+      context.stroke();
+      context.strokeStyle = stroke.color;
+      context.lineWidth = 9;
+      context.stroke();
+    }
+  }, []);
+
+  const exportDrawing = useCallback(
+    (items: RouteStroke[]) => {
+      const canvas = canvasRef.current;
+      if (!canvas || !items.length) return onChange(null);
+      canvas.toBlob((blob) => {
+        onChange(blob ? new File([blob], "drawn-auto.png", { type: "image/png" }) : null);
+      }, "image/png");
+    },
+    [onChange],
+  );
+
+  useEffect(() => {
+    const field = new window.Image();
+    field.onload = () => render(strokes);
+    field.src = "/field-2026.svg";
+    fieldRef.current = field;
+  }, [render]);
+
+  function point(event: ReactPointerEvent<HTMLCanvasElement>) {
+    const canvas = event.currentTarget;
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: ((event.clientX - rect.left) / rect.width) * canvas.width,
+      y: ((event.clientY - rect.top) / rect.height) * canvas.height,
+    };
+  }
+
+  function start(event: ReactPointerEvent<HTMLCanvasElement>) {
+    drawing.current = true;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const next = [...strokes, { color, points: [point(event)] }];
+    setStrokes(next);
+    render(next);
+  }
+
+  function move(event: ReactPointerEvent<HTMLCanvasElement>) {
+    if (!drawing.current) return;
+    const next = strokes.map((stroke, index) =>
+      index === strokes.length - 1 ? { ...stroke, points: [...stroke.points, point(event)] } : stroke,
+    );
+    setStrokes(next);
+    render(next);
+  }
+
+  function finish() {
+    if (!drawing.current) return;
+    drawing.current = false;
+    exportDrawing(strokes);
+  }
+
+  function replaceStrokes(next: RouteStroke[]) {
+    setStrokes(next);
+    render(next);
+    exportDrawing(next);
+  }
+
+  return (
+    <div className="auto-drawing">
+      <div className="auto-drawing-toolbar">
+        <span>Draw the robot path on the field</span>
+        <div className="drawing-colors" aria-label="Route color">
+          {["#a71433", "#1565c0", "#2e7d32", "#f9a825"].map((option) => (
+            <button
+              type="button"
+              key={option}
+              className={color === option ? "selected" : ""}
+              style={{ backgroundColor: option }}
+              aria-label={`Use ${option}`}
+              aria-pressed={color === option}
+              onClick={() => setColor(option)}
+            />
+          ))}
+        </div>
+        <button type="button" disabled={!strokes.length} onClick={() => replaceStrokes(strokes.slice(0, -1))}>
+          <RotateCcw size={15} /> Undo
+        </button>
+        <button type="button" disabled={!strokes.length} onClick={() => replaceStrokes([])}>
+          <Trash2 size={15} /> Clear
+        </button>
+      </div>
+      <canvas
+        ref={canvasRef}
+        width="1400"
+        height="724"
+        aria-label="Draw autonomous route on the 2026 field"
+        onPointerDown={start}
+        onPointerMove={move}
+        onPointerUp={finish}
+        onPointerCancel={finish}
+      />
+      <span className="field-help">Use separate strokes for each part of the route. Undo removes the last stroke.</span>
+    </div>
   );
 }
 
@@ -1602,7 +1863,7 @@ export function App() {
         </header>
         {page === "overview" && <Overview go={setPage} />}
         {page === "tiers" && <TierLists />}
-        {page === "maps" && <FieldMaps />}
+        {page === "maps" && <FieldMaps user={user} />}
         {page === "autos" && <AutoLibrary />}
         {page === "robots" && <RobotLibrary />}
       </main>

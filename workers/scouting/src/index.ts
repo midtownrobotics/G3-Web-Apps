@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
 import { requireAuth } from "./middleware/auth";
 import type { AppEnv } from "./types";
@@ -146,7 +146,53 @@ app.get("/field-maps", requireAuth, async (c) => {
   });
 });
 
+async function canShareFieldMaps(c: Context<AppEnv>) {
+  if (c.get("userIsAdmin")) return true;
+  const permission = await c.env.SCOUTING_DB.prepare(
+    "SELECT email FROM field_map_publishers WHERE email = ?",
+  )
+    .bind(c.get("userEmail").toLowerCase())
+    .first();
+  return Boolean(permission);
+}
+
+app.get("/field-map-permissions", requireAuth, async (c) =>
+  c.json({ canShare: await canShareFieldMaps(c), isAdmin: c.get("userIsAdmin") }),
+);
+
+app.get("/field-map-publishers", requireAuth, async (c) => {
+  if (!c.get("userIsAdmin")) return c.json({ error: "Admin access required." }, 403);
+  const rows = await c.env.SCOUTING_DB.prepare(
+    "SELECT email, created_at FROM field_map_publishers ORDER BY email",
+  ).all<{ email: string; created_at: number }>();
+  return c.json({ publishers: rows.results });
+});
+
+app.post("/field-map-publishers", requireAuth, async (c) => {
+  if (!c.get("userIsAdmin")) return c.json({ error: "Admin access required." }, 403);
+  const body = await c.req.json<{ email?: unknown }>();
+  const email = text(body.email, 320).toLowerCase();
+  if (!/^\S+@\S+\.\S+$/.test(email)) return c.json({ error: "A valid email is required." }, 400);
+  await c.env.SCOUTING_DB.prepare(
+    "INSERT OR IGNORE INTO field_map_publishers (email, granted_by, created_at) VALUES (?, ?, ?)",
+  )
+    .bind(email, c.get("userId"), Date.now())
+    .run();
+  return c.json({ ok: true }, 201);
+});
+
+app.delete("/field-map-publishers/:email", requireAuth, async (c) => {
+  if (!c.get("userIsAdmin")) return c.json({ error: "Admin access required." }, 403);
+  await c.env.SCOUTING_DB.prepare("DELETE FROM field_map_publishers WHERE email = ?")
+    .bind(decodeURIComponent(c.req.param("email")).toLowerCase())
+    .run();
+  return c.json({ ok: true });
+});
+
 app.post("/field-maps", requireAuth, async (c) => {
+  if (!(await canShareFieldMaps(c))) {
+    return c.json({ error: "You do not have permission to share field maps." }, 403);
+  }
   const form = await c.req.formData();
   const image = form.get("image");
   const name = text(form.get("name"), 120);
@@ -200,10 +246,15 @@ app.get("/field-maps/:id/image", requireAuth, async (c) => {
 });
 
 app.delete("/field-maps/:id", requireAuth, async (c) => {
-  const map = await c.env.SCOUTING_DB.prepare("SELECT r2_key FROM field_maps WHERE id = ?")
+  const map = await c.env.SCOUTING_DB.prepare(
+    "SELECT r2_key, created_by FROM field_maps WHERE id = ?",
+  )
     .bind(c.req.param("id"))
-    .first<{ r2_key: string }>();
+    .first<{ r2_key: string; created_by: string }>();
   if (!map) return c.json({ error: "Map not found." }, 404);
+  if (!c.get("userIsAdmin") && map.created_by !== c.get("userId")) {
+    return c.json({ error: "Only the publisher or an admin can delete this map." }, 403);
+  }
   await Promise.all([
     c.env.FIELD_MAPS.delete(map.r2_key),
     c.env.SCOUTING_DB.prepare("DELETE FROM field_maps WHERE id = ?").bind(c.req.param("id")).run(),
