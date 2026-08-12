@@ -526,7 +526,7 @@ const app = base
       .set({
         state,
         stateSince: Date.now(),
-        voltage: tracksVoltage ? existing.voltage ?? null : null,
+        voltage: tracksVoltage ? (existing.voltage ?? null) : null,
         useCount: enteringRobot ? currentUseCount + 1 : currentUseCount,
       })
       .where(eq(batteries.id, id));

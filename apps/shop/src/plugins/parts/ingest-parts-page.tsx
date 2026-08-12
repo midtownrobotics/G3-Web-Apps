@@ -373,7 +373,6 @@ export function IngestPartsPage() {
     try {
       setPendingLoading(true);
       setError(null);
-      // biome-ignore lint/suspicious/noExplicitAny: workaround for Hono client type generation
       const res = await api.admin.parts.pending.$get();
       if (!res.ok) {
         setError(await getErrorMessage(res as unknown as Response));
@@ -392,7 +391,6 @@ export function IngestPartsPage() {
   async function handleDeletePart(partNumber: string) {
     setDeletingPartNumber(partNumber);
     try {
-      // biome-ignore lint/suspicious/noExplicitAny: workaround for Hono client type generation
       const res = await api.admin.parts[":partNumber"].$delete({ param: { partNumber } });
 
       if (!res.ok) {
@@ -590,7 +588,6 @@ export function IngestPartsPage() {
                       const partData = localPartData[part.partNumber];
                       if (!partData?.subsystemId) continue;
 
-                      // biome-ignore lint/suspicious/noExplicitAny: workaround for Hono client type generation
                       await api["part-definitions"].$post({
                         json: {
                           onshapePartNumber: part.partNumber,
@@ -775,7 +772,6 @@ function PartIngestCard({
 
   async function loadDocumentId() {
     try {
-      // biome-ignore lint/suspicious/noExplicitAny: workaround for Hono client type generation
       const res = await api.admin.onshape.config.$get();
       if (res.ok) {
         const config = (await res.json()) as { documentId: string };
@@ -850,7 +846,6 @@ function PartIngestCard({
         return;
       }
 
-      // biome-ignore lint/suspicious/noExplicitAny: workaround for Hono client type generation
       const res = await api.admin.parts[":partNumber"][":revision"]["fetch-drawing"].$post({
         param: { partNumber: part.partNumber, revision },
       });
@@ -892,7 +887,6 @@ function PartIngestCard({
 
   async function checkForDuplicates(): Promise<string[]> {
     try {
-      // biome-ignore lint/suspicious/noExplicitAny: workaround for Hono client type generation
       const res = await api["part-definitions"].$get({
         query: { onshapePartNumber: form.onshapePartNumber.trim() },
       });
