@@ -77,10 +77,6 @@ function ProviderIcon({ provider }: { provider: string }) {
   }
 }
 
-function firstName(displayName: string) {
-  return displayName.split(" ")[0];
-}
-
 const FILTERS = ["pending", "active", "rejected", "all"] as const;
 type Filter = (typeof FILTERS)[number];
 
