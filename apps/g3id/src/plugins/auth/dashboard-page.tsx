@@ -79,7 +79,11 @@ export function DashboardPage() {
                   ...prev,
                   identities: [
                     ...prev.identities,
-                    { id: `slack-${Date.now()}`, provider: "slack", createdAt: Math.floor(Date.now() / 1000) },
+                    {
+                      id: `slack-${Date.now()}`,
+                      provider: "slack",
+                      createdAt: Math.floor(Date.now() / 1000),
+                    },
                   ],
                 }
               : prev,
@@ -267,7 +271,10 @@ export function DashboardPage() {
               if (identity.provider === "github" && identity.providerEmail) {
                 displayText = identity.providerEmail;
                 profileUrl = `https://github.com/${identity.providerEmail}`;
-              } else if (identity.provider === "steam" && (identity.providerEmail || identity.providerId)) {
+              } else if (
+                identity.provider === "steam" &&
+                (identity.providerEmail || identity.providerId)
+              ) {
                 displayText = (identity.providerEmail || identity.providerId) ?? null;
                 if (displayText) {
                   profileUrl = `https://steamcommunity.com/profiles/${displayText}`;
@@ -277,14 +284,17 @@ export function DashboardPage() {
               }
 
               return (
-                <div key={identity.provider} className="flex items-center justify-between text-sm group">
+                <div
+                  key={identity.provider}
+                  className="flex items-center justify-between text-sm group"
+                >
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="text-white">
                         {PROVIDER_LABELS[identity.provider] ?? identity.provider}
                       </p>
-                      {displayText && (
-                        profileUrl ? (
+                      {displayText &&
+                        (profileUrl ? (
                           <a
                             href={profileUrl}
                             target="_blank"
@@ -294,18 +304,17 @@ export function DashboardPage() {
                             {displayText}
                           </a>
                         ) : (
-                          <span className="text-secondary-400 text-xs truncate">
-                            {displayText}
-                          </span>
-                        )
-                      )}
+                          <span className="text-secondary-400 text-xs truncate">{displayText}</span>
+                        ))}
                     </div>
                     <p className="text-secondary-300 text-xs">
                       Added {new Date(identity.createdAt * 1000).toLocaleDateString()}
                     </p>
                   </div>
                   <div className="ml-2 flex items-center gap-2 shrink-0">
-                    {(identity.provider === "steam" || identity.provider === "google" || identity.provider === "github") && (
+                    {(identity.provider === "steam" ||
+                      identity.provider === "google" ||
+                      identity.provider === "github") && (
                       <a
                         href={`${import.meta.env.VITE_API_BASE_URL}/auth/${identity.provider}/link`}
                         className="px-2 py-1 rounded bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold transition-colors cursor-pointer"

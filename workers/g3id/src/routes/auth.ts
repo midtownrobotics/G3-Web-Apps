@@ -214,10 +214,7 @@ export const authRouter = new Hono<AppEnv>()
       .all();
 
     if (identities.length <= 1) {
-      return c.json(
-        { error: "You must keep at least one sign-in method linked." },
-        400,
-      );
+      return c.json({ error: "You must keep at least one sign-in method linked." }, 400);
     }
 
     await db.delete(coreUserIdentities).where(eq(coreUserIdentities.id, identityId));
