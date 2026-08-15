@@ -33,6 +33,15 @@ const STATUS_STYLES: Record<string, string> = {
   rejected: "bg-primary-500/20 text-primary-300 border-primary-500/30",
 };
 
+const PROVIDER_LABELS: Record<string, string> = {
+  local: "Password",
+  google: "Google",
+  slack: "Slack",
+  github: "GitHub",
+  steam: "Steam",
+  onshape: "OnShape",
+};
+
 function ProviderIcon({ provider }: { provider: string }) {
   const cls = "w-4 h-4";
   switch (provider) {
@@ -221,6 +230,57 @@ export function AdminUsersPage() {
   const countFor = (f: Filter) =>
     f === "all" ? users.length : users.filter((u) => u.status === f).length;
 
+  function exportActiveUsersToCSV() {
+    const activeUsers = users.filter((u) => u.status === "active");
+    if (activeUsers.length === 0) return;
+
+    const authMethods = ["Slack", "Google", "GitHub", "Steam", "Local", "OnShape"];
+    const headers = [
+      "Name",
+      "Email",
+      "Joined Date",
+      "Last Login",
+      "Admin",
+      ...authMethods,
+    ];
+
+    const rows = activeUsers.map((u) => {
+      const providerSet = new Set(u.identities.map((i) => i.provider));
+      const authValues = {
+        slack: providerSet.has("slack"),
+        google: providerSet.has("google"),
+        github: providerSet.has("github"),
+        steam: providerSet.has("steam"),
+        local: providerSet.has("local"),
+        onshape: providerSet.has("onshape"),
+      };
+      return [
+        u.displayName,
+        u.email,
+        new Date(u.createdAt * 1000).toLocaleDateString(),
+        u.lastLoginAt ? new Date(u.lastLoginAt * 1000).toLocaleString() : "Never",
+        u.isAdmin ? "Yes" : "No",
+        authValues.slack ? "TRUE" : "FALSE",
+        authValues.google ? "TRUE" : "FALSE",
+        authValues.github ? "TRUE" : "FALSE",
+        authValues.steam ? "TRUE" : "FALSE",
+        authValues.local ? "TRUE" : "FALSE",
+        authValues.onshape ? "TRUE" : "FALSE",
+      ];
+    });
+
+    const csv = [
+      headers.map((h) => `"${h}"`).join(","),
+      ...rows.map((r) => r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")),
+    ].join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `g3id-active-users-${new Date().toISOString().split("T")[0]}.csv`;
+    link.click();
+  }
+
   return (
     <main className="flex-1 px-4 py-8 max-w-2xl mx-auto w-full">
       <div className="mb-6 flex gap-4 border-b border-secondary-600">
@@ -244,7 +304,16 @@ export function AdminUsersPage() {
         </Link>
       </div>
 
-      <h1 className="text-2xl font-bold text-white mb-6">Users</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-white">Users</h1>
+        <button
+          type="button"
+          onClick={exportActiveUsersToCSV}
+          className="px-4 py-2 rounded-lg text-sm font-medium bg-primary-500 hover:bg-primary-600 text-white transition-colors"
+        >
+          Export Active Users (CSV)
+        </button>
+      </div>
 
       {/* Filter tabs */}
       <div className="flex gap-2 mb-6">
