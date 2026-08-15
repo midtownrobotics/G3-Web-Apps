@@ -519,7 +519,6 @@ function PartLine({
   const isClickable = (navigate && row.current) || onOpen;
 
   return (
-    // biome-ignore lint/a11y/useKeyWithClickEvents: row is a convenience target; nested controls remain keyboard-accessible
     <div
       className={`relative flex items-center gap-3 px-4 ${
         isClickable ? "cursor-pointer hover:bg-mist/70 transition-colors" : ""

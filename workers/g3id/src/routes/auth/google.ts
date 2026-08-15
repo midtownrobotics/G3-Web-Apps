@@ -97,6 +97,7 @@ export const googleAuthRouter = new Hono<AppEnv>()
 
     const payload = decodeJwtPayload(tokens.id_token);
     const sub = payload.sub as string;
+    const email = payload.email as string | undefined;
 
     const db = createDb(c.env.DB);
     const now = Math.floor(Date.now() / 1000);
@@ -105,6 +106,7 @@ export const googleAuthRouter = new Hono<AppEnv>()
       id: newId(),
       provider: "google" as const,
       providerId: sub,
+      providerEmail: email ?? null,
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token ?? null,
       tokenExpiresAt: now + tokens.expires_in,
