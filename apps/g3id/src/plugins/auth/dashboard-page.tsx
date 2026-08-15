@@ -42,6 +42,8 @@ export function DashboardPage() {
   const [pinLoading, setPinLoading] = useState(false);
   const [pinError, setPinError] = useState<string | null>(null);
 
+  const [unlinkingProvider, setUnlinkingProvider] = useState<string | null>(null);
+
   async function handleConnectSlack() {
     setSlackError(null);
     const res = await api.auth.slack.link.$get();
@@ -161,6 +163,41 @@ export function DashboardPage() {
     }
   }
 
+  async function handleUnlink(provider: string) {
+    if (!me || me.identities.length <= 1) {
+      alert("You must keep at least one sign-in method linked.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Unlink ${PROVIDER_LABELS[provider] ?? provider}? You'll no longer be able to sign in with this method.`,
+    );
+    if (!confirmed) return;
+
+    setUnlinkingProvider(provider);
+    try {
+      const res = await api.auth.identities[":provider"].$delete({
+        param: { provider },
+      });
+      if (!res.ok) {
+        alert("Failed to unlink account");
+        return;
+      }
+      setMe((prev) =>
+        prev
+          ? {
+              ...prev,
+              identities: prev.identities.filter((i) => i.provider !== provider),
+            }
+          : prev,
+      );
+    } catch {
+      alert("Failed to unlink account");
+    } finally {
+      setUnlinkingProvider(null);
+    }
+  }
+
   useEffect(() => {
     api.auth.me.$get().then(async (res) => {
       if (res.status === 401) {
@@ -219,12 +256,24 @@ export function DashboardPage() {
           <div className="space-y-2">
             {me.identities.map((identity) => (
               <div key={identity.provider} className="flex items-center justify-between text-sm">
-                <span className="text-white">
-                  {PROVIDER_LABELS[identity.provider] ?? identity.provider}
-                </span>
-                <span className="text-secondary-300 text-xs">
-                  Added {new Date(identity.createdAt * 1000).toLocaleDateString()}
-                </span>
+                <div>
+                  <p className="text-white">
+                    {PROVIDER_LABELS[identity.provider] ?? identity.provider}
+                  </p>
+                  <p className="text-secondary-300 text-xs">
+                    Added {new Date(identity.createdAt * 1000).toLocaleDateString()}
+                  </p>
+                </div>
+                {identity.provider !== "slack" && (
+                  <button
+                    type="button"
+                    onClick={() => handleUnlink(identity.provider)}
+                    disabled={unlinkingProvider === identity.provider}
+                    className="px-3 py-1 rounded bg-primary-700 hover:bg-primary-600 disabled:opacity-50 text-xs text-white transition-colors"
+                  >
+                    {unlinkingProvider === identity.provider ? "Unlinking…" : "Unlink"}
+                  </button>
+                )}
               </div>
             ))}
           </div>

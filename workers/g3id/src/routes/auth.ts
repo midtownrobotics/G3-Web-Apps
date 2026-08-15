@@ -1,4 +1,4 @@
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import { deleteCookie, getCookie } from "hono/cookie";
 import { createDb } from "../db";
@@ -177,4 +177,37 @@ export const authRouter = new Hono<AppEnv>()
     // TODO: Send PIN via Slack DM or email
 
     return c.json({ pin: newPin });
+  })
+  .delete("/identities/:provider", requireAuth, async (c) => {
+    const userId = c.get("userId") as string;
+    const provider = c.req.param("provider");
+    const db = createDb(c.env.DB);
+
+    if (provider === "slack") {
+      return c.json({ error: "Cannot unlink Slack." }, 400);
+    }
+
+    const identities = await db
+      .select({ provider: coreUserIdentities.provider })
+      .from(coreUserIdentities)
+      .where(eq(coreUserIdentities.userId, userId))
+      .all();
+
+    if (identities.length <= 1) {
+      return c.json(
+        { error: "You must keep at least one sign-in method linked." },
+        400,
+      );
+    }
+
+    const identity = identities.find((i) => i.provider === provider);
+    if (!identity) {
+      return c.json({ error: "Identity not found." }, 404);
+    }
+
+    await db
+      .delete(coreUserIdentities)
+      .where(and(eq(coreUserIdentities.userId, userId), eq(coreUserIdentities.provider, provider)));
+
+    return c.json({ ok: true });
   });
