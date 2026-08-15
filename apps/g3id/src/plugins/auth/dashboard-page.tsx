@@ -1,7 +1,7 @@
 import { OnShapeIcon } from "@g3/ui";
 import { Loader2, Shield } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { FaGithub, FaGoogle, FaSlack } from "react-icons/fa";
+import { FaGithub, FaGoogle, FaSlack, FaSteam } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../../lib/api";
 
@@ -305,11 +305,11 @@ export function DashboardPage() {
                     </p>
                   </div>
                   <div className="ml-2 flex items-center gap-2 shrink-0">
-                    {identity.provider === "steam" && (
+                    {(identity.provider === "steam" || identity.provider === "google" || identity.provider === "github") && (
                       <a
-                        href={`${import.meta.env.VITE_API_BASE_URL}/auth/steam/link`}
+                        href={`${import.meta.env.VITE_API_BASE_URL}/auth/${identity.provider}/link`}
                         className="px-2 py-1 rounded bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold transition-colors cursor-pointer"
-                        title="Add another Steam account"
+                        title={`Add another ${identity.provider} account`}
                       >
                         +
                       </a>
@@ -331,25 +331,30 @@ export function DashboardPage() {
           </div>
 
           <div className="mt-3 space-y-2">
-            <a
-              href={`${import.meta.env.VITE_API_BASE_URL}/auth/google/link`}
-              className="w-full flex items-center justify-center gap-2 rounded-lg bg-primary-600 hover:bg-primary-700 px-4 py-2 text-sm text-white transition-colors"
-            >
-              <FaGoogle size={16} />
-              {me.identities.some((i) => i.provider === "google") ? "Add Google Account" : "Connect Google"}
-            </a>
-            <a
-              href={`${import.meta.env.VITE_API_BASE_URL}/auth/github/link`}
-              className="w-full flex items-center justify-center gap-2 rounded-lg bg-primary-600 hover:bg-primary-700 px-4 py-2 text-sm text-white transition-colors"
-            >
-              <FaGithub size={16} />
-              {me.identities.some((i) => i.provider === "github") ? "Add GitHub Account" : "Connect GitHub"}
-            </a>
+            {!me.identities.some((i) => i.provider === "google") && (
+              <a
+                href={`${import.meta.env.VITE_API_BASE_URL}/auth/google/link`}
+                className="w-full flex items-center justify-center gap-2 rounded-lg bg-primary-600 hover:bg-primary-700 px-4 py-2 text-sm text-white transition-colors"
+              >
+                <FaGoogle size={16} />
+                Connect Google
+              </a>
+            )}
+            {!me.identities.some((i) => i.provider === "github") && (
+              <a
+                href={`${import.meta.env.VITE_API_BASE_URL}/auth/github/link`}
+                className="w-full flex items-center justify-center gap-2 rounded-lg bg-primary-600 hover:bg-primary-700 px-4 py-2 text-sm text-white transition-colors"
+              >
+                <FaGithub size={16} />
+                Connect GitHub
+              </a>
+            )}
             {!me.identities.some((i) => i.provider === "steam") && (
               <a
                 href={`${import.meta.env.VITE_API_BASE_URL}/auth/steam/link`}
                 className="w-full flex items-center justify-center gap-2 rounded-lg bg-primary-600 hover:bg-primary-700 px-4 py-2 text-sm text-white transition-colors"
               >
+                <FaSteam size={16} />
                 Connect Steam
               </a>
             )}
