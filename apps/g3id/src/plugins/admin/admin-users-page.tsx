@@ -33,15 +33,6 @@ const STATUS_STYLES: Record<string, string> = {
   rejected: "bg-primary-500/20 text-primary-300 border-primary-500/30",
 };
 
-const PROVIDER_LABELS: Record<string, string> = {
-  local: "Password",
-  google: "Google",
-  slack: "Slack",
-  github: "GitHub",
-  steam: "Steam",
-  onshape: "OnShape",
-};
-
 function ProviderIcon({ provider }: { provider: string }) {
   const cls = "w-4 h-4";
   switch (provider) {
@@ -235,14 +226,7 @@ export function AdminUsersPage() {
     if (activeUsers.length === 0) return;
 
     const authMethods = ["Slack", "Google", "GitHub", "Steam", "Local", "OnShape"];
-    const headers = [
-      "Name",
-      "Email",
-      "Joined Date",
-      "Last Login",
-      "Admin",
-      ...authMethods,
-    ];
+    const headers = ["Name", "Email", "Joined Date", "Last Login", "Admin", ...authMethods];
 
     const rows = activeUsers.map((u) => {
       const providerSet = new Set(u.identities.map((i) => i.provider));
