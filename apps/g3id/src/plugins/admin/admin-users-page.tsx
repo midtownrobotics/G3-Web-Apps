@@ -259,7 +259,7 @@ export function AdminUsersPage() {
         u.email,
         new Date(u.createdAt * 1000).toLocaleDateString(),
         u.lastLoginAt ? new Date(u.lastLoginAt * 1000).toLocaleString() : "Never",
-        u.isAdmin ? "Yes" : "No",
+        u.isAdmin ? "TRUE" : "FALSE",
         authValues.slack ? "TRUE" : "FALSE",
         authValues.google ? "TRUE" : "FALSE",
         authValues.github ? "TRUE" : "FALSE",
