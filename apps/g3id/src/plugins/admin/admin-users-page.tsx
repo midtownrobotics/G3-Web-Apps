@@ -77,10 +77,6 @@ function ProviderIcon({ provider }: { provider: string }) {
   }
 }
 
-function firstName(displayName: string) {
-  return displayName.split(" ")[0];
-}
-
 const FILTERS = ["pending", "active", "rejected", "all"] as const;
 type Filter = (typeof FILTERS)[number];
 
@@ -299,7 +295,7 @@ export function AdminUsersPage() {
                 {/* Name + identity icons */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-white font-semibold">{firstName(user.displayName)}</span>
+                    <span className="text-white font-semibold">{user.displayName}</span>
                     {user.isAdmin === 1 && (
                       <span className="text-xs px-1.5 py-0.5 rounded bg-primary-500/20 text-primary-300 border border-primary-500/30">
                         Admin
