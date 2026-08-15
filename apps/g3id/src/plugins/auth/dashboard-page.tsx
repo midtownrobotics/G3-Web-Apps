@@ -1,11 +1,17 @@
 import { OnShapeIcon } from "@g3/ui";
 import { Loader2, Shield } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { FaGithub, FaGoogle, FaSlack, FaSteam } from "react-icons/fa";
+import { FaGithub, FaGoogle, FaSlack } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../../lib/api";
 
-type Identity = { provider: string; createdAt: number };
+type Identity = {
+  id: string;
+  provider: string;
+  createdAt: number;
+  providerEmail?: string | null;
+  providerId?: string;
+};
 
 type Me = {
   id: string;
@@ -73,7 +79,7 @@ export function DashboardPage() {
                   ...prev,
                   identities: [
                     ...prev.identities,
-                    { provider: "slack", createdAt: Math.floor(Date.now() / 1000) },
+                    { id: `slack-${Date.now()}`, provider: "slack", createdAt: Math.floor(Date.now() / 1000) },
                   ],
                 }
               : prev,
@@ -163,7 +169,7 @@ export function DashboardPage() {
     }
   }
 
-  async function handleUnlink(provider: string) {
+  async function handleUnlink(identityId: string, provider: string) {
     if (!me || me.identities.length <= 1) {
       alert("You must keep at least one sign-in method linked.");
       return;
@@ -174,10 +180,10 @@ export function DashboardPage() {
     );
     if (!confirmed) return;
 
-    setUnlinkingProvider(provider);
+    setUnlinkingProvider(identityId);
     try {
-      const res = await api.auth.identities[":provider"].$delete({
-        param: { provider },
+      const res = await api.auth.identities[":identityId"].$delete({
+        param: { identityId },
       });
       if (!res.ok) {
         alert("Failed to unlink account");
@@ -187,7 +193,7 @@ export function DashboardPage() {
         prev
           ? {
               ...prev,
-              identities: prev.identities.filter((i) => i.provider !== provider),
+              identities: prev.identities.filter((i) => i.id !== identityId),
             }
           : prev,
       );
@@ -254,57 +260,100 @@ export function DashboardPage() {
         <div className="px-5 py-4">
           <p className="text-xs text-secondary-300 uppercase tracking-wide mb-3">Linked Accounts</p>
           <div className="space-y-2">
-            {me.identities.map((identity) => (
-              <div key={identity.provider} className="flex items-center justify-between text-sm">
-                <div>
-                  <p className="text-white">
-                    {PROVIDER_LABELS[identity.provider] ?? identity.provider}
-                  </p>
-                  <p className="text-secondary-300 text-xs">
-                    Added {new Date(identity.createdAt * 1000).toLocaleDateString()}
-                  </p>
+            {me.identities.map((identity) => {
+              let displayText: string | null = null;
+              let profileUrl: string | null = null;
+
+              if (identity.provider === "github" && identity.providerEmail) {
+                displayText = identity.providerEmail;
+                profileUrl = `https://github.com/${identity.providerEmail}`;
+              } else if (identity.provider === "steam" && (identity.providerEmail || identity.providerId)) {
+                displayText = (identity.providerEmail || identity.providerId) ?? null;
+                if (displayText) {
+                  profileUrl = `https://steamcommunity.com/profiles/${displayText}`;
+                }
+              } else if (identity.provider === "google" && identity.providerEmail) {
+                displayText = identity.providerEmail;
+              }
+
+              return (
+                <div key={identity.provider} className="flex items-center justify-between text-sm group">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-white">
+                        {PROVIDER_LABELS[identity.provider] ?? identity.provider}
+                      </p>
+                      {displayText && (
+                        profileUrl ? (
+                          <a
+                            href={profileUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary-400 hover:text-primary-300 text-xs truncate"
+                          >
+                            {displayText}
+                          </a>
+                        ) : (
+                          <span className="text-secondary-400 text-xs truncate">
+                            {displayText}
+                          </span>
+                        )
+                      )}
+                    </div>
+                    <p className="text-secondary-300 text-xs">
+                      Added {new Date(identity.createdAt * 1000).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <div className="ml-2 flex items-center gap-2 shrink-0">
+                    {identity.provider === "steam" && (
+                      <a
+                        href={`${import.meta.env.VITE_API_BASE_URL}/auth/steam/link`}
+                        className="px-2 py-1 rounded bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold transition-colors cursor-pointer"
+                        title="Add another Steam account"
+                      >
+                        +
+                      </a>
+                    )}
+                    {identity.provider !== "slack" && (
+                      <button
+                        type="button"
+                        onClick={() => handleUnlink(identity.id, identity.provider)}
+                        disabled={unlinkingProvider === identity.id}
+                        className="px-2 py-1 rounded bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-xs text-white transition-colors cursor-pointer"
+                      >
+                        {unlinkingProvider === identity.id ? "Unlinking…" : "Unlink"}
+                      </button>
+                    )}
+                  </div>
                 </div>
-                {identity.provider !== "slack" && (
-                  <button
-                    type="button"
-                    onClick={() => handleUnlink(identity.provider)}
-                    disabled={unlinkingProvider === identity.provider}
-                    className="px-3 py-1 rounded bg-primary-700 hover:bg-primary-600 disabled:opacity-50 text-xs text-white transition-colors"
-                  >
-                    {unlinkingProvider === identity.provider ? "Unlinking…" : "Unlink"}
-                  </button>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
 
-          {!me.identities.some((i) => i.provider === "google") && (
+          <div className="mt-3 space-y-2">
             <a
               href={`${import.meta.env.VITE_API_BASE_URL}/auth/google/link`}
-              className="mt-3 w-full flex items-center justify-center gap-2 rounded-lg bg-primary-500 hover:bg-primary-600 px-4 py-2 text-sm text-white transition-colors"
+              className="w-full flex items-center justify-center gap-2 rounded-lg bg-primary-600 hover:bg-primary-700 px-4 py-2 text-sm text-white transition-colors"
             >
               <FaGoogle size={16} />
-              Connect Google
+              {me.identities.some((i) => i.provider === "google") ? "Add Google Account" : "Connect Google"}
             </a>
-          )}
-          {!me.identities.some((i) => i.provider === "github") && (
             <a
               href={`${import.meta.env.VITE_API_BASE_URL}/auth/github/link`}
-              className="mt-3 w-full flex items-center justify-center gap-2 rounded-lg bg-primary-500 hover:bg-primary-600 px-4 py-2 text-sm text-white transition-colors"
+              className="w-full flex items-center justify-center gap-2 rounded-lg bg-primary-600 hover:bg-primary-700 px-4 py-2 text-sm text-white transition-colors"
             >
               <FaGithub size={16} />
-              Connect GitHub
+              {me.identities.some((i) => i.provider === "github") ? "Add GitHub Account" : "Connect GitHub"}
             </a>
-          )}
-          {!me.identities.some((i) => i.provider === "steam") && (
-            <a
-              href={`${import.meta.env.VITE_API_BASE_URL}/auth/steam/link`}
-              className="mt-3 w-full flex items-center justify-center gap-2 rounded-lg bg-primary-500 hover:bg-primary-600 px-4 py-2 text-sm text-white transition-colors"
-            >
-              <FaSteam size={16} />
-              Connect Steam
-            </a>
-          )}
+            {!me.identities.some((i) => i.provider === "steam") && (
+              <a
+                href={`${import.meta.env.VITE_API_BASE_URL}/auth/steam/link`}
+                className="w-full flex items-center justify-center gap-2 rounded-lg bg-primary-600 hover:bg-primary-700 px-4 py-2 text-sm text-white transition-colors"
+              >
+                Connect Steam
+              </a>
+            )}
+          </div>
           {!me.identities.some((i) => i.provider === "slack") && (
             <div className="mt-3">
               {slackCode ? (
@@ -327,7 +376,7 @@ export function DashboardPage() {
                   <button
                     type="button"
                     onClick={handleConnectSlack}
-                    className="w-full flex items-center justify-center gap-2 rounded-lg bg-primary-500 hover:bg-primary-600 px-4 py-2 text-sm text-white transition-colors"
+                    className="w-full flex items-center justify-center gap-2 rounded-lg bg-primary-600 hover:bg-primary-700 px-4 py-2 text-sm text-white transition-colors cursor-pointer"
                   >
                     <FaSlack size={16} />
                     Connect Slack
@@ -342,7 +391,7 @@ export function DashboardPage() {
           {me.sessionType === "oauth" && !me.identities.some((i) => i.provider === "onshape") && (
             <a
               href={`${import.meta.env.VITE_API_BASE_URL}/auth/onshape`}
-              className="mt-3 w-full flex items-center justify-center gap-2 rounded-lg bg-primary-500 hover:bg-primary-600 px-4 py-2 text-sm text-white transition-colors"
+              className="mt-3 w-full flex items-center justify-center gap-2 rounded-lg bg-primary-600 hover:bg-primary-700 px-4 py-2 text-sm text-white transition-colors"
             >
               <OnShapeIcon size={16} white />
               Connect OnShape
@@ -362,7 +411,7 @@ export function DashboardPage() {
                   type="button"
                   onClick={regeneratePin}
                   disabled={pinLoading}
-                  className="w-full px-4 py-2 rounded-lg bg-primary-500 hover:bg-primary-600 disabled:opacity-50 text-sm text-white transition-colors"
+                  className="w-full px-4 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-sm text-white transition-colors"
                 >
                   {pinLoading ? "Regenerating..." : "Generate New PIN"}
                 </button>
@@ -373,7 +422,7 @@ export function DashboardPage() {
                 type="button"
                 onClick={fetchPin}
                 disabled={pinLoading}
-                className="w-full px-4 py-2 rounded-lg bg-primary-500 hover:bg-primary-600 disabled:opacity-50 text-sm text-white transition-colors"
+                className="w-full px-4 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-sm text-white transition-colors"
               >
                 {pinLoading ? "Loading..." : "View PIN"}
               </button>

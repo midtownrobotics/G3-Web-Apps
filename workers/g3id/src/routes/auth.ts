@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import { deleteCookie, getCookie } from "hono/cookie";
 import { createDb } from "../db";
@@ -31,7 +31,13 @@ export const authRouter = new Hono<AppEnv>()
     if (!user) return c.json({ error: "User not found." }, 404);
 
     const identities = await db
-      .select({ provider: coreUserIdentities.provider, createdAt: coreUserIdentities.createdAt })
+      .select({
+        id: coreUserIdentities.id,
+        provider: coreUserIdentities.provider,
+        createdAt: coreUserIdentities.createdAt,
+        providerEmail: coreUserIdentities.providerEmail,
+        providerId: coreUserIdentities.providerId,
+      })
       .from(coreUserIdentities)
       .where(eq(coreUserIdentities.userId, userId))
       .all();
@@ -178,17 +184,31 @@ export const authRouter = new Hono<AppEnv>()
 
     return c.json({ pin: newPin });
   })
-  .delete("/identities/:provider", requireAuth, async (c) => {
+  .delete("/identities/:identityId", requireAuth, async (c) => {
     const userId = c.get("userId") as string;
-    const provider = c.req.param("provider");
+    const identityId = c.req.param("identityId");
     const db = createDb(c.env.DB);
 
-    if (provider === "slack") {
+    const identity = await db
+      .select({ id: coreUserIdentities.id, provider: coreUserIdentities.provider })
+      .from(coreUserIdentities)
+      .where(eq(coreUserIdentities.id, identityId))
+      .get();
+
+    if (!identity) {
+      return c.json({ error: "Identity not found." }, 404);
+    }
+
+    if (identity.provider === "slack") {
       return c.json({ error: "Cannot unlink Slack." }, 400);
     }
 
+    if (identity.provider !== (c.req.query("provider") ?? identity.provider)) {
+      return c.json({ error: "Invalid request." }, 400);
+    }
+
     const identities = await db
-      .select({ provider: coreUserIdentities.provider })
+      .select({ id: coreUserIdentities.id })
       .from(coreUserIdentities)
       .where(eq(coreUserIdentities.userId, userId))
       .all();
@@ -200,14 +220,7 @@ export const authRouter = new Hono<AppEnv>()
       );
     }
 
-    const identity = identities.find((i) => i.provider === provider);
-    if (!identity) {
-      return c.json({ error: "Identity not found." }, 404);
-    }
-
-    await db
-      .delete(coreUserIdentities)
-      .where(and(eq(coreUserIdentities.userId, userId), eq(coreUserIdentities.provider, provider)));
+    await db.delete(coreUserIdentities).where(eq(coreUserIdentities.id, identityId));
 
     return c.json({ ok: true });
   });
