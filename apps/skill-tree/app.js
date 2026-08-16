@@ -443,13 +443,20 @@ async function initApp(user) {
   });
 }
 
-async function doLogin() {
-  const g3idBase = window.location.hostname === 'localhost' ? 'http://localhost:5173' : 'https://g3id.g3robotics.com';
-  const redirectUrl = g3idBase + '/login?redirect=' + encodeURIComponent(window.location.href);
-  window.location.href = redirectUrl;
+function doLogin() {
+  console.log('doLogin called');
+  try {
+    const g3idBase = window.location.hostname === 'localhost' ? 'http://localhost:5173' : 'https://g3id.g3robotics.com';
+    const returnUrl = encodeURIComponent(window.location.href);
+    const redirectUrl = g3idBase + '/login?redirect=' + returnUrl;
+    console.log('Redirecting to:', redirectUrl);
+    window.location.href = redirectUrl;
+  } catch (e) {
+    console.error('doLogin error:', e);
+  }
 }
 
-async function doLogout() {
+function doLogout() {
   if (unsubStudents) { unsubStudents(); unsubStudents = null; }
   students = {}; displayNames = {}; cur = null; userRole = 'student'; currentUser = null;
   closePanel();
@@ -675,13 +682,6 @@ function bulkBuildTreeSelect(){
   TREES.forEach(t=>{const o=document.createElement('option');o.value=t.id;o.textContent=t.icon+' '+t.name;sel.appendChild(o);});
 }
 
-function bulkOnTreeChange(){
-  bulkState.selectedTree=document.getElementById('bulkTreeSelect').value;
-  bulkState.selectedSubtree='';
-  bulkState.selectedSkill='';
-  bulkRenderSkillStep();
-}
-
 function bulkRenderSkillStep(){
   console.log('bulkRenderSkillStep called');
   bulkRenderTreeSelect();
@@ -718,12 +718,13 @@ function bulkOnSubtreeChange(){
   const tree=TREES.find(t=>t.id===treeId);
   const skills=tree.nodes.filter(n=>n.cat===catId);
   skills.forEach(sk=>{const o=document.createElement('option');o.value=sk.id;o.textContent=sk.label;skillSel.appendChild(o);});
+  skillSel.addEventListener('change',bulkOnSkillChange);
 }
 
-function bulkAddSkill(){
+function bulkOnSkillChange(){
   const treeId=document.getElementById('bulkTreeSelect').value;
   const skillId=document.getElementById('bulkSkillSelect').value;
-  if(!treeId || !skillId){alert('Please select tree and skill');return;}
+  if(!treeId || !skillId)return;
   const tree=TREES.find(t=>t.id===treeId);
   const skill=tree.nodes.find(s=>s.id===skillId);
   const cat=tree.cats.find(c=>c.id===skill.cat);
@@ -731,15 +732,18 @@ function bulkAddSkill(){
   if(!bulkState.selectedSkills.find(s=>s.id===skillId)){
     bulkState.selectedSkills.push({id:skillId,label,treeId});
     bulkRenderSelectedSkills();
-    document.getElementById('bulkTreeSelect').value='';
-    document.getElementById('bulkSubtreeSelect').innerHTML='<option value="">Choose a category...</option>';
-    document.getElementById('bulkSkillSelect').innerHTML='<option value="">Choose a skill...</option>';
+    document.getElementById('bulkSkillSelect').value='';
+    bulkRenderSkillOptions();
   }
 }
 
 function bulkRenderSelectedSkills(){
   const div=document.getElementById('bulkSelectedSkillsList');
-  div.innerHTML=bulkState.selectedSkills.length?bulkState.selectedSkills.map((s,i)=>`<div style="padding:8px;background:#f0f4f8;border:1px solid #ccc;border-radius:4px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;"><span>${s.label}</span><button onclick="bulkRemoveSkill(${i})" style="background:none;border:none;cursor:pointer;font-size:18px;color:#666;padding:0;margin-left:8px;">×</button></div>`).join(''):'<div style="color:#999;padding:8px;">No skills selected</div>';
+  if(!bulkState.selectedSkills.length){
+    div.innerHTML='<div style="color:#999;padding:8px;">No skills selected</div>';
+    return;
+  }
+  div.innerHTML=bulkState.selectedSkills.map((s,i)=>`<div style="padding:8px;background:#e8f4f8;border:1px solid #90caf9;border-radius:4px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;color:#000;"><span style="flex:1;color:#000;">${s.label}</span><button onclick="bulkRemoveSkill(${i})" style="background:none;border:none;cursor:pointer;font-size:18px;color:#666;padding:0;margin-left:8px;flex-shrink:0;">×</button></div>`).join('');
 }
 
 function bulkRemoveSkill(idx){
@@ -776,12 +780,12 @@ async function bulkApply(){
   try{
     let success=0;
     for(const user of bulkState.selectedUsers){
-      for(const skillId of bulkState.selectedSkills){
+      for(const skill of bulkState.selectedSkills){
         const res=await fetch(`${SKILL_TREE_API}/students/${user.id}`,{
           method:'PATCH',
           headers:{'Content-Type':'application/json'},
           credentials:'include',
-          body:JSON.stringify({skillId,status:bulkState.selectedStatus})
+          body:JSON.stringify({skillId:skill.id,status:bulkState.selectedStatus})
         });
         if(res.ok)success++;
       }
