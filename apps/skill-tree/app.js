@@ -405,9 +405,9 @@ async function initApp(user) {
     userRole = 'student';
   }
 
-  // Site admins manage the mentor list — reveal the Mentors tab for them.
+  // Site admins manage the mentor list — reveal the Mentors tab for admins and mentors.
   isAdmin = !!user.isAdmin;
-  document.getElementById('navMn').style.display = isAdmin ? '' : 'none';
+  document.getElementById('navMn').style.display = (isAdmin || userRole === 'mentor') ? '' : 'none';
 
   // Hide login screen, restore tree-selector initial state
   document.getElementById('loginScreen').classList.add('hidden');
@@ -532,7 +532,7 @@ async function renderMentors(){
   const byName=(a,b)=>(displayNames[a]||a).localeCompare(displayNames[b]||b);
   const candidates=Object.keys(students).filter(uid=>!mentorIds.has(uid)).sort(byName);
   const rows=mentors.slice().sort((a,b)=>(a.displayName||a.id).localeCompare(b.displayName||b.id))
-    .map(m=>`<div class="mn-row"><div class="mn-name">${m.displayName||m.id}</div><button class="mn-rm" onclick="mnRemove('${m.id}')">Remove</button></div>`).join('');
+    .map(m=>`<div class="mn-row"><div class="mn-name">${m.displayName||m.id}</div>${m.isAdmin ? '' : `<button class="mn-rm" onclick="mnRemove('${m.id}')">Remove</button>`}</div>`).join('');
   wrap.innerHTML=`
     <div style="margin-bottom:20px;"><button id="bulkBtn" style="background:var(--accent);border:none;color:#000;padding:8px 14px;border-radius:6px;cursor:pointer;font-weight:600;font-size:12px;">Bulk Progress Update</button></div>
     <div class="mn-add">
