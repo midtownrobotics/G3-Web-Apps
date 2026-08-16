@@ -12,11 +12,9 @@
 <div id="loginScreen" class="login-screen">
   <div class="login-card">
     <div class="login-logo">FRC <span>Skill</span> Trees</div>
-    <div class="login-sub">Sign in to continue</div>
-    <input id="loginEmail" type="email" placeholder="Email" autocomplete="email" />
-    <input id="loginPassword" type="password" placeholder="Password" autocomplete="current-password" />
+    <div class="login-sub">Sign in with G3ID</div>
     <div id="loginError" class="login-error"></div>
-    <button id="loginBtn" onclick="doLogin()">Sign In</button>
+    <button id="loginBtn" onclick="doLogin()">Sign In with G3ID</button>
   </div>
 </div>
 
@@ -110,25 +108,31 @@
         </div>
 
         <div class="step" id="bulkStep2">
-          <div class="step-header">Step 2: Select Skill</div>
+          <div class="step-header">Step 2: Select Skills & Status</div>
           <div class="step-content">
-            <div class="bulk-form-group">
-              <label>Skill Tree:</label>
-              <select id="bulkTreeSelect">
-                <option value="">Choose a tree...</option>
-              </select>
+            <div id="bulkSkillSelectorGroup" style="display:none;">
+              <div class="bulk-form-group">
+                <label>Tree:</label>
+                <select id="bulkTreeSelect">
+                  <option value="">Choose a tree...</option>
+                </select>
+              </div>
+              <div class="bulk-form-group">
+                <label>Category:</label>
+                <select id="bulkSubtreeSelect">
+                  <option value="">Choose a category...</option>
+                </select>
+              </div>
+              <div class="bulk-form-group">
+                <label>Skill:</label>
+                <select id="bulkSkillSelect">
+                  <option value="">Choose a skill...</option>
+                </select>
+              </div>
             </div>
-            <div class="bulk-form-group" id="bulkSubtreeGroup" style="display:none">
-              <label>Category:</label>
-              <select id="bulkSubtreeSelect">
-                <option value="">Choose a category...</option>
-              </select>
-            </div>
-            <div class="bulk-form-group" id="bulkSkillGroup" style="display:none">
-              <label>Skill:</label>
-              <select id="bulkSkillSelect">
-                <option value="">Choose a skill...</option>
-              </select>
+            <div class="bulk-form-group" id="bulkSelectedSkillsGroup" style="display:none;margin-top:20px;">
+              <label>Selected Skills:</label>
+              <div id="bulkSelectedSkillsList" style="max-height:200px;overflow-y:auto;margin-bottom:15px;"></div>
             </div>
             <div class="bulk-form-group">
               <label>Status:</label>
