@@ -5,6 +5,12 @@ import type { AppEnv } from "./types";
 
 type Tier = { id: string; name: string; color: string; items: string[] };
 type TierListInput = { name?: unknown; description?: unknown; tiers?: unknown };
+type G3IdUser = {
+  id: string;
+  email: string;
+  displayName: string;
+  status: "pending" | "active" | "rejected" | "merged";
+};
 const app = new Hono<AppEnv>();
 
 app.onError((error, c) => {
@@ -168,11 +174,48 @@ app.get("/field-map-publishers", requireAuth, async (c) => {
   return c.json({ publishers: rows.results });
 });
 
+async function getG3IdUsers(c: Context<AppEnv>) {
+  if (c.env.LOCAL_AUTH_BYPASS === "true") {
+    return [
+      {
+        id: c.get("userId"),
+        email: c.get("userEmail"),
+        displayName: c.get("userDisplayName"),
+        status: "active" as const,
+      },
+    ];
+  }
+  const response = await c.env.G3ID.fetch(
+    new Request("http://g3id/users", {
+      headers: { cookie: c.req.header("Cookie") ?? "" },
+    }),
+  );
+  if (!response.ok) return null;
+  return (await response.json()) as G3IdUser[];
+}
+
+app.get("/field-map-publisher-options", requireAuth, async (c) => {
+  if (!c.get("userIsAdmin")) return c.json({ error: "Admin access required." }, 403);
+  const users = await getG3IdUsers(c);
+  if (!users) return c.json({ error: "Could not load G3ID accounts." }, 502);
+  return c.json({
+    users: users
+      .filter((user) => user.status === "active")
+      .map(({ id, email, displayName }) => ({ id, email, displayName }))
+      .sort((a, b) => a.displayName.localeCompare(b.displayName)),
+  });
+});
+
 app.post("/field-map-publishers", requireAuth, async (c) => {
   if (!c.get("userIsAdmin")) return c.json({ error: "Admin access required." }, 403);
-  const body = await c.req.json<{ email?: unknown }>();
-  const email = text(body.email, 320).toLowerCase();
-  if (!/^\S+@\S+\.\S+$/.test(email)) return c.json({ error: "A valid email is required." }, 400);
+  const body = await c.req.json<{ userId?: unknown }>();
+  const userId = text(body.userId, 200);
+  if (!userId) return c.json({ error: "Select a G3ID account." }, 400);
+  const users = await getG3IdUsers(c);
+  if (!users) return c.json({ error: "Could not validate the G3ID account." }, 502);
+  const user = users.find((candidate) => candidate.id === userId && candidate.status === "active");
+  if (!user) return c.json({ error: "Select an active G3ID account." }, 400);
+  const email = user.email.toLowerCase();
   await c.env.SCOUTING_DB.prepare(
     "INSERT OR IGNORE INTO field_map_publishers (email, granted_by, created_at) VALUES (?, ?, ?)",
   )

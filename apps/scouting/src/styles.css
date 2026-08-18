@@ -3340,7 +3340,8 @@ html[data-theme="dark"] .tool-link {
   gap: 8px;
 }
 
-.map-sharing-access form input {
+.map-sharing-access form input,
+.map-sharing-access form select {
   min-height: 42px;
   flex: 1;
   padding: 0 12px;

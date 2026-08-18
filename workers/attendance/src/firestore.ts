@@ -265,27 +265,31 @@ export class Firestore {
       body: JSON.stringify({
         structuredQuery: {
           from: [{ collectionId, allDescendants: true }],
-          where:
-            filters.length === 1
-              ? {
-                fieldFilter: {
-                  field: { fieldPath: filters[0].field },
-                  op: filters[0].op,
-                  value: toFS(filters[0].value),
-                },
+          ...(filters.length > 0
+            ? {
+                where:
+                  filters.length === 1
+                    ? {
+                        fieldFilter: {
+                          field: { fieldPath: filters[0].field },
+                          op: filters[0].op,
+                          value: toFS(filters[0].value),
+                        },
+                      }
+                    : {
+                        compositeFilter: {
+                          op: 'AND',
+                          filters: filters.map(f => ({
+                            fieldFilter: {
+                              field: { fieldPath: f.field },
+                              op: f.op,
+                              value: toFS(f.value),
+                            },
+                          })),
+                        },
+                      },
               }
-              : {
-                compositeFilter: {
-                  op: 'AND',
-                  filters: filters.map(f => ({
-                    fieldFilter: {
-                      field: { fieldPath: f.field },
-                      op: f.op,
-                      value: toFS(f.value),
-                    },
-                  })),
-                },
-              },
+            : {}),
         },
       }),
     });

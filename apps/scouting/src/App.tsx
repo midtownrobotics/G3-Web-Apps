@@ -67,6 +67,7 @@ type FieldMap = {
   shared?: boolean;
   createdBy?: string;
 };
+type G3IdAccount = { id: string; email: string; displayName: string };
 type AutoRoutine = {
   id: string;
   name: string;
@@ -852,7 +853,8 @@ function FieldMaps({ user }: { user: User }) {
   const [editingMap, setEditingMap] = useState<FieldMap | null>(null);
   const [canShare, setCanShare] = useState(false);
   const [publishers, setPublishers] = useState<{ email: string; created_at: number }[]>([]);
-  const [publisherEmail, setPublisherEmail] = useState("");
+  const [publisherOptions, setPublisherOptions] = useState<G3IdAccount[]>([]);
+  const [publisherUserId, setPublisherUserId] = useState("");
   const [mapMessage, setMapMessage] = useState("");
   const load = useCallback(async () => {
     const [stored, shared, permission] = await Promise.all([
@@ -883,10 +885,12 @@ function FieldMaps({ user }: { user: User }) {
       ];
     });
     if (user.isAdmin) {
-      const access = await api<{ publishers: { email: string; created_at: number }[] }>(
-        "/field-map-publishers",
-      );
+      const [access, options] = await Promise.all([
+        api<{ publishers: { email: string; created_at: number }[] }>("/field-map-publishers"),
+        api<{ users: G3IdAccount[] }>("/field-map-publisher-options"),
+      ]);
       setPublishers(access.publishers);
+      setPublisherOptions(options.users);
     }
   }, [user.isAdmin]);
   useEffect(() => {
@@ -923,9 +927,9 @@ function FieldMaps({ user }: { user: User }) {
     event.preventDefault();
     await api("/field-map-publishers", {
       method: "POST",
-      body: JSON.stringify({ email: publisherEmail }),
+      body: JSON.stringify({ userId: publisherUserId }),
     });
-    setPublisherEmail("");
+    setPublisherUserId("");
     await load();
   }
 
@@ -954,17 +958,26 @@ function FieldMaps({ user }: { user: User }) {
         <div className="map-sharing-access">
           <div>
             <h2>Map sharing access</h2>
-            <span>Admins can always share. Add specific people by their G3ID email.</span>
+            <span>Admins can always share. Select an active G3ID account to give access.</span>
           </div>
           <form onSubmit={grantAccess}>
-            <input
-              type="email"
+            <select
               required
-              value={publisherEmail}
-              onChange={(event) => setPublisherEmail(event.target.value)}
-              placeholder="person@example.com"
-              aria-label="G3ID email"
-            />
+              value={publisherUserId}
+              onChange={(event) => setPublisherUserId(event.target.value)}
+              aria-label="G3ID account"
+            >
+              <option value="">Select a G3ID account</option>
+              {publisherOptions
+                .filter(
+                  (account) => !publishers.some((publisher) => publisher.email === account.email),
+                )
+                .map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {account.displayName} ({account.email})
+                  </option>
+                ))}
+            </select>
             <button type="submit" className="primary-button">
               <Plus size={16} /> Give access
             </button>
