@@ -30,7 +30,7 @@ base.use(
       if (origin.endsWith(".pages.dev")) return origin;
       return null;
     },
-    allowMethods: ["GET", "POST", "OPTIONS"],
+    allowMethods: ["GET", "POST", "DELETE", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization"],
     credentials: true,
   }),
@@ -279,6 +279,23 @@ const app = base
     });
     const totalHours = await refreshTotal(fs, memberId, year);
     return c.json({ ok: true, totalHours });
+  })
+  .delete("/admin/members/:memberId", requireAuth, async (c) => {
+    if (!c.get("userIsAdmin")) return c.json({ error: "Forbidden." }, 403);
+    const memberId = c.req.param("memberId");
+    if (!validMemberId(memberId)) return c.json({ error: "Invalid member." }, 400);
+
+    const fs = db(c.env);
+    const memberPath = `members/${memberId}`;
+    if (!(await fs.getDoc(memberPath))) return c.json({ error: "Member not found." }, 404);
+
+    const [sessions, totals] = await Promise.all([
+      fs.listCollection(`${memberPath}/sessions`),
+      fs.listCollection(`${memberPath}/totals`),
+    ]);
+    await Promise.all([...sessions, ...totals].map((document) => fs.deleteDoc(document.path)));
+    await fs.deleteDoc(memberPath);
+    return c.json({ ok: true });
   })
   // Attendance summary — admin only. One row per member: current status,
   // last sign-in, and total hours for the current year.

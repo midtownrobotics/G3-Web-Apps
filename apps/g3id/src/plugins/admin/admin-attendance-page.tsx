@@ -1,4 +1,4 @@
-import { Loader2, LogOut, Minus, Plus, Search } from "lucide-react";
+import { Loader2, LogOut, Minus, Plus, Search, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -128,6 +128,37 @@ export function AdminAttendancePage() {
     }
   }
 
+  async function removeMember(member: MemberSummary) {
+    if (
+      !window.confirm(
+        `Permanently remove ${member.displayName} and all of their attendance history? This cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+
+    setSaving(`${member.id}:remove`);
+    setActionError(null);
+    try {
+      const res = await fetch(
+        `${ATTENDANCE_API_URL}/admin/members/${encodeURIComponent(member.id)}`,
+        { method: "DELETE", credentials: "include" },
+      );
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Unable to remove attendance member.");
+      setMembers((current) => current.filter((item) => item.id !== member.id));
+      setHours((current) => {
+        const next = { ...current };
+        delete next[member.id];
+        return next;
+      });
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Unable to remove attendance member.");
+    } finally {
+      setSaving(null);
+    }
+  }
+
   return (
     <main className="flex-1 px-4 py-8 max-w-3xl mx-auto w-full">
       <div className="mb-6 flex gap-4 border-b border-secondary-600">
@@ -225,6 +256,20 @@ export function AdminAttendancePage() {
                           Sign out
                         </button>
                       )}
+                      <button
+                        type="button"
+                        onClick={() => removeMember(m)}
+                        disabled={saving !== null}
+                        className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-secondary-300 transition-colors hover:bg-red-500/15 hover:text-red-200 disabled:cursor-not-allowed disabled:opacity-50"
+                        aria-label={`Remove ${m.displayName} from attendance`}
+                      >
+                        {saving === `${m.id}:remove` ? (
+                          <Loader2 size={12} className="animate-spin" />
+                        ) : (
+                          <Trash2 size={12} />
+                        )}
+                        Remove
+                      </button>
                     </div>
                   </td>
                   <td className="px-4 py-3">
