@@ -39,6 +39,7 @@ export const coreUserIdentities = sqliteTable(
       .references(() => coreUsers.id),
     provider: text("provider").notNull(),
     providerId: text("provider_id"),
+    providerEmail: text("provider_email"), // email or username from provider
     passwordHash: text("password_hash"), // Argon2 hash — implementation pending
     accessToken: text("access_token"),
     refreshToken: text("refresh_token"),
