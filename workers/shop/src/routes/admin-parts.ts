@@ -265,13 +265,11 @@ export const adminPartsRouter = new Hono<AppEnv>()
         await unregisterOnShapeWebhooks(oldDocId, c.env);
       }
 
-      if (body.mainAssemblyId?.trim()) {
-        try {
-          await registerOnShapeWebhook(body.documentId.trim(), c.env);
-        } catch (err) {
-          console.error("[OnShape Config] Webhook registration failed", err);
-          // Don't fail the config update if webhook registration fails
-        }
+      try {
+        await registerOnShapeWebhook(body.documentId.trim(), c.env);
+      } catch (err) {
+        console.error("[OnShape Config] Webhook registration failed", err);
+        // Don't fail the config update if webhook registration fails
       }
 
       return c.json({
