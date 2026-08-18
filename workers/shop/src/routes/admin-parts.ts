@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { createShopDb } from "../db";
 import * as schema from "../db/schema";
 import { exportDrawingAsPDF } from "../lib/onshape-export";
+import { registerOnShapeWebhook, unregisterOnShapeWebhooks } from "../lib/onshape-webhook";
 import { requireAdmin, requireAuth } from "../middleware/auth";
 import type { AppEnv } from "../types";
 
@@ -207,13 +208,16 @@ export const adminPartsRouter = new Hono<AppEnv>()
     const now = Math.floor(Date.now() / 1000);
 
     try {
-      // Update or insert documentId
+      // Get old document ID for webhook cleanup
       const existingDocId = await db
         .select()
         .from(schema.adminSettings)
         .where(eq(schema.adminSettings.key, "onshape_document_id"))
         .get();
 
+      const oldDocId = existingDocId?.value;
+
+      // Update or insert documentId
       if (existingDocId) {
         await db
           .update(schema.adminSettings)
@@ -252,6 +256,21 @@ export const adminPartsRouter = new Hono<AppEnv>()
             value: body.mainAssemblyId.trim(),
             updatedAt: now,
           });
+        }
+      }
+
+      // Unregister old webhook and register new one
+      if (oldDocId && oldDocId !== body.documentId.trim()) {
+        console.log("[OnShape Config] Document ID changed, updating webhook registration");
+        await unregisterOnShapeWebhooks(oldDocId, c.env);
+      }
+
+      if (body.mainAssemblyId?.trim()) {
+        try {
+          await registerOnShapeWebhook(body.documentId.trim(), c.env);
+        } catch (err) {
+          console.error("[OnShape Config] Webhook registration failed", err);
+          // Don't fail the config update if webhook registration fails
         }
       }
 
