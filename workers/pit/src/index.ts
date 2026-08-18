@@ -528,15 +528,9 @@ const app = base
         state,
         stateSince: Date.now(),
         voltage: tracksVoltage ? (existing.voltage ?? null) : null,
-        useCount: enteringRobot ? currentUseCount + 1 : currentUseCount,
+        useCount: newUseCount,
       })
       .where(eq(batteries.id, id));
-    if (!tracksVoltage) {
-      await db.update(batteries).set({ voltage: null }).where(eq(batteries.id, id));
-    }
-    if (enteringRobot) {
-      await db.update(batteries).set({ useCount: newUseCount }).where(eq(batteries.id, id));
-    }
     const [updated] = await db.select().from(batteries).where(eq(batteries.id, id));
     return c.json(updated);
   })
