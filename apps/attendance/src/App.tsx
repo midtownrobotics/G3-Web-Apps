@@ -35,7 +35,9 @@ function KioskGate({ type }: { type: PageType }) {
     })();
   }, []);
 
-  if (state === "ok") return <KioskPage type={type} />;
+  if (state === "ok") {
+    return <KioskPage types={[type]} />;
+  }
 
   return (
     <div className={`kiosk kiosk--${type}`}>
@@ -60,6 +62,26 @@ export default function App() {
   const params = new URLSearchParams(window.location.search);
   const action = params.get("action") as PageType | null;
   const w = params.get("w");
+
+  // Fixed side-by-side kiosk view available on both attendance sites.
+  if (window.location.pathname === "/display") {
+    return (
+      <main
+        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", width: "100%", height: "100dvh" }}
+      >
+        <iframe
+          title="G3 Attendance Sign In"
+          src="https://signin.attendance.g3robotics.com/"
+          style={{ width: "100%", height: "100%", border: 0, display: "block" }}
+        />
+        <iframe
+          title="G3 Attendance Sign Out"
+          src="https://signout.attendance.g3robotics.com/"
+          style={{ width: "100%", height: "100%", border: 0, display: "block" }}
+        />
+      </main>
+    );
+  }
 
   // Member scanned the kiosk QR → confirm sign-in/out as their G3ID identity.
   if (action && w) {
