@@ -1,10 +1,19 @@
 import { and, asc, eq, gt } from "drizzle-orm";
 import { Hono } from "hono";
+import { validator } from "hono/validator";
 import { createShopDb } from "../db";
 import { partInstanceProcesses } from "../db/schema";
 import { requireAuth } from "../middleware/auth";
 import type { AppEnv } from "../types";
 import { recordAction } from "./actions";
+
+const updateProcessStatusValidator = validator("json", (value, c): { status: string } => {
+  const v = (value ?? {}) as { status?: unknown };
+  if (!v.status || !["todo", "doing", "done"].includes(v.status as string)) {
+    return c.json({ error: "status must be 'todo', 'doing', or 'done'" }, 400) as never;
+  }
+  return { status: v.status as string };
+});
 
 export const partInstanceProcessesRouter = new Hono<AppEnv>()
   .get("/", requireAuth, async (c) => {
@@ -109,69 +118,66 @@ export const partInstanceProcessesRouter = new Hono<AppEnv>()
 
     return c.json(row);
   })
-  .patch("/:partInstanceId/processes/:processId", requireAuth, async (c) => {
-    const body = await c.req.json<{ status: string }>();
-    const partInstanceId = Number(c.req.param("partInstanceId"));
-    const processId = Number(c.req.param("processId"));
+  .patch(
+    "/:partInstanceId/processes/:processId",
+    requireAuth,
+    updateProcessStatusValidator,
+    async (c) => {
+      const { status } = c.req.valid("json");
+      const partInstanceId = Number(c.req.param("partInstanceId"));
+      const processId = Number(c.req.param("processId"));
 
-    const status = body.status as "todo" | "doing" | "done";
-    if (!["todo", "doing", "done"].includes(status)) {
-      return c.json({ error: "status must be 'todo', 'doing', or 'done'" }, 400);
-    }
-
-    const db = createShopDb(c.env.SHOP_DB);
-    const row = await db
-      .update(partInstanceProcesses)
-      .set({
-        status,
-        completedAt: status === "done" ? Date.now() : null,
-      })
-      .where(
-        and(
-          eq(partInstanceProcesses.partInstanceId, partInstanceId),
-          eq(partInstanceProcesses.processId, processId),
-        ),
-      )
-      .returning()
-      .get();
-
-    if (!row) return c.json({ error: "Part instance process not found." }, 404);
-
-    // When reverting from "done" to an earlier state, reset the next process back to "waiting"
-    if (status !== "done") {
-      const next = await db
-        .select()
-        .from(partInstanceProcesses)
+      const db = createShopDb(c.env.SHOP_DB);
+      const row = await db
+        .update(partInstanceProcesses)
+        .set({
+          status: status as "todo" | "doing" | "done",
+          completedAt: status === "done" ? Date.now() : null,
+        })
         .where(
           and(
             eq(partInstanceProcesses.partInstanceId, partInstanceId),
-            gt(partInstanceProcesses.index, row.index),
+            eq(partInstanceProcesses.processId, processId),
           ),
         )
-        .orderBy(asc(partInstanceProcesses.index))
-        .limit(1)
+        .returning()
         .get();
 
-      if (next && next.status === "todo") {
-        await db
-          .update(partInstanceProcesses)
-          .set({ status: "waiting" })
-          .where(eq(partInstanceProcesses.id, next.id));
+      if (!row) return c.json({ error: "Part instance process not found." }, 404);
+
+      // When reverting from "done" to an earlier state, reset the next process back to "waiting"
+      if (status !== "done") {
+        const next = await db
+          .select()
+          .from(partInstanceProcesses)
+          .where(
+            and(
+              eq(partInstanceProcesses.partInstanceId, partInstanceId),
+              gt(partInstanceProcesses.index, row.index),
+            ),
+          )
+          .orderBy(asc(partInstanceProcesses.index))
+          .limit(1)
+          .get();
+
+        if (next && next.status === "todo") {
+          await db
+            .update(partInstanceProcesses)
+            .set({ status: "waiting" })
+            .where(eq(partInstanceProcesses.id, next.id));
+        }
       }
-    }
 
-    const actionMap: Record<string, string> = {
-      todo: "reverted",
-      doing: "resumed",
-      done: "marked-done",
-    };
+      // Record action for "done" status; other transitions are considered manual adjustments
+      if (status === "done") {
+        await recordAction(db, {
+          userId: c.get("userId"),
+          partInstanceId,
+          processId,
+          action: "completed",
+        });
+      }
 
-    await recordAction(db, {
-      userId: c.get("userId"),
-      partInstanceId,
-      processId,
-      action: actionMap[status] ?? "updated",
-    });
-
-    return c.json(row);
-  });
+      return c.json(row);
+    },
+  );

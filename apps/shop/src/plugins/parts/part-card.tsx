@@ -434,8 +434,14 @@ export function PartCard({
                 <h3 className="text-lg font-bold text-ink">Send Part Back</h3>
 
                 <div>
-                  <label className="block text-sm font-semibold text-steel mb-2">Process</label>
+                  <label
+                    htmlFor="send-back-process"
+                    className="block text-sm font-semibold text-steel mb-2"
+                  >
+                    Process
+                  </label>
                   <select
+                    id="send-back-process"
                     value={sendBackProcess ?? ""}
                     onChange={(e) => setSendBackProcess(Number(e.target.value) || null)}
                     className="w-full bg-paper border border-steel/40 rounded-lg px-3 py-2 text-sm text-ink focus:outline-none focus:border-crimson"
@@ -449,8 +455,8 @@ export function PartCard({
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-steel mb-2">Status</label>
+                <fieldset>
+                  <legend className="block text-sm font-semibold text-steel mb-2">Status</legend>
                   <div className="space-y-2">
                     {(["todo", "doing", "done"] as const).map((s) => (
                       <label key={s} className="flex items-center gap-2 cursor-pointer">
@@ -466,7 +472,7 @@ export function PartCard({
                       </label>
                     ))}
                   </div>
-                </div>
+                </fieldset>
 
                 <div className="flex gap-2 pt-2">
                   <button
