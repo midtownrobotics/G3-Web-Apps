@@ -127,10 +127,14 @@ const app = base
     return c.json(rows);
   })
 
-  // List all mentors (admin only) — for the mentor-management page.
+  // List all mentors — for the mentor-management page. Any mentor (site admin,
+  // site mentor, or existing skill-tree mentor/admin) can access this, not
+  // just G3ID site admins.
   .get("/mentors", requireAuth, requireOAuthSession, async (c) => {
-    if (!c.get("userIsAdmin")) return c.json({ error: "Forbidden." }, 403);
     const db = createDb(c.env.SKILL_DB);
+    if (!(await isMentor(db, c.get("userId"), c.get("userIsAdmin")))) {
+      return c.json({ error: "Forbidden." }, 403);
+    }
     const rows = await db
       .select({ id: skillMentors.userId, displayName: skillProgress.displayName })
       .from(skillMentors)
@@ -138,21 +142,26 @@ const app = base
     return c.json(rows.map((r) => ({ id: r.id, displayName: r.displayName ?? r.id })));
   })
 
-  // Add a mentor (admin only).
+  // Add a mentor — any mentor can grant mentorship to another user.
   .post("/mentors/:id", requireAuth, requireOAuthSession, async (c) => {
-    if (!c.get("userIsAdmin")) return c.json({ error: "Forbidden." }, 403);
-    const targetId = c.req.param("id");
     const db = createDb(c.env.SKILL_DB);
+    if (!(await isMentor(db, c.get("userId"), c.get("userIsAdmin")))) {
+      return c.json({ error: "Forbidden." }, 403);
+    }
+    const targetId = c.req.param("id");
     await db.insert(skillMentors).values({ userId: targetId }).onConflictDoNothing();
     return c.json({ ok: true });
   })
 
-  // Remove a mentor (admin only). Site admins are re-added on their next /me,
-  // so their mentorship can't be permanently revoked here.
+  // Remove a mentor — any mentor can revoke another user's mentorship. Site
+  // admins and site mentors are re-added on their next /me, so their
+  // mentorship can't be permanently revoked here.
   .delete("/mentors/:id", requireAuth, requireOAuthSession, async (c) => {
-    if (!c.get("userIsAdmin")) return c.json({ error: "Forbidden." }, 403);
-    const targetId = c.req.param("id");
     const db = createDb(c.env.SKILL_DB);
+    if (!(await isMentor(db, c.get("userId"), c.get("userIsAdmin")))) {
+      return c.json({ error: "Forbidden." }, 403);
+    }
+    const targetId = c.req.param("id");
     await db.delete(skillMentors).where(eq(skillMentors.userId, targetId));
     return c.json({ ok: true });
   })
