@@ -78,6 +78,14 @@ router.post("/events", async (c) => {
       c.executionCtx.waitUntil(
         processRevisionEvent(elementId, elementType, partNumber, releaseId, versionId, c.env),
       );
+    } else {
+      console.warn("[OnShape Webhook] Revision event missing required fields", {
+        elementType,
+        elementId,
+        partNumber,
+        releaseId,
+        versionId,
+      });
     }
     return c.json({ ok: true });
   }

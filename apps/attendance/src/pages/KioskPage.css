@@ -19,6 +19,12 @@
   --accent-dim: #ff334430;
   --glow: #ff334408;
 }
+.kiosk--combined {
+  --accent: #00ff88;
+  --accent-dim: #00ff8830;
+  --glow: #00ff8808;
+  overflow: auto;
+}
 
 /* Scanlines */
 .scanlines {
@@ -46,6 +52,32 @@
   gap: 18px;
   padding: 20px 20px 28px;
   animation: fadeUp .6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.kiosk__codes {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.kiosk__codes--combined {
+  align-items: flex-start;
+  gap: clamp(18px, 3vw, 52px);
+}
+
+.kiosk__code {
+  --accent: #00ff88;
+  --accent-dim: #00ff8830;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+.kiosk__code--signout {
+  --accent: #ff3344;
+  --accent-dim: #ff334430;
 }
 
 /* Admin gate + QR loading placeholder */
@@ -102,6 +134,10 @@
   user-select: none;
 }
 
+.kiosk__codes--combined .kiosk__label {
+  font-size: clamp(44px, 7vw, 82px);
+}
+
 /* QR wrapper */
 .kiosk__qr-wrapper {
   position: relative;
@@ -109,6 +145,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.kiosk__codes--combined .kiosk__qr-wrapper {
+  width: min(46vw, calc(100dvh - 240px), 720px);
 }
 
 /* QR frame */
@@ -184,4 +224,15 @@
   letter-spacing: .05em;
   min-width: 3ch;
   text-align: center;
+}
+
+@media (max-width: 720px) {
+  .kiosk__codes--combined {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .kiosk__codes--combined .kiosk__qr-wrapper {
+    width: min(76vw, 360px);
+  }
 }

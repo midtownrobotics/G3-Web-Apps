@@ -3314,6 +3314,143 @@ html[data-theme="dark"] .tool-link {
   display: none;
 }
 
+.map-sharing-access {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 20px 0;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+}
+
+.map-sharing-access h2 {
+  margin: 0 0 4px;
+  font-size: 16px;
+}
+
+.map-sharing-access span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.map-sharing-access form {
+  display: flex;
+  gap: 8px;
+}
+
+.map-sharing-access form input,
+.map-sharing-access form select {
+  min-height: 42px;
+  flex: 1;
+  padding: 0 12px;
+}
+
+.publisher-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.publisher-list > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.publisher-list button {
+  display: grid;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: none;
+  place-items: center;
+}
+
+.auto-route-input {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.route-input-label {
+  color: #8fa0b5;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.route-input-tabs,
+.auto-drawing-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.route-input-tabs button,
+.auto-drawing-toolbar > button {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--muted);
+  background: var(--panel);
+}
+
+.route-input-tabs button.active {
+  border-color: #a71433;
+  color: white;
+  background: #a71433;
+}
+
+.auto-drawing {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.auto-drawing-toolbar > span {
+  margin-right: auto;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.auto-drawing-toolbar .drawing-colors {
+  display: flex;
+  gap: 6px;
+}
+
+.auto-drawing-toolbar .drawing-colors button {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 50%;
+}
+
+.auto-drawing-toolbar .drawing-colors button.selected {
+  border-color: white;
+  box-shadow: 0 0 0 2px #a71433;
+}
+
+.auto-drawing canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #17191d;
+  cursor: crosshair;
+  touch-action: none;
+}
+
 .trajectory-preview {
   position: relative;
   overflow: hidden;

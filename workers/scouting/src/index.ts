@@ -1,10 +1,16 @@
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
 import { cors } from "hono/cors";
 import { requireAuth } from "./middleware/auth";
 import type { AppEnv } from "./types";
 
 type Tier = { id: string; name: string; color: string; items: string[] };
 type TierListInput = { name?: unknown; description?: unknown; tiers?: unknown };
+type G3IdUser = {
+  id: string;
+  email: string;
+  displayName: string;
+  status: "pending" | "active" | "rejected" | "merged";
+};
 const app = new Hono<AppEnv>();
 
 app.onError((error, c) => {
@@ -146,7 +152,90 @@ app.get("/field-maps", requireAuth, async (c) => {
   });
 });
 
+async function canShareFieldMaps(c: Context<AppEnv>) {
+  if (c.get("userIsAdmin")) return true;
+  const permission = await c.env.SCOUTING_DB.prepare(
+    "SELECT email FROM field_map_publishers WHERE email = ?",
+  )
+    .bind(c.get("userEmail").toLowerCase())
+    .first();
+  return Boolean(permission);
+}
+
+app.get("/field-map-permissions", requireAuth, async (c) =>
+  c.json({ canShare: await canShareFieldMaps(c), isAdmin: c.get("userIsAdmin") }),
+);
+
+app.get("/field-map-publishers", requireAuth, async (c) => {
+  if (!c.get("userIsAdmin")) return c.json({ error: "Admin access required." }, 403);
+  const rows = await c.env.SCOUTING_DB.prepare(
+    "SELECT email, created_at FROM field_map_publishers ORDER BY email",
+  ).all<{ email: string; created_at: number }>();
+  return c.json({ publishers: rows.results });
+});
+
+async function getG3IdUsers(c: Context<AppEnv>) {
+  if (c.env.LOCAL_AUTH_BYPASS === "true") {
+    return [
+      {
+        id: c.get("userId"),
+        email: c.get("userEmail"),
+        displayName: c.get("userDisplayName"),
+        status: "active" as const,
+      },
+    ];
+  }
+  const response = await c.env.G3ID.fetch(
+    new Request("http://g3id/users", {
+      headers: { cookie: c.req.header("Cookie") ?? "" },
+    }),
+  );
+  if (!response.ok) return null;
+  return (await response.json()) as G3IdUser[];
+}
+
+app.get("/field-map-publisher-options", requireAuth, async (c) => {
+  if (!c.get("userIsAdmin")) return c.json({ error: "Admin access required." }, 403);
+  const users = await getG3IdUsers(c);
+  if (!users) return c.json({ error: "Could not load G3ID accounts." }, 502);
+  return c.json({
+    users: users
+      .filter((user) => user.status === "active")
+      .map(({ id, email, displayName }) => ({ id, email, displayName }))
+      .sort((a, b) => a.displayName.localeCompare(b.displayName)),
+  });
+});
+
+app.post("/field-map-publishers", requireAuth, async (c) => {
+  if (!c.get("userIsAdmin")) return c.json({ error: "Admin access required." }, 403);
+  const body = await c.req.json<{ userId?: unknown }>();
+  const userId = text(body.userId, 200);
+  if (!userId) return c.json({ error: "Select a G3ID account." }, 400);
+  const users = await getG3IdUsers(c);
+  if (!users) return c.json({ error: "Could not validate the G3ID account." }, 502);
+  const user = users.find((candidate) => candidate.id === userId && candidate.status === "active");
+  if (!user) return c.json({ error: "Select an active G3ID account." }, 400);
+  const email = user.email.toLowerCase();
+  await c.env.SCOUTING_DB.prepare(
+    "INSERT OR IGNORE INTO field_map_publishers (email, granted_by, created_at) VALUES (?, ?, ?)",
+  )
+    .bind(email, c.get("userId"), Date.now())
+    .run();
+  return c.json({ ok: true }, 201);
+});
+
+app.delete("/field-map-publishers/:email", requireAuth, async (c) => {
+  if (!c.get("userIsAdmin")) return c.json({ error: "Admin access required." }, 403);
+  await c.env.SCOUTING_DB.prepare("DELETE FROM field_map_publishers WHERE email = ?")
+    .bind(decodeURIComponent(c.req.param("email")).toLowerCase())
+    .run();
+  return c.json({ ok: true });
+});
+
 app.post("/field-maps", requireAuth, async (c) => {
+  if (!(await canShareFieldMaps(c))) {
+    return c.json({ error: "You do not have permission to share field maps." }, 403);
+  }
   const form = await c.req.formData();
   const image = form.get("image");
   const name = text(form.get("name"), 120);
@@ -200,10 +289,15 @@ app.get("/field-maps/:id/image", requireAuth, async (c) => {
 });
 
 app.delete("/field-maps/:id", requireAuth, async (c) => {
-  const map = await c.env.SCOUTING_DB.prepare("SELECT r2_key FROM field_maps WHERE id = ?")
+  const map = await c.env.SCOUTING_DB.prepare(
+    "SELECT r2_key, created_by FROM field_maps WHERE id = ?",
+  )
     .bind(c.req.param("id"))
-    .first<{ r2_key: string }>();
+    .first<{ r2_key: string; created_by: string }>();
   if (!map) return c.json({ error: "Map not found." }, 404);
+  if (!c.get("userIsAdmin") && map.created_by !== c.get("userId")) {
+    return c.json({ error: "Only the publisher or an admin can delete this map." }, 403);
+  }
   await Promise.all([
     c.env.FIELD_MAPS.delete(map.r2_key),
     c.env.SCOUTING_DB.prepare("DELETE FROM field_maps WHERE id = ?").bind(c.req.param("id")).run(),

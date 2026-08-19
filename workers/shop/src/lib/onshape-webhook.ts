@@ -61,6 +61,52 @@ export async function verifyOnshapeSignature(
   return secondaryMatch;
 }
 
+export async function unregisterOnShapeWebhooks(documentId: string, env: AppEnv["Bindings"]) {
+  const apiKey = env.ONSHAPE_API_KEY;
+  const apiSecret = env.ONSHAPE_API_SECRET;
+
+  if (!apiKey || !apiSecret) {
+    console.warn("[OnShape] Cannot unregister webhooks: credentials missing");
+    return;
+  }
+
+  const credentials = btoa(`${apiKey}:${apiSecret}`);
+
+  try {
+    // List all webhooks for this document
+    const listResponse = await fetch(`https://cad.onshape.com/api/v16/webhooks?documentId=${documentId}`, {
+      headers: {
+        Authorization: `Basic ${credentials}`,
+      },
+    });
+
+    if (!listResponse.ok) {
+      console.warn("[OnShape] Failed to list webhooks for cleanup");
+      return;
+    }
+
+    const webhooks = (await listResponse.json()) as { items: { id: string; name: string }[] };
+
+    // Delete our webhook
+    for (const webhook of webhooks.items || []) {
+      if (webhook.name === "G3 Robotics Shop SW") {
+        const deleteResponse = await fetch(`https://cad.onshape.com/api/v16/webhooks/${webhook.id}`, {
+          method: "DELETE",
+          headers: {
+            Authorization: `Basic ${credentials}`,
+          },
+        });
+
+        if (deleteResponse.ok) {
+          console.log("[OnShape Webhook Unregistered]", { documentId, webhookId: webhook.id });
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("[OnShape] Error cleaning up webhooks:", err instanceof Error ? err.message : "Unknown error");
+  }
+}
+
 export async function registerOnShapeWebhook(documentId: string, env: AppEnv["Bindings"]) {
   const apiKey = env.ONSHAPE_API_KEY;
   const apiSecret = env.ONSHAPE_API_SECRET;

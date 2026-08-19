@@ -30,7 +30,7 @@ async function generateState(env: AppEnv["Bindings"], value: string): Promise<st
 
 async function getGithubUser(
   accessToken: string,
-): Promise<{ id: string; email: string | null; name: string }> {
+): Promise<{ id: string; login: string; email: string | null; name: string }> {
   const headers = {
     Authorization: `Bearer ${accessToken}`,
     Accept: "application/vnd.github+json",
@@ -64,6 +64,7 @@ async function getGithubUser(
 
   return {
     id: String(user.id),
+    login: user.login,
     email,
     name: user.name ?? user.login,
   };
@@ -126,7 +127,7 @@ export const githubAuthRouter = new Hono<AppEnv>()
     const { access_token: accessToken } = (await tokenRes.json()) as { access_token: string };
     if (!accessToken) return err("Failed to complete sign-in with GitHub. Please try again.");
 
-    let githubUser: { id: string; email: string | null; name: string };
+    let githubUser: { id: string; login: string; email: string | null; name: string };
     try {
       githubUser = await getGithubUser(accessToken);
     } catch {
@@ -148,6 +149,7 @@ export const githubAuthRouter = new Hono<AppEnv>()
       id: newId(),
       provider: "github" as const,
       providerId: sub,
+      providerEmail: githubUser.login,
       accessToken,
       createdAt: now,
       updatedAt: now,
