@@ -167,6 +167,19 @@ export class Firestore {
     });
   }
 
+  async deleteDoc(path: string) {
+    const url = path.startsWith('projects/')
+      ? `https://firestore.googleapis.com/v1/${path}`
+      : `${this.base}/${path}`;
+    const res = await fetch(url, {
+      method: 'DELETE',
+      headers: await this.headers(),
+    });
+    if (!res.ok && res.status !== 404) {
+      throw new Error(`Firestore delete failed (${res.status}) for ${path}`);
+    }
+  }
+
   async addDoc(collectionPath: string, data: Record<string, unknown>) {
     const fields = Object.fromEntries(
       Object.entries(data).map(([k, v]) => [k, toFS(v)])

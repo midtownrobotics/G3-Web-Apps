@@ -30,7 +30,7 @@ base.use(
       if (origin.endsWith(".pages.dev")) return origin;
       return null;
     },
-    allowMethods: ["GET", "POST", "OPTIONS"],
+    allowMethods: ["GET", "POST", "DELETE", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization"],
     credentials: true,
   }),
@@ -45,16 +45,19 @@ function db(env: AppEnv["Bindings"]) {
 }
 
 async function listOpenSessions(fs: Firestore) {
-  const [members, sessions] = await Promise.all([
-    fs.listCollection("members"),
-    fs.collectionGroupQuery("sessions", [{ field: "status", op: "EQUAL", value: "open" }]),
-  ]);
-  const membersById = new Map(members.map((member) => [member.id, member]));
-  return sessions.flatMap((session) => {
-    const match = session.path.match(/\/members\/([^/]+)\/sessions\//);
-    const member = match ? membersById.get(match[1]) : undefined;
-    return member ? [{ session, member }] : [];
-  });
+  const members = await fs.listCollection("members");
+  const sessionsByMember = await Promise.all(
+    members.map(async (member) => ({
+      member,
+      sessions: await fs.listCollection(`members/${member.id}/sessions`),
+    })),
+  );
+
+  return sessionsByMember.flatMap(({ member, sessions }) =>
+    sessions
+      .filter((session) => session.data.status === "open")
+      .map((session) => ({ session, member })),
+  );
 }
 
 function schoolYear(date: Date): string {
@@ -280,6 +283,23 @@ const app = base
     const totalHours = await refreshTotal(fs, memberId, year);
     return c.json({ ok: true, totalHours });
   })
+  .delete("/admin/members/:memberId", requireAuth, async (c) => {
+    if (!c.get("userIsAdmin")) return c.json({ error: "Forbidden." }, 403);
+    const memberId = c.req.param("memberId");
+    if (!validMemberId(memberId)) return c.json({ error: "Invalid member." }, 400);
+
+    const fs = db(c.env);
+    const memberPath = `members/${memberId}`;
+    if (!(await fs.getDoc(memberPath))) return c.json({ error: "Member not found." }, 404);
+
+    const [sessions, totals] = await Promise.all([
+      fs.listCollection(`${memberPath}/sessions`),
+      fs.listCollection(`${memberPath}/totals`),
+    ]);
+    await Promise.all([...sessions, ...totals].map((document) => fs.deleteDoc(document.path)));
+    await fs.deleteDoc(memberPath);
+    return c.json({ ok: true });
+  })
   // Attendance summary — admin only. One row per member: current status,
   // last sign-in, and total hours for the current year.
   .get("/admin/summary", requireAuth, async (c) => {
@@ -287,10 +307,10 @@ const app = base
 
     const fs = db(c.env);
     const year = schoolYear(new Date());
-    const [members, allSessions] = await Promise.all([
-      fs.listCollection("members"),
-      fs.collectionGroupQuery("sessions", []),
-    ]);
+    const members = await fs.listCollection("members");
+    const allSessions = (
+      await Promise.all(members.map((member) => fs.listCollection(`members/${member.id}/sessions`)))
+    ).flat();
     const sessionsByMember = new Map<string, typeof allSessions>();
     for (const session of allSessions) {
       const match = session.path.match(/\/members\/([^/]+)\/sessions\//);
