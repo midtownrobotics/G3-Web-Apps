@@ -16,6 +16,7 @@ export const coreUsers = sqliteTable(
     displayName: text("display_name").notNull(),
     status: text("status").notNull(),
     isAdmin: integer("is_admin").notNull().default(0),
+    isMentor: integer("is_mentor").notNull().default(0),
     mergedIntoUserId: text("merged_into_user_id").references((): AnySQLiteColumn => coreUsers.id),
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),

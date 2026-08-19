@@ -1,5 +1,5 @@
 import { OnShapeIcon } from "@g3/ui";
-import { Loader2, Shield, ShieldOff } from "lucide-react";
+import { GraduationCap, Loader2, Shield, ShieldOff } from "lucide-react";
 import { useEffect, useState } from "react";
 import { FaGithub, FaGoogle, FaKey, FaSlack, FaSteam } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
@@ -13,6 +13,7 @@ type User = {
   displayName: string;
   status: string;
   isAdmin: number;
+  isMentor: number;
   createdAt: number;
   lastLoginAt: number | null;
   identities: Identity[];
@@ -92,6 +93,7 @@ export function AdminUsersPage() {
   const [rejecting, setRejecting] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState<Set<string>>(new Set());
   const [promoting, setPromoting] = useState<Set<string>>(new Set());
+  const [togglingMentor, setTogglingMentor] = useState<Set<string>>(new Set());
   const [mergingUserId, setMergingUserId] = useState<string | null>(null);
   const [mergeTargetId, setMergeTargetId] = useState("");
   const [mergeLoading, setMergeLoading] = useState(false);
@@ -191,6 +193,34 @@ export function AdminUsersPage() {
       if (res.ok) updateUser(userId, { isAdmin: 0 });
     } finally {
       setPromoting((prev) => {
+        const n = new Set(prev);
+        n.delete(userId);
+        return n;
+      });
+    }
+  }
+
+  async function handleGrantMentor(userId: string) {
+    setTogglingMentor((prev) => new Set(prev).add(userId));
+    try {
+      const res = await api.admin.users[":id"]["grant-mentor"].$post({ param: { id: userId } });
+      if (res.ok) updateUser(userId, { isMentor: 1 });
+    } finally {
+      setTogglingMentor((prev) => {
+        const n = new Set(prev);
+        n.delete(userId);
+        return n;
+      });
+    }
+  }
+
+  async function handleRevokeMentor(userId: string) {
+    setTogglingMentor((prev) => new Set(prev).add(userId));
+    try {
+      const res = await api.admin.users[":id"]["revoke-mentor"].$post({ param: { id: userId } });
+      if (res.ok) updateUser(userId, { isMentor: 0 });
+    } finally {
+      setTogglingMentor((prev) => {
         const n = new Set(prev);
         n.delete(userId);
         return n;
@@ -354,6 +384,11 @@ export function AdminUsersPage() {
                         Admin
                       </span>
                     )}
+                    {user.isMentor === 1 && (
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                        Mentor
+                      </span>
+                    )}
                     <span
                       className={`text-xs px-2 py-0.5 rounded-full border capitalize ${STATUS_STYLES[user.status] ?? "bg-gray-700 text-secondary-200"}`}
                     >
@@ -422,6 +457,24 @@ export function AdminUsersPage() {
                         <Shield size={11} />
                       )}
                       {user.isAdmin ? "Demote" : "Promote"}
+                    </button>
+                  )}
+
+                  {user.status === "active" && user.id !== currentUserId && (
+                    <button
+                      type="button"
+                      disabled={togglingMentor.has(user.id)}
+                      onClick={() =>
+                        user.isMentor ? handleRevokeMentor(user.id) : handleGrantMentor(user.id)
+                      }
+                      className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-700 hover:bg-blue-900 hover:text-blue-300 disabled:opacity-50 disabled:cursor-not-allowed text-secondary-200 transition-colors flex items-center gap-1"
+                    >
+                      {togglingMentor.has(user.id) ? (
+                        <Loader2 size={11} className="animate-spin" />
+                      ) : (
+                        <GraduationCap size={11} />
+                      )}
+                      {user.isMentor ? "Unmentor" : "Mentor"}
                     </button>
                   )}
 
