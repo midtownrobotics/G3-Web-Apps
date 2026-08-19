@@ -1,3 +1,6 @@
+import { useState } from "react";
+import { api } from "../../shared/api";
+import { getErrorMessage } from "../../shared/api-error";
 import type { InstanceRow } from "../../shared/derive";
 import type { ShopData } from "../../shared/use-shop-data";
 
@@ -6,13 +9,43 @@ export function PartWorkView({
   data,
   onClose,
   onMarkComplete,
+  onChanged,
 }: {
   row: InstanceRow;
   data: ShopData;
   onClose: () => void;
   onMarkComplete: () => Promise<void>;
+  onChanged?: () => Promise<void>;
 }) {
+  const [busy, setBusy] = useState(false);
+  const [banner, setBanner] = useState<string | null>(null);
+  const [showRevertModal, setShowRevertModal] = useState(false);
+  const [revertStatus, setRevertStatus] = useState<"todo" | "doing">("todo");
   const subsystem = data.subsystems.find((s) => s.id === row.definition.subsystemId);
+  const currentProcess = row.current;
+
+  async function revertStatus() {
+    if (!currentProcess) return;
+    setBusy(true);
+    const res = await api["part-instance-processes"][":partInstanceId"]["processes"][
+      ":processId"
+    ].$patch({
+      param: {
+        partInstanceId: String(row.instance.id),
+        processId: String(currentProcess.processId),
+      },
+      json: { status: revertStatus },
+    });
+    if (!res.ok) {
+      setBanner(await getErrorMessage(res as unknown as Response));
+      setBusy(false);
+      return;
+    }
+    setBanner(null);
+    setShowRevertModal(false);
+    await onChanged?.();
+    setBusy(false);
+  }
 
   return (
     <div className="fixed inset-0 bg-paper z-50 flex flex-col">
@@ -30,6 +63,13 @@ export function PartWorkView({
           ✕
         </button>
       </div>
+
+      {/* Error banner */}
+      {banner && (
+        <div className="px-6 py-3 bg-crimson-tint border-b border-crimson/30">
+          <p className="text-sm text-crimson-dark">{banner}</p>
+        </div>
+      )}
 
       {/* Main content */}
       <div className="flex-1 flex overflow-hidden">
@@ -101,14 +141,75 @@ export function PartWorkView({
             >
               Exit
             </button>
+            {currentProcess && row.state !== "complete" && (
+              <button
+                type="button"
+                onClick={() => {
+                  setRevertStatus(row.state === "doing" ? "todo" : "doing");
+                  setShowRevertModal(true);
+                }}
+                disabled={busy}
+                className="w-full px-6 py-4 text-lg font-semibold text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-100 rounded-lg transition-colors disabled:opacity-50"
+              >
+                ↶ Send Back
+              </button>
+            )}
             <button
               type="button"
               onClick={onMarkComplete}
-              className="w-full px-6 py-4 text-lg font-semibold text-paper bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors"
+              disabled={busy}
+              className="w-full px-6 py-4 text-lg font-semibold text-paper bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors disabled:opacity-50"
             >
               Mark Complete
             </button>
           </div>
+
+          {/* Revert Modal */}
+          {showRevertModal && (
+            <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center p-4">
+              <div className="bg-paper rounded-lg shadow-lg max-w-sm w-full p-6 space-y-4">
+                <h3 className="text-lg font-bold text-ink">Send Back</h3>
+                <p className="text-sm text-steel">
+                  Move this part back to which status?
+                </p>
+
+                <div className="space-y-2">
+                  {(["todo", "doing"] as const).map((s) => (
+                    <label key={s} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="revert-status"
+                        value={s}
+                        checked={revertStatus === s}
+                        onChange={() => setRevertStatus(s)}
+                        className="accent-amber-500"
+                      />
+                      <span className="text-sm text-ink capitalize">{s}</span>
+                    </label>
+                  ))}
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowRevertModal(false)}
+                    disabled={busy}
+                    className="flex-1 py-2 rounded-lg border border-steel/50 text-steel-dark hover:bg-steel-tint text-sm font-semibold transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => revertStatus()}
+                    disabled={busy}
+                    className="flex-1 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors disabled:opacity-50"
+                  >
+                    Send Back
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

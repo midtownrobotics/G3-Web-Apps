@@ -202,6 +202,7 @@ export function BoardPage() {
                   setWorkingPartInstanceId(null);
                 }
               }}
+              onChanged={refresh}
             />
           ) : null;
         })()}
