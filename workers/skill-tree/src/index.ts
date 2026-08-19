@@ -1,9 +1,9 @@
-import { eq } from "drizzle-orm";
+import { eq, notInArray } from "drizzle-orm";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { validator } from "hono/validator";
 import { createDb } from "./db";
-import { skillMentors, skillProgress } from "./db/schema";
+import { skillMentors, skillProgress, skillSiteMentors } from "./db/schema";
 import { requireAuth, requireOAuthSession } from "./middleware/auth";
 import type { AppEnv } from "./types";
 
@@ -71,27 +71,44 @@ const app = base
   .get("/health", (c) => c.json({ status: "ok", service: "skill-tree" }))
 
   // Current user — also self-registers their profile so they appear in the
-  // student list, and promotes G3ID admins to mentors.
+  // student list, promotes G3ID admins to mentors, and mirrors the G3ID
+  // sitewide mentor flag locally. Only G3ID site mentors skip self-registration
+  // (they manage others but don't get their own tree); local skill-tree
+  // mentors/admins still get one, same as always.
   .get("/me", requireAuth, async (c) => {
     const id = c.get("userId");
     const displayName = c.get("userDisplayName");
     const isAdmin = c.get("userIsAdmin");
+    const isSiteMentor = c.get("userIsMentor");
     const db = createDb(c.env.SKILL_DB);
-
-    await db
-      .insert(skillProgress)
-      .values({ userId: id, displayName, progress: {}, updatedAt: Math.floor(Date.now() / 1000) })
-      .onConflictDoUpdate({ target: skillProgress.userId, set: { displayName } });
 
     if (isAdmin) {
       await db.insert(skillMentors).values({ userId: id }).onConflictDoNothing();
     }
 
+    if (isSiteMentor) {
+      // Site mentors get the same manage-others capability as local mentors/admins.
+      await db.insert(skillMentors).values({ userId: id }).onConflictDoNothing();
+      await db.insert(skillSiteMentors).values({ userId: id }).onConflictDoNothing();
+    } else {
+      await db.delete(skillSiteMentors).where(eq(skillSiteMentors.userId, id));
+    }
+
     const mentor = await isMentor(db, id, isAdmin);
+
+    if (!isSiteMentor) {
+      await db
+        .insert(skillProgress)
+        .values({ userId: id, displayName, progress: {}, updatedAt: Math.floor(Date.now() / 1000) })
+        .onConflictDoUpdate({ target: skillProgress.userId, set: { displayName } });
+    }
+
     return c.json({ id, displayName, isAdmin, isMentor: mentor });
   })
 
-  // All student profiles (the "students" collection).
+  // All student profiles (the "students" collection) — excludes G3ID site
+  // mentors specifically, who don't have a skill tree of their own. Local
+  // skill-tree mentors/admins are unaffected and still appear.
   .get("/students", requireAuth, async (c) => {
     const db = createDb(c.env.SKILL_DB);
     const rows = await db
@@ -100,7 +117,13 @@ const app = base
         displayName: skillProgress.displayName,
         progress: skillProgress.progress,
       })
-      .from(skillProgress);
+      .from(skillProgress)
+      .where(
+        notInArray(
+          skillProgress.userId,
+          db.select({ userId: skillSiteMentors.userId }).from(skillSiteMentors),
+        ),
+      );
     return c.json(rows);
   })
 

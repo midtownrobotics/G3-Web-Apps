@@ -9,6 +9,7 @@ export type AppEnv = {
     userId: string;
     userDisplayName: string;
     userIsAdmin: boolean;
+    userIsMentor: boolean;
     userEmail: string;
     sessionType: "oauth" | "pin";
   };
