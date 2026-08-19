@@ -516,10 +516,10 @@ async function renderMentors(){
   wrap.innerHTML=`
     <div style="margin-bottom:20px;"><button id="bulkBtn" style="background:var(--accent);border:none;color:#000;padding:8px 14px;border-radius:6px;cursor:pointer;font-weight:600;font-size:12px;">Bulk Progress Update</button></div>
     <div class="mn-add">
-      <select id="mnSel"><option value="">Add a mentor…</option>${candidates.map(uid=>`<option value="${uid}">${displayNames[uid]||uid}</option>`).join('')}</select>
+      <select id="mnSel"><option value="">Add an admin…</option>${candidates.map(uid=>`<option value="${uid}">${displayNames[uid]||uid}</option>`).join('')}</select>
       <button class="mn-add-btn" onclick="mnAdd()">Add</button>
     </div>
-    <div class="mn-list">${rows||'<div class="mn-empty">No mentors yet.</div>'}</div>`;
+    <div class="mn-list">${rows||'<div class="mn-empty">No admins yet.</div>'}</div>`;
   document.getElementById('bulkBtn')?.addEventListener('click',showBulkUpdateSection);
 }
 async function mnAdd(){
