@@ -24,7 +24,7 @@ export function PartWorkView({
   const subsystem = data.subsystems.find((s) => s.id === row.definition.subsystemId);
   const currentProcess = row.current;
 
-  async function revertStatus() {
+  async function handleRevert() {
     if (!currentProcess) return;
     setBusy(true);
     const res = await api["part-instance-processes"][":partInstanceId"]["processes"][
