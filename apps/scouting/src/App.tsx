@@ -2,28 +2,25 @@ import {
   ArrowRight,
   Camera,
   ChevronRight,
-  Circle,
   CirclePlus,
-  Eraser,
   Image,
   ImagePlus,
   Loader2,
   LogIn,
   Map as MapIcon,
+  Maximize2,
   Menu,
+  Minimize2,
   Monitor,
   Moon,
-  Octagon,
   Pencil,
   Plus,
   RotateCcw,
   Save,
   Search,
-  Square,
   Sun,
+  Target,
   Trash2,
-  Triangle,
-  Type,
   Upload,
   X,
 } from "lucide-react";
@@ -105,7 +102,10 @@ const defaultTiers: Tier[] = [
   { id: crypto.randomUUID(), name: "C", color: "#66bb6a", items: [] },
 ];
 
-const DRAWING_COLORS = ["#e53935", "#1565c0", "#2e7d32", "#f9a825", "#ec407a"];
+const DRAWING_COLORS = ["#e53935", "#2e7d32", "#f9a825", "#ec407a"];
+const DRAW_LINE_WIDTH = 8;
+const ARROW_LINE_WIDTH = 3;
+const DRAWING_HISTORY_LIMIT = 20;
 const TIER_COLORS = [
   "#ef5350",
   "#ff7043",
@@ -118,6 +118,14 @@ const TIER_COLORS = [
   "#ab47bc",
   "#78909c",
 ];
+
+function drawingColorAt(hex: string, progress: number) {
+  const value = Number.parseInt(hex.slice(1), 16);
+  const isYellow = hex.toLowerCase() === "#f9a825";
+  const factor = Math.max(isYellow ? 0.6 : 0.4, 1 - progress * (isYellow ? 0.0025 : 0.005));
+  const channel = (shift: number) => Math.round(((value >> shift) & 255) * factor);
+  return `rgb(${channel(16)}, ${channel(8)}, ${channel(0)})`;
+}
 
 function timeAgo(timestamp?: number) {
   if (!timestamp) return "Unsaved";
@@ -413,29 +421,72 @@ function MapCanvas({
   editingMap: FieldMap | null;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
   const baseCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const drawing = useRef(false);
+  const lastDrawPoint = useRef<{ x: number; y: number } | null>(null);
+  const currentStroke = useRef<{
+    points: { x: number; y: number }[];
+    color: string;
+    size: number;
+    startProgress: number;
+    mode: "draw" | "sotm";
+  } | null>(null);
+  const drawingProgress = useRef(0);
   const shapeStart = useRef<{ x: number; y: number } | null>(null);
   const shapePreview = useRef<ImageData | null>(null);
-  const history = useRef<ImageData[]>([]);
+  const history = useRef<{ image: ImageData; progress: number }[]>([]);
   const [hasImage, setHasImage] = useState(false);
   const [color, setColor] = useState(DRAWING_COLORS[0]);
-  const [brushSize, setBrushSize] = useState(7);
-  const [tool, setTool] = useState<
-    "draw" | "erase" | "text" | "arrow" | "square" | "circle" | "triangle" | "stop"
-  >("draw");
-  const [textValue, setTextValue] = useState("");
-  const [textColor, setTextColor] = useState<"#ffffff" | "#111111">("#ffffff");
+  const [tool, setTool] = useState<"draw" | "arrow" | "sotm">("draw");
   const [name, setName] = useState("");
   const [eventName, setEventName] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    document.body.classList.toggle("map-workspace-open", isFullscreen);
+    return () => document.body.classList.remove("map-workspace-open");
+  }, [isFullscreen]);
+
+  useEffect(() => {
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setIsFullscreen(false);
+    }
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, []);
+
+  useEffect(() => {
+    function undoWithKeyboard(event: KeyboardEvent) {
+      if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.key.toLowerCase() !== "z") {
+        return;
+      }
+      const target = event.target as HTMLElement | null;
+      if (
+        target?.isContentEditable ||
+        target?.closest("input, textarea, select, [contenteditable='true']")
+      ) {
+        return;
+      }
+      event.preventDefault();
+      undo();
+    }
+    window.addEventListener("keydown", undoWithKeyboard);
+    return () => window.removeEventListener("keydown", undoWithKeyboard);
+  }, []);
 
   const snapshot = useCallback(() => {
     const canvas = canvasRef.current;
     const context = canvas?.getContext("2d");
-    if (canvas && context)
-      history.current.push(context.getImageData(0, 0, canvas.width, canvas.height));
+    if (canvas && context) {
+      history.current.push({
+        image: context.getImageData(0, 0, canvas.width, canvas.height),
+        progress: drawingProgress.current,
+      });
+      if (history.current.length > DRAWING_HISTORY_LIMIT) history.current.shift();
+    }
   }, []);
 
   const loadImage = useCallback(
@@ -458,6 +509,7 @@ function MapCanvas({
         baseCanvas.getContext("2d")?.drawImage(image, 0, 0, canvas.width, canvas.height);
         baseCanvasRef.current = baseCanvas;
         history.current = [];
+        drawingProgress.current = 0;
         snapshot();
         setHasImage(true);
         if (suggestedName) setName(suggestedName.replace(/\.[^.]+$/, ""));
@@ -512,22 +564,7 @@ function MapCanvas({
   function startDraw(event: ReactPointerEvent<HTMLCanvasElement>) {
     if (!hasImage) return;
     snapshot();
-    if (tool === "text") {
-      const context = event.currentTarget.getContext("2d");
-      const value = textValue.trim();
-      if (!context || !value) return;
-      const position = point(event);
-      context.globalCompositeOperation = "source-over";
-      context.fillStyle = textColor;
-      context.strokeStyle = textColor === "#ffffff" ? "#111111" : "#ffffff";
-      context.lineWidth = 4;
-      context.lineJoin = "round";
-      context.font = `700 ${Math.max(24, brushSize * 5)}px Ubuntu, sans-serif`;
-      context.strokeText(value, position.x, position.y);
-      context.fillText(value, position.x, position.y);
-      return;
-    }
-    if (["arrow", "square", "circle", "triangle", "stop"].includes(tool)) {
+    if (tool === "arrow") {
       shapeStart.current = point(event);
       const context = event.currentTarget.getContext("2d");
       if (context) {
@@ -546,8 +583,14 @@ function MapCanvas({
     const context = event.currentTarget.getContext("2d");
     if (!context) return;
     const position = point(event);
-    context.beginPath();
-    context.moveTo(position.x, position.y);
+    lastDrawPoint.current = position;
+    currentStroke.current = {
+      points: [position],
+      color,
+      size: DRAW_LINE_WIDTH,
+      startProgress: drawingProgress.current,
+      mode: tool === "sotm" ? "sotm" : "draw",
+    };
   }
 
   function draw(event: ReactPointerEvent<HTMLCanvasElement>) {
@@ -555,114 +598,188 @@ function MapCanvas({
       const context = event.currentTarget.getContext("2d");
       if (!context) return;
       context.putImageData(shapePreview.current, 0, 0);
-      paintShape(context, shapeStart.current, point(event));
+      paintShape(context, shapeStart.current, point(event), false);
       return;
     }
     if (!drawing.current) return;
     const context = event.currentTarget.getContext("2d");
     if (!context) return;
     const position = point(event);
+    const previous = lastDrawPoint.current;
+    if (!previous) {
+      lastDrawPoint.current = position;
+      return;
+    }
+    const distance = Math.hypot(position.x - previous.x, position.y - previous.y);
+    if (distance < 0.5) return;
+    currentStroke.current?.points.push(position);
     context.lineCap = "round";
     context.lineJoin = "round";
-    context.lineWidth = brushSize;
+    context.lineWidth = DRAW_LINE_WIDTH;
     context.globalCompositeOperation = "source-over";
-    const baseCanvas = baseCanvasRef.current;
-    const basePattern =
-      tool === "erase" && baseCanvas ? context.createPattern(baseCanvas, "no-repeat") : null;
-    context.strokeStyle = basePattern ?? color;
+    context.strokeStyle = color;
+    context.beginPath();
+    context.moveTo(previous.x, previous.y);
     context.lineTo(position.x, position.y);
     context.stroke();
+    lastDrawPoint.current = position;
+  }
+
+  function finishStroke(context: CanvasRenderingContext2D) {
+    const stroke = currentStroke.current;
+    currentStroke.current = null;
+    if (!stroke || stroke.points.length < 2) {
+      history.current.pop();
+      return;
+    }
+    const beforeStroke = history.current[history.current.length - 1];
+    if (beforeStroke) context.putImageData(beforeStroke.image, 0, 0);
+
+    const lengths = stroke.points.slice(1).map((point, index) =>
+      Math.hypot(point.x - stroke.points[index].x, point.y - stroke.points[index].y),
+    );
+    const totalLength = lengths.reduce((sum, length) => sum + length, 0);
+    const progressSpan = Math.min(110, Math.max(55, totalLength / 12));
+    let traveled = 0;
+    context.globalCompositeOperation = "source-over";
+    context.lineCap = "round";
+    context.lineJoin = "round";
+    context.lineWidth = stroke.size;
+
+    lengths.forEach((length, index) => {
+      const start = stroke.points[index];
+      const end = stroke.points[index + 1];
+      const startProgress = stroke.startProgress + (traveled / totalLength) * progressSpan;
+      traveled += length;
+      const endProgress = stroke.startProgress + (traveled / totalLength) * progressSpan;
+      const gradient = context.createLinearGradient(start.x, start.y, end.x, end.y);
+      gradient.addColorStop(0, drawingColorAt(stroke.color, startProgress));
+      gradient.addColorStop(1, drawingColorAt(stroke.color, endProgress));
+      context.strokeStyle = gradient;
+      context.beginPath();
+      context.moveTo(start.x, start.y);
+      context.lineTo(end.x, end.y);
+      context.stroke();
+    });
+    drawingProgress.current = stroke.startProgress + progressSpan;
+    if (stroke.mode === "sotm") {
+      const middle = stroke.points[Math.floor(stroke.points.length / 2)];
+      const hub = {
+        x: context.canvas.width * (middle.x < context.canvas.width / 2 ? 0.2922 : 0.7078),
+        y: context.canvas.height * 0.5,
+      };
+      paintShootingCone(context, stroke.points, hub, stroke.color);
+    }
+  }
+
+  function paintShootingCone(
+    context: CanvasRenderingContext2D,
+    path: { x: number; y: number }[],
+    hub: { x: number; y: number },
+    coneColor: string,
+  ) {
+    context.save();
+    context.globalCompositeOperation = "source-over";
+    context.fillStyle = coneColor;
+    context.strokeStyle = coneColor;
+    context.lineWidth = 3;
+    context.lineJoin = "round";
+    context.globalAlpha = 0.2;
+    context.beginPath();
+    context.moveTo(path[0].x, path[0].y);
+    path.slice(1).forEach((pathPoint) => context.lineTo(pathPoint.x, pathPoint.y));
+    context.lineTo(hub.x, hub.y);
+    context.closePath();
+    context.fill();
+    context.globalAlpha = 0.85;
+    context.stroke();
+    context.restore();
+  }
+
+  function chooseTool(nextTool: "draw" | "arrow" | "sotm") {
+    setTool(nextTool);
+  }
+
+  function paintShootingArrow(
+    context: CanvasRenderingContext2D,
+    start: { x: number; y: number },
+    end: { x: number; y: number },
+    arrowColor: string,
+  ) {
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const distance = Math.max(6, Math.hypot(dx, dy));
+    const angle = Math.atan2(dy, dx);
+    const head = Math.min(22, Math.max(5, distance * 0.14));
+    context.save();
+    context.globalCompositeOperation = "source-over";
+    context.strokeStyle = arrowColor;
+    context.fillStyle = arrowColor;
+    context.lineWidth = ARROW_LINE_WIDTH;
+    context.lineCap = "round";
+    context.lineJoin = "round";
+    context.beginPath();
+    context.moveTo(start.x, start.y);
+    context.lineTo(end.x, end.y);
+    context.moveTo(end.x, end.y);
+    context.lineTo(
+      end.x - head * Math.cos(angle - Math.PI / 6),
+      end.y - head * Math.sin(angle - Math.PI / 6),
+    );
+    context.moveTo(end.x, end.y);
+    context.lineTo(
+      end.x - head * Math.cos(angle + Math.PI / 6),
+      end.y - head * Math.sin(angle + Math.PI / 6),
+    );
+    context.stroke();
+
+    const ballCount = Math.max(1, Math.floor(distance / 40));
+    const ballRadius = Math.max(9.1, Math.min(15.6, context.lineWidth * 1.495));
+    context.fillStyle = "#f6c945";
+    context.strokeStyle = "#6b4f00";
+    context.lineWidth = Math.max(1.5, ballRadius * 0.2);
+    for (let index = 1; index <= ballCount; index++) {
+      const position = index / (ballCount + 1);
+      context.beginPath();
+      context.arc(start.x + dx * position, start.y + dy * position, ballRadius, 0, Math.PI * 2);
+      context.fill();
+      context.stroke();
+    }
+    context.restore();
   }
 
   function paintShape(
     context: CanvasRenderingContext2D,
     start: { x: number; y: number },
     end: { x: number; y: number },
+    commit: boolean,
   ) {
     const dx = end.x - start.x;
     const dy = end.y - start.y;
     const radius = Math.max(6, Math.hypot(dx, dy));
-    context.globalCompositeOperation = "source-over";
-    context.strokeStyle = color;
-    context.fillStyle = color;
-    context.lineWidth = Math.min(Math.max(2, radius * 0.09), brushSize);
-    context.lineCap = "round";
-    context.lineJoin = "round";
+    const nextProgress = drawingProgress.current + radius / 12;
 
     if (tool === "arrow") {
-      const angle = Math.atan2(dy, dx);
-      const head = Math.min(42, Math.max(8, radius * 0.25));
-      context.beginPath();
-      context.moveTo(start.x, start.y);
-      context.lineTo(end.x, end.y);
-      context.moveTo(end.x, end.y);
-      context.lineTo(
-        end.x - head * Math.cos(angle - Math.PI / 6),
-        end.y - head * Math.sin(angle - Math.PI / 6),
-      );
-      context.moveTo(end.x, end.y);
-      context.lineTo(
-        end.x - head * Math.cos(angle + Math.PI / 6),
-        end.y - head * Math.sin(angle + Math.PI / 6),
-      );
-      context.stroke();
+      paintShootingArrow(context, start, end, color);
+      if (commit) drawingProgress.current = nextProgress;
       return;
     }
 
-    const centerX = start.x;
-    const centerY = start.y;
-    const sides = tool === "triangle" ? 3 : tool === "stop" ? 8 : 0;
-    context.beginPath();
-    if (tool === "circle") {
-      context.arc(centerX, centerY, radius, 0, Math.PI * 2);
-    } else if (tool === "square") {
-      context.rect(centerX - radius, centerY - radius, radius * 2, radius * 2);
-    } else {
-      const rotation = tool === "triangle" ? -Math.PI / 2 : Math.PI / 8;
-      for (let index = 0; index < sides; index++) {
-        const angle = rotation + (index * Math.PI * 2) / sides;
-        const x = centerX + Math.cos(angle) * radius;
-        const y = centerY + Math.sin(angle) * radius;
-        if (index === 0) context.moveTo(x, y);
-        else context.lineTo(x, y);
-      }
-      context.closePath();
-    }
-    if (tool === "stop") {
-      context.save();
-      context.fillStyle = "#d32f2f";
-      context.fill();
-      context.strokeStyle = "#ffffff";
-      context.lineWidth = Math.max(1.5, radius * 0.08);
-      context.stroke();
-      context.fillStyle = "#ffffff";
-      context.textAlign = "center";
-      context.textBaseline = "middle";
-      context.font = `800 ${Math.max(5, radius * 0.38)}px Ubuntu, sans-serif`;
-      context.fillText("STOP", centerX, centerY);
-      context.restore();
-    } else if (tool === "circle") {
-      context.save();
-      context.globalAlpha = 0.16;
-      context.fill();
-      context.restore();
-      context.stroke();
-    } else {
-      context.stroke();
-    }
   }
 
   function finishDraw(event: ReactPointerEvent<HTMLCanvasElement>) {
     drawing.current = false;
+    lastDrawPoint.current = null;
+    const context = event.currentTarget.getContext("2d");
+    if (currentStroke.current && context) finishStroke(context);
     const start = shapeStart.current;
     const preview = shapePreview.current;
     shapeStart.current = null;
     shapePreview.current = null;
     if (!start || !preview) return;
-    const context = event.currentTarget.getContext("2d");
     if (!context) return;
     context.putImageData(preview, 0, 0);
-    paintShape(context, start, point(event));
+    paintShape(context, start, point(event), true);
   }
 
   function undo() {
@@ -671,8 +788,21 @@ function MapCanvas({
     const state = history.current.pop();
     if (context && state) {
       context.globalCompositeOperation = "source-over";
-      context.putImageData(state, 0, 0);
+      context.putImageData(state.image, 0, 0);
+      drawingProgress.current = state.progress;
     }
+  }
+
+  function clearDrawings() {
+    const canvas = canvasRef.current;
+    const baseCanvas = baseCanvasRef.current;
+    const context = canvas?.getContext("2d");
+    if (!canvas || !baseCanvas || !context) return;
+    snapshot();
+    context.globalCompositeOperation = "source-over";
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(baseCanvas, 0, 0, canvas.width, canvas.height);
+    drawingProgress.current = 0;
   }
 
   async function save() {
@@ -701,6 +831,7 @@ function MapCanvas({
         context.clearRect(0, 0, canvas.width, canvas.height);
         context.drawImage(baseCanvas, 0, 0);
         history.current = [];
+        drawingProgress.current = 0;
         snapshot();
       }
     } finally {
@@ -709,8 +840,22 @@ function MapCanvas({
   }
 
   return (
-    <div className="map-editor">
+    <div
+      ref={editorRef}
+      className={`map-editor ${isFullscreen ? "map-editor-fullscreen" : ""}`}
+    >
       <div className="map-toolbar">
+        <button
+          type="button"
+          className="fullscreen-toggle"
+          onClick={() => setIsFullscreen((value) => !value)}
+          aria-label={isFullscreen ? "Exit fullscreen map" : "Open fullscreen map"}
+          aria-pressed={isFullscreen}
+        >
+          {isFullscreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
+          {isFullscreen ? "Exit fullscreen" : "Fullscreen map"}
+        </button>
+        <span className="toolbar-divider" />
         <label className="upload-button">
           <Upload size={17} /> {hasImage ? "Replace field preset" : "Upload field preset"}
           <input type="file" accept="image/*" onChange={(e) => loadFile(e.target.files?.[0])} />
@@ -722,61 +867,25 @@ function MapCanvas({
         <button
           type="button"
           className={tool === "draw" ? "active" : ""}
-          onClick={() => setTool("draw")}
+          onClick={() => chooseTool("draw")}
         >
           <Pencil size={16} /> Draw
         </button>
         <button
           type="button"
-          className={tool === "erase" ? "active" : ""}
-          onClick={() => setTool("erase")}
+          className={tool === "arrow" ? "active" : ""}
+          onClick={() => chooseTool("arrow")}
         >
-          <Eraser size={16} /> Erase
+          <ArrowRight size={19} /> Arrow
         </button>
         <button
           type="button"
-          className={tool === "text" ? "active" : ""}
-          onClick={() => setTool("text")}
+          className={tool === "sotm" ? "active" : ""}
+          onClick={() => chooseTool("sotm")}
+          title="Draw a movement path to create a shooting cone aimed at the nearest hub"
         >
-          <Type size={16} /> Text
+          <Target size={19} /> SOTM
         </button>
-        {[
-          { id: "arrow" as const, label: "Arrow", icon: ArrowRight },
-          { id: "stop" as const, label: "Stop", icon: Octagon },
-          { id: "square" as const, label: "Square", icon: Square },
-          { id: "circle" as const, label: "Circle", icon: Circle },
-          { id: "triangle" as const, label: "Triangle", icon: Triangle },
-        ].map(({ id, label, icon: ShapeIcon }) => (
-          <button
-            type="button"
-            key={id}
-            className={`${tool === id ? "active" : ""} shape-tool shape-${id}`}
-            onClick={() => setTool(id)}
-          >
-            <ShapeIcon size={16} /> {id === "stop" ? "Stop sign" : label}
-          </button>
-        ))}
-        {tool === "text" && (
-          <div className="text-tool-options">
-            <input
-              value={textValue}
-              onChange={(event) => setTextValue(event.target.value)}
-              placeholder="Text to place"
-              aria-label="Text to place"
-            />
-            {(["#ffffff", "#111111"] as const).map((option) => (
-              <button
-                type="button"
-                key={option}
-                className={textColor === option ? "selected" : ""}
-                style={{ backgroundColor: option }}
-                aria-label={option === "#ffffff" ? "White text" : "Black text"}
-                aria-pressed={textColor === option}
-                onClick={() => setTextColor(option)}
-              />
-            ))}
-          </div>
-        )}
         <div className="drawing-colors" aria-label="Brush color">
           {DRAWING_COLORS.map((option) => (
             <button
@@ -790,17 +899,11 @@ function MapCanvas({
             />
           ))}
         </div>
-        <input
-          className="brush-slider"
-          type="range"
-          min="2"
-          max="24"
-          value={brushSize}
-          onChange={(event) => setBrushSize(Number(event.target.value))}
-          aria-label="Brush size"
-        />
-        <button type="button" onClick={undo}>
+        <button type="button" onClick={undo} title="Undo (Ctrl+Z)">
           <RotateCcw size={16} /> Undo
+        </button>
+        <button type="button" className="clear-drawings-button" onClick={clearDrawings}>
+          <Trash2 size={17} /> Clear drawings
         </button>
       </div>
       <div className={`canvas-shell ${hasImage ? "has-image" : ""}`}>
@@ -811,9 +914,15 @@ function MapCanvas({
           onPointerUp={finishDraw}
           onPointerCancel={() => {
             drawing.current = false;
+            lastDrawPoint.current = null;
             shapeStart.current = null;
             const context = canvasRef.current?.getContext("2d");
-            if (context && shapePreview.current) context.putImageData(shapePreview.current, 0, 0);
+            const canceledState = history.current.pop();
+            if (context && canceledState) {
+              context.putImageData(canceledState.image, 0, 0);
+              drawingProgress.current = canceledState.progress;
+            }
+            currentStroke.current = null;
             shapePreview.current = null;
           }}
         />
