@@ -3596,3 +3596,309 @@ html[data-theme="dark"] .trajectory-preview {
     height: 210px;
   }
 }
+
+/* Fullscreen field workspace and final phone/desktop layout pass. */
+body.map-workspace-open {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+.map-editor-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  border: 0;
+  border-radius: 0;
+  background: var(--panel);
+}
+
+.map-editor-fullscreen .map-toolbar {
+  position: relative;
+  top: auto;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+.map-editor-fullscreen .canvas-shell {
+  min-height: 0;
+  height: 100%;
+  padding: 8px;
+  overflow: hidden;
+}
+
+.map-editor-fullscreen .canvas-shell canvas {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.map-editor-fullscreen .map-details {
+  padding-bottom: max(13px, env(safe-area-inset-bottom));
+  background: var(--panel);
+}
+
+.fullscreen-toggle {
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  html,
+  body,
+  #root {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .mobile-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    height: calc(56px + env(safe-area-inset-top));
+    padding: env(safe-area-inset-top) 14px 0;
+  }
+
+  .page-heading h1 {
+    font-size: clamp(36px, 12vw, 50px);
+    line-height: 0.95;
+  }
+
+  .heading-actions > *,
+  .heading-actions select,
+  .heading-actions button {
+    min-width: 0;
+    min-height: 44px;
+    flex: 1 1 145px;
+  }
+
+  .editor-card,
+  .map-editor,
+  .form-panel,
+  .library-bar,
+  .map-card,
+  .auto-card {
+    border-radius: 10px;
+  }
+
+  .library-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .library-bar input,
+  .library-bar select,
+  .form-panel input,
+  .form-panel textarea,
+  .form-panel select,
+  .map-details input {
+    width: 100%;
+    min-height: 46px;
+    font-size: 16px;
+  }
+
+  .tier-lists-page .tier-row {
+    grid-template-columns: minmax(68px, 22vw) minmax(0, 1fr);
+  }
+
+  .tier-chip {
+    min-height: 48px;
+    padding: 10px 12px;
+    font-size: 17px;
+  }
+
+  .map-toolbar {
+    top: calc(56px + env(safe-area-inset-top));
+    padding: 8px;
+    scroll-snap-type: x proximity;
+  }
+
+  .map-toolbar button,
+  .upload-button {
+    min-height: 44px;
+    scroll-snap-align: start;
+    white-space: nowrap;
+  }
+
+  .map-toolbar .drawing-colors button,
+  .map-toolbar .text-tool-options button {
+    min-height: 30px;
+  }
+
+  .map-editor-fullscreen {
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+
+  .map-editor-fullscreen .map-toolbar {
+    top: auto;
+    padding-top: max(8px, env(safe-area-inset-top));
+  }
+
+  .map-editor-fullscreen .canvas-shell {
+    min-height: 0;
+    padding: 2px;
+  }
+
+  .map-editor-fullscreen .canvas-shell canvas {
+    width: 100%;
+  }
+
+  .map-editor-fullscreen .map-details {
+    display: flex;
+    overflow-x: auto;
+    gap: 7px;
+    padding: 8px 8px max(8px, env(safe-area-inset-bottom));
+  }
+
+  .map-editor-fullscreen .map-details input {
+    min-width: 150px;
+  }
+
+  .map-editor-fullscreen .map-details .primary-button {
+    min-width: max-content;
+    min-height: 46px;
+  }
+
+  .auto-dialog-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .auto-dialog {
+    width: 100%;
+    max-height: 92dvh;
+    margin: 0;
+    border-radius: 16px 16px 0 0;
+  }
+
+  .map-sharing-access form {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 430px) {
+  .hero {
+    padding-inline: 8px;
+  }
+
+  .hero h1 {
+    font-size: clamp(50px, 18vw, 72px);
+  }
+
+  .hero-logo .g3-icon {
+    width: 84px;
+    height: 84px;
+  }
+
+  .tool-card {
+    min-height: 112px;
+  }
+}
+
+@media (max-width: 760px) and (orientation: landscape) {
+  .map-editor-fullscreen {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .map-editor-fullscreen .map-toolbar {
+    grid-column: 1 / -1;
+  }
+
+  .map-editor-fullscreen .map-details {
+    width: min(230px, 34vw);
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .map-editor-fullscreen .map-details input {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+/* Streamlined, touch-friendly field drawing controls. */
+.map-toolbar {
+  flex-wrap: nowrap;
+  min-height: 68px;
+  overflow-x: auto;
+  padding: 10px 12px;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.canvas-shell canvas {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.map-toolbar button,
+.map-toolbar .upload-button {
+  min-height: 48px;
+  flex: 0 0 auto;
+  padding: 0 15px;
+  border-radius: 9px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.map-toolbar button > svg,
+.map-toolbar .upload-button > svg {
+  width: 19px;
+  height: 19px;
+}
+
+.map-toolbar .drawing-colors {
+  flex: 0 0 auto;
+  gap: 8px;
+  padding: 7px 9px;
+}
+
+.map-toolbar .drawing-colors button {
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+}
+
+.map-toolbar .brush-slider {
+  width: 110px;
+  min-height: 44px;
+  flex: 0 0 auto;
+}
+
+.map-toolbar .clear-drawings-button {
+  color: #a71433;
+}
+
+.map-toolbar .clear-drawings-button:hover {
+  border-color: rgba(167, 20, 51, 0.35);
+  color: #a71433;
+  background: #faeef1;
+}
+
+html[data-theme="dark"] .map-toolbar .clear-drawings-button:hover {
+  background: rgba(167, 20, 51, 0.2);
+}
+
+@media (max-width: 760px) {
+  .map-toolbar {
+    min-height: 64px;
+    padding-inline: 8px;
+  }
+
+  .map-toolbar button,
+  .map-toolbar .upload-button {
+    min-height: 48px;
+    padding-inline: 14px;
+  }
+}
