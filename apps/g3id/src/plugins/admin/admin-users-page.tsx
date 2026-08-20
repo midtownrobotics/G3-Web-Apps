@@ -255,8 +255,16 @@ export function AdminUsersPage() {
     const activeUsers = users.filter((u) => u.status === "active");
     if (activeUsers.length === 0) return;
 
-    const authMethods = ["Slack", "Google", "GitHub", "Steam", "Local", "OnShape"];
-    const headers = ["Name", "Email", "Joined Date", "Last Login", "Admin", ...authMethods];
+    const authMethods = ["Slack", "Google", "GitHub", "Steam", "OnShape"];
+    const headers = [
+      "Name",
+      "Email",
+      "Joined Date",
+      "Last Login",
+      "Admin",
+      "Mentor",
+      ...authMethods,
+    ];
 
     const rows = activeUsers.map((u) => {
       const providerSet = new Set(u.identities.map((i) => i.provider));
@@ -265,7 +273,6 @@ export function AdminUsersPage() {
         google: providerSet.has("google"),
         github: providerSet.has("github"),
         steam: providerSet.has("steam"),
-        local: providerSet.has("local"),
         onshape: providerSet.has("onshape"),
       };
       return [
@@ -274,11 +281,11 @@ export function AdminUsersPage() {
         new Date(u.createdAt * 1000).toLocaleDateString(),
         u.lastLoginAt ? new Date(u.lastLoginAt * 1000).toLocaleString() : "Never",
         u.isAdmin ? "TRUE" : "FALSE",
+        u.isMentor ? "TRUE" : "FALSE",
         authValues.slack ? "TRUE" : "FALSE",
         authValues.google ? "TRUE" : "FALSE",
         authValues.github ? "TRUE" : "FALSE",
         authValues.steam ? "TRUE" : "FALSE",
-        authValues.local ? "TRUE" : "FALSE",
         authValues.onshape ? "TRUE" : "FALSE",
       ];
     });
