@@ -90,18 +90,17 @@ const app = base
       // Site mentors get the same manage-others capability as local mentors/admins.
       await db.insert(skillMentors).values({ userId: id }).onConflictDoNothing();
       await db.insert(skillSiteMentors).values({ userId: id }).onConflictDoNothing();
+      // Remove their personal skill tree — mentors only manage others
+      await db.delete(skillProgress).where(eq(skillProgress.userId, id));
     } else {
       await db.delete(skillSiteMentors).where(eq(skillSiteMentors.userId, id));
-    }
-
-    const mentor = await isMentor(db, id, isAdmin);
-
-    if (!isSiteMentor) {
       await db
         .insert(skillProgress)
         .values({ userId: id, displayName, progress: {}, updatedAt: Math.floor(Date.now() / 1000) })
         .onConflictDoUpdate({ target: skillProgress.userId, set: { displayName } });
     }
+
+    const mentor = await isMentor(db, id, isAdmin);
 
     return c.json({ id, displayName, isAdmin, isMentor: mentor });
   })
