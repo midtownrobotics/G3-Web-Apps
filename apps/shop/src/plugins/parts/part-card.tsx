@@ -127,7 +127,7 @@ export function PartCard({
   async function sendBack() {
     if (!sendBackProcess) return;
     setBusy(true);
-    const res = await api["part-instance-processes"][":partInstanceId"]["processes"][
+    const res = await api["part-instance-processes"][":partInstanceId"].processes[
       ":processId"
     ].$patch({
       param: {

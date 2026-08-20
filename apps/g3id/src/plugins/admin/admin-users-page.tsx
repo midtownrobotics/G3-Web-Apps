@@ -256,7 +256,15 @@ export function AdminUsersPage() {
     if (activeUsers.length === 0) return;
 
     const authMethods = ["Slack", "Google", "GitHub", "Steam", "OnShape"];
-    const headers = ["Name", "Email", "Joined Date", "Last Login", "Admin", "Mentor", ...authMethods];
+    const headers = [
+      "Name",
+      "Email",
+      "Joined Date",
+      "Last Login",
+      "Admin",
+      "Mentor",
+      ...authMethods,
+    ];
 
     const rows = activeUsers.map((u) => {
       const providerSet = new Set(u.identities.map((i) => i.provider));

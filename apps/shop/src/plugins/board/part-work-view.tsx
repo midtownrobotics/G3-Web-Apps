@@ -27,7 +27,7 @@ export function PartWorkView({
   async function handleRevert() {
     if (!currentProcess) return;
     setBusy(true);
-    const res = await api["part-instance-processes"][":partInstanceId"]["processes"][
+    const res = await api["part-instance-processes"][":partInstanceId"].processes[
       ":processId"
     ].$patch({
       param: {
