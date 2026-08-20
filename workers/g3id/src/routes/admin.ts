@@ -235,6 +235,44 @@ export const adminRouter = new Hono<AppEnv>()
 
     return c.json({ message: "User demoted." });
   })
+  .post("/users/:id/grant-mentor", async (c) => {
+    const id = c.req.param("id");
+    const db = createDb(c.env.DB);
+
+    const user = await db
+      .select({ id: coreUsers.id })
+      .from(coreUsers)
+      .where(eq(coreUsers.id, id))
+      .get();
+
+    if (!user) return c.json({ error: "User not found." }, 404);
+
+    await db
+      .update(coreUsers)
+      .set({ isMentor: 1, updatedAt: Math.floor(Date.now() / 1000) })
+      .where(eq(coreUsers.id, id));
+
+    return c.json({ message: "User granted mentor." });
+  })
+  .post("/users/:id/revoke-mentor", async (c) => {
+    const id = c.req.param("id");
+    const db = createDb(c.env.DB);
+
+    const user = await db
+      .select({ id: coreUsers.id })
+      .from(coreUsers)
+      .where(eq(coreUsers.id, id))
+      .get();
+
+    if (!user) return c.json({ error: "User not found." }, 404);
+
+    await db
+      .update(coreUsers)
+      .set({ isMentor: 0, updatedAt: Math.floor(Date.now() / 1000) })
+      .where(eq(coreUsers.id, id));
+
+    return c.json({ message: "Mentor revoked." });
+  })
   .post("/kiosk/codes", async (c) => {
     const userId = c.get("userId") as string;
     let body: { deviceName?: unknown };

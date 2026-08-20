@@ -22,6 +22,7 @@ export const authRouter = new Hono<AppEnv>()
         displayName: coreUsers.displayName,
         status: coreUsers.status,
         isAdmin: coreUsers.isAdmin,
+        isMentor: coreUsers.isMentor,
         createdAt: coreUsers.createdAt,
       })
       .from(coreUsers)
@@ -64,6 +65,7 @@ export const authRouter = new Hono<AppEnv>()
     }
 
     const isAdmin = sessionType === "pin" ? false : user.isAdmin === 1;
+    const isMentor = sessionType === "pin" ? false : user.isMentor === 1;
 
     let kioskDeviceName: string | undefined;
     if (kioskDeviceId) {
@@ -79,6 +81,7 @@ export const authRouter = new Hono<AppEnv>()
       ...user,
       identities,
       isAdmin,
+      isMentor,
       sessionType,
       ...(kioskDeviceId && { kioskDeviceId }),
       ...(kioskDeviceName && { kioskDeviceName }),

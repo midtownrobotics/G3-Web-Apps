@@ -7,6 +7,7 @@ export default defineConfig({
   server: {
     port: 5174,
     strictPort: true,
+    allowedHosts: [".grayjn.com"],
     proxy: {
       "/api": {
         target: "http://localhost:8788",

@@ -7,7 +7,9 @@
     "dev:silent": "pnpm -r --parallel --if-present dev",
     "lint": "biome ci .",
     "typecheck": "pnpm -r --if-present typecheck",
-    "test": "pnpm -r --if-present test"
+    "test": "pnpm -r --if-present test",
+    "db:migrate:local": "pnpm -r --if-present db:migrate:local",
+    "db:migrate:remote": "pnpm -r --if-present db:migrate:remote"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4"

@@ -16,3 +16,12 @@ export const skillProgress = sqliteTable("skill_progress", {
 export const skillMentors = sqliteTable("skill_mentors", {
   userId: text("user_id").primaryKey(),
 });
+
+// Mirrors which users currently have the G3ID sitewide isMentor flag, kept in
+// sync on every /me call. Distinct from skillMentors: a G3ID site mentor is
+// also added to skillMentors (they can manage others), but membership here is
+// what specifically excludes them from having their own skill tree — local
+// skill-tree mentors/admins are in skillMentors but not here, and keep theirs.
+export const skillSiteMentors = sqliteTable("skill_site_mentors", {
+  userId: text("user_id").primaryKey(),
+});

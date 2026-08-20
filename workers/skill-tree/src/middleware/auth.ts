@@ -8,15 +8,17 @@ export const requireAuth = createMiddleware<AppEnv>(async (c, next) => {
     }),
   );
   if (!res.ok) return c.json({ error: "Unauthorized." }, 401);
-  const { id, isAdmin, email, displayName, sessionType } = (await res.json()) as {
+  const { id, isAdmin, isMentor, email, displayName, sessionType } = (await res.json()) as {
     id: string;
     isAdmin: boolean;
+    isMentor: boolean;
     email: string;
     displayName: string;
     sessionType: "oauth" | "pin";
   };
   c.set("userId", id);
   c.set("userIsAdmin", isAdmin);
+  c.set("userIsMentor", isMentor);
   c.set("userEmail", email);
   c.set("userDisplayName", displayName);
   c.set("sessionType", sessionType);
