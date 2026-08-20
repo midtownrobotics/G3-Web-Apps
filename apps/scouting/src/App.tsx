@@ -635,9 +635,11 @@ function MapCanvas({
     const beforeStroke = history.current[history.current.length - 1];
     if (beforeStroke) context.putImageData(beforeStroke.image, 0, 0);
 
-    const lengths = stroke.points.slice(1).map((point, index) =>
-      Math.hypot(point.x - stroke.points[index].x, point.y - stroke.points[index].y),
-    );
+    const lengths = stroke.points
+      .slice(1)
+      .map((point, index) =>
+        Math.hypot(point.x - stroke.points[index].x, point.y - stroke.points[index].y),
+      );
     const totalLength = lengths.reduce((sum, length) => sum + length, 0);
     const progressSpan = Math.min(110, Math.max(55, totalLength / 12));
     let traveled = 0;
@@ -687,7 +689,7 @@ function MapCanvas({
     context.globalAlpha = 0.2;
     context.beginPath();
     context.moveTo(path[0].x, path[0].y);
-    path.slice(1).forEach((pathPoint) => context.lineTo(pathPoint.x, pathPoint.y));
+    for (const pathPoint of path.slice(1)) context.lineTo(pathPoint.x, pathPoint.y);
     context.lineTo(hub.x, hub.y);
     context.closePath();
     context.fill();
@@ -764,7 +766,6 @@ function MapCanvas({
       if (commit) drawingProgress.current = nextProgress;
       return;
     }
-
   }
 
   function finishDraw(event: ReactPointerEvent<HTMLCanvasElement>) {
@@ -840,10 +841,7 @@ function MapCanvas({
   }
 
   return (
-    <div
-      ref={editorRef}
-      className={`map-editor ${isFullscreen ? "map-editor-fullscreen" : ""}`}
-    >
+    <div ref={editorRef} className={`map-editor ${isFullscreen ? "map-editor-fullscreen" : ""}`}>
       <div className="map-toolbar">
         <button
           type="button"
