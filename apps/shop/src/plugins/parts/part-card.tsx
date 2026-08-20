@@ -48,6 +48,9 @@ export function PartCard({
   const [busy, setBusy] = useState(false);
   const [editingDrawing, setEditingDrawing] = useState(false);
   const [drawingDraft, setDrawingDraft] = useState(row.definition.partDrawingUrl ?? "");
+  const [showSendBackModal, setShowSendBackModal] = useState(false);
+  const [sendBackProcess, setSendBackProcess] = useState<number | null>(null);
+  const [sendBackStatus, setSendBackStatus] = useState<"todo" | "doing" | "done">("todo");
 
   const resolveName = useUserNames([row.definition.creator]);
   const isObsolete = !!row.instance.isStale;
@@ -105,6 +108,43 @@ export function PartCard({
     }
     await onChanged();
     onClose();
+  }
+
+  async function addMoreInstances() {
+    setBusy(true);
+    const res = await api["part-instances"].$post({
+      json: { partDefinitionId: row.definition.id, quantity: 1 },
+    });
+    if (!res.ok) {
+      setBanner(await getErrorMessage(res as unknown as Response));
+    } else {
+      setBanner(null);
+      await onChanged();
+    }
+    setBusy(false);
+  }
+
+  async function sendBack() {
+    if (!sendBackProcess) return;
+    setBusy(true);
+    const res = await api["part-instance-processes"][":partInstanceId"].processes[
+      ":processId"
+    ].$patch({
+      param: {
+        partInstanceId: String(row.instance.id),
+        processId: String(sendBackProcess),
+      },
+      json: { status: sendBackStatus },
+    });
+    if (!res.ok) {
+      setBanner(await getErrorMessage(res as unknown as Response));
+      setBusy(false);
+      return;
+    }
+    setBanner(null);
+    setShowSendBackModal(false);
+    await onChanged();
+    setBusy(false);
   }
 
   /** Open the Add Part page pre-filled from this part for a process transfer. */
@@ -345,7 +385,27 @@ export function PartCard({
             )}
           </Section>
 
-          <div className={`grid grid-cols-1 gap-2 ${isObsolete ? "" : "sm:grid-cols-2"}`}>
+          <div className={`grid grid-cols-1 gap-2 ${isObsolete ? "" : "sm:grid-cols-3"}`}>
+            <button
+              type="button"
+              onClick={addMoreInstances}
+              disabled={busy || isObsolete}
+              className="w-full py-2.5 rounded-lg border border-emerald-400/50 text-emerald-700 hover:bg-emerald-50 text-sm font-semibold transition-colors disabled:opacity-50"
+            >
+              + Add More
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSendBackProcess(row.procs[0]?.processId ?? null);
+                setSendBackStatus("todo");
+                setShowSendBackModal(true);
+              }}
+              disabled={busy || isObsolete}
+              className="w-full py-2.5 rounded-lg border border-amber-400/50 text-amber-700 hover:bg-amber-50 text-sm font-semibold transition-colors disabled:opacity-50"
+            >
+              ↶ Send Back
+            </button>
             <button
               type="button"
               onClick={transferProcesses}
@@ -360,12 +420,78 @@ export function PartCard({
                 type="button"
                 onClick={makeObsolete}
                 disabled={busy}
-                className="w-full py-2.5 rounded-lg border border-crimson/50 text-crimson hover:bg-crimson-tint text-sm font-semibold transition-colors disabled:opacity-50"
+                className="w-full py-2.5 rounded-lg border border-crimson/50 text-crimson hover:bg-crimson-tint text-sm font-semibold transition-colors disabled:opacity-50 sm:col-span-3"
               >
                 Make Obsolete
               </button>
             )}
           </div>
+
+          {/* Send Back Modal */}
+          {showSendBackModal && (
+            <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center p-4">
+              <div className="bg-paper rounded-lg shadow-lg max-w-sm w-full p-6 space-y-4">
+                <h3 className="text-lg font-bold text-ink">Send Part Back</h3>
+
+                <div>
+                  <label htmlFor="send-back-process" className="block text-sm font-semibold text-steel mb-2">
+                    Process
+                  </label>
+                  <select
+                    id="send-back-process"
+                    value={sendBackProcess ?? ""}
+                    onChange={(e) => setSendBackProcess(Number(e.target.value) || null)}
+                    className="w-full bg-paper border border-steel/40 rounded-lg px-3 py-2 text-sm text-ink focus:outline-none focus:border-crimson"
+                  >
+                    <option value="">Select a process...</option>
+                    {row.procs.map((proc) => (
+                      <option key={proc.id} value={proc.processId}>
+                        {processName(proc.processId)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <fieldset>
+                  <legend className="block text-sm font-semibold text-steel mb-2">Status</legend>
+                  <div className="space-y-2">
+                    {(["todo", "doing", "done"] as const).map((s) => (
+                      <label key={s} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="status"
+                          value={s}
+                          checked={sendBackStatus === s}
+                          onChange={() => setSendBackStatus(s)}
+                          className="accent-crimson"
+                        />
+                        <span className="text-sm text-ink capitalize">{s}</span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowSendBackModal(false)}
+                    disabled={busy}
+                    className="flex-1 py-2 rounded-lg border border-steel/50 text-steel-dark hover:bg-steel-tint text-sm font-semibold transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={sendBack}
+                    disabled={busy || !sendBackProcess}
+                    className="flex-1 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors disabled:opacity-50"
+                  >
+                    Send Back
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
