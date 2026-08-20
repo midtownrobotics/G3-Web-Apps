@@ -24,7 +24,7 @@ export function PartWorkView({
   const subsystem = data.subsystems.find((s) => s.id === row.definition.subsystemId);
   const currentProcess = row.current;
 
-  async function revertStatus() {
+  async function handleRevert() {
     if (!currentProcess) return;
     setBusy(true);
     const res = await api["part-instance-processes"][":partInstanceId"].processes[
@@ -198,7 +198,7 @@ export function PartWorkView({
                   </button>
                   <button
                     type="button"
-                    onClick={() => revertStatus()}
+                    onClick={() => handleRevert()}
                     disabled={busy}
                     className="flex-1 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors disabled:opacity-50"
                   >

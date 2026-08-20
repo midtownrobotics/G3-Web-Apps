@@ -434,7 +434,10 @@ export function PartCard({
                 <h3 className="text-lg font-bold text-ink">Send Part Back</h3>
 
                 <div>
-                  <label htmlFor="send-back-process" className="block text-sm font-semibold text-steel mb-2">
+                  <label
+                    htmlFor="send-back-process"
+                    className="block text-sm font-semibold text-steel mb-2"
+                  >
                     Process
                   </label>
                   <select
