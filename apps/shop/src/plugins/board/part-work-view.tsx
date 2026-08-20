@@ -169,9 +169,7 @@ export function PartWorkView({
             <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center p-4">
               <div className="bg-paper rounded-lg shadow-lg max-w-sm w-full p-6 space-y-4">
                 <h3 className="text-lg font-bold text-ink">Send Back</h3>
-                <p className="text-sm text-steel">
-                  Move this part back to which status?
-                </p>
+                <p className="text-sm text-steel">Move this part back to which status?</p>
 
                 <div className="space-y-2">
                   {(["todo", "doing"] as const).map((s) => (
@@ -200,7 +198,7 @@ export function PartWorkView({
                   </button>
                   <button
                     type="button"
-                    onClick={() => revertStatus()}
+                    onClick={() => handleRevert()}
                     disabled={busy}
                     className="flex-1 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors disabled:opacity-50"
                   >
