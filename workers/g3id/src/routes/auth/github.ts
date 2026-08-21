@@ -122,10 +122,27 @@ export const githubAuthRouter = new Hono<AppEnv>()
       }),
     });
 
-    if (!tokenRes.ok) return err("Failed to complete sign-in with GitHub. Please try again.");
+    const tokenBodyText = await tokenRes.text();
 
-    const { access_token: accessToken } = (await tokenRes.json()) as { access_token: string };
-    if (!accessToken) return err("Failed to complete sign-in with GitHub. Please try again.");
+    if (!tokenRes.ok) {
+      console.error("[github oauth] token exchange failed", tokenRes.status, tokenBodyText);
+      return err("Failed to complete sign-in with GitHub. Please try again.");
+    }
+
+    let accessToken: string | undefined;
+    try {
+      ({ access_token: accessToken } = JSON.parse(tokenBodyText) as { access_token?: string });
+    } catch {
+      console.error("[github oauth] token response was not valid JSON", tokenBodyText);
+      return err("Failed to complete sign-in with GitHub. Please try again.");
+    }
+
+    if (!accessToken) {
+      // GitHub returns HTTP 200 with an error body (e.g. redirect_uri_mismatch,
+      // bad_verification_code, incorrect_client_credentials) instead of a 4xx.
+      console.error("[github oauth] no access_token in response", tokenBodyText);
+      return err("Failed to complete sign-in with GitHub. Please try again.");
+    }
 
     let githubUser: { id: string; login: string; email: string | null; name: string };
     try {
