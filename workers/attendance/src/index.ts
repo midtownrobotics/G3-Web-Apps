@@ -45,19 +45,19 @@ function db(env: AppEnv["Bindings"]) {
 }
 
 async function listOpenSessions(fs: Firestore) {
-  const members = await fs.listCollection("members");
-  const sessionsByMember = await Promise.all(
-    members.map(async (member) => ({
-      member,
-      sessions: await fs.listCollection(`members/${member.id}/sessions`),
-    })),
-  );
+  // A collection-group query is one Firestore subrequest regardless of member
+  // count. The previous fan-out made /status and every sign-in consume N+1.
+  const [members, sessions] = await Promise.all([
+    fs.listCollection("members"),
+    fs.collectionGroupQuery("sessions", [{ field: "status", op: "EQUAL", value: "open" }]),
+  ]);
+  const membersById = new Map(members.map((member) => [member.id, member]));
 
-  return sessionsByMember.flatMap(({ member, sessions }) =>
-    sessions
-      .filter((session) => session.data.status === "open")
-      .map((session) => ({ session, member })),
-  );
+  return sessions.flatMap((session) => {
+    const match = session.path.match(/\/members\/([^/]+)\/sessions\//);
+    const member = match ? membersById.get(match[1]) : undefined;
+    return member ? [{ session, member }] : [];
+  });
 }
 
 function schoolYear(date: Date): string {
@@ -296,7 +296,7 @@ const app = base
       fs.listCollection(`${memberPath}/sessions`),
       fs.listCollection(`${memberPath}/totals`),
     ]);
-    await Promise.all([...sessions, ...totals].map((document) => fs.deleteDoc(document.path)));
+    await fs.deleteDocs([...sessions, ...totals].map((document) => document.path));
     await fs.deleteDoc(memberPath);
     return c.json({ ok: true });
   })
@@ -308,9 +308,9 @@ const app = base
     const fs = db(c.env);
     const year = schoolYear(new Date());
     const members = await fs.listCollection("members");
-    const allSessions = (
-      await Promise.all(members.map((member) => fs.listCollection(`members/${member.id}/sessions`)))
-    ).flat();
+    // Avoid a per-member Firestore request. This remains two reads even as the
+    // roster grows: one for members and one for all session subcollections.
+    const allSessions = await fs.collectionGroupQuery("sessions", []);
     const sessionsByMember = new Map<string, typeof allSessions>();
     for (const session of allSessions) {
       const match = session.path.match(/\/members\/([^/]+)\/sessions\//);
