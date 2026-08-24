@@ -140,11 +140,12 @@ export class Firestore {
       Object.entries(data).map(([k, v]) => [k, toFS(v)])
     );
 
-    await fetch(`${this.base}/${path}`, {
+    const res = await fetch(`${this.base}/${path}`, {
       method: 'PATCH',
       headers: await this.headers(),
       body: JSON.stringify({ fields }),
     });
+    if (!res.ok) throw new Error(`Firestore set failed (${res.status}) for ${path}`);
   }
 
   async updateDoc(path: string, data: Record<string, unknown>) {
@@ -160,11 +161,12 @@ export class Firestore {
       ? `https://firestore.googleapis.com/v1/${path}?${mask}`
       : `${this.base}/${path}?${mask}`;
 
-    await fetch(url, {
+    const res = await fetch(url, {
       method: 'PATCH',
       headers: await this.headers(),
       body: JSON.stringify({ fields }),
     });
+    if (!res.ok) throw new Error(`Firestore update failed (${res.status}) for ${path}`);
   }
 
   async deleteDoc(path: string) {
@@ -180,6 +182,27 @@ export class Firestore {
     }
   }
 
+  async deleteDocs(paths: string[]) {
+    // Firestore commits accept at most 500 writes. Chunking keeps large member
+    // histories bounded without spending one Worker subrequest per document.
+    for (let offset = 0; offset < paths.length; offset += 500) {
+      const chunk = paths.slice(offset, offset + 500);
+      const writes = chunk.map((path) => ({
+        delete: path.startsWith('projects/')
+          ? path
+          : `${this.base.replace('https://firestore.googleapis.com/v1/', '')}/${path}`,
+      }));
+      const res = await fetch(`${this.base}:commit`, {
+        method: 'POST',
+        headers: await this.headers(),
+        body: JSON.stringify({ writes }),
+      });
+      if (!res.ok) {
+        throw new Error(`Firestore batch delete failed (${res.status})`);
+      }
+    }
+  }
+
   async addDoc(collectionPath: string, data: Record<string, unknown>) {
     const fields = Object.fromEntries(
       Object.entries(data).map(([k, v]) => [k, toFS(v)])
@@ -190,6 +213,10 @@ export class Firestore {
       headers: await this.headers(),
       body: JSON.stringify({ fields }),
     });
+
+    if (!res.ok) {
+      throw new Error(`Firestore add failed (${res.status}) for ${collectionPath}`);
+    }
 
     const doc = (await res.json()) as FirestoreDoc;
 
