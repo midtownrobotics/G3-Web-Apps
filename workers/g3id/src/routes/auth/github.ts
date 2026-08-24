@@ -258,8 +258,8 @@ export const githubAuthRouter = new Hono<AppEnv>()
     }
 
     // Link the new/existing user to this GitHub Identity
-    await db.insert(coreUserIdentities).values({ 
-      ...identityValues, 
+    await db.insert(coreUserIdentities).values({
+      ...identityValues,
       userId: targetUserId,
     });
 
