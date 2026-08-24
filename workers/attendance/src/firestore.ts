@@ -69,6 +69,12 @@ type FirestoreRunQueryRow = {
   document?: FirestoreDoc;
 };
 
+type FirestoreErrorBody = {
+  error?: {
+    message?: string;
+  };
+};
+
 // ── SAFE ID HELPERS (NO split anywhere) ─────────────
 
 function getSafeId(name?: string): string {
@@ -334,9 +340,13 @@ export class Firestore {
       }),
     });
 
-    const body = await res.json();
+    const body = (await res.json()) as FirestoreRunQueryRow[] | FirestoreErrorBody;
     if (!res.ok) {
-      throw new Error(`Firestore collection-group query failed (${res.status}) for ${collectionId}`);
+      const detail = !Array.isArray(body) ? body.error?.message : undefined;
+      throw new Error(
+        `Firestore collection-group query failed (${res.status}) for ${collectionId}` +
+          (detail ? `: ${detail}` : ""),
+      );
     }
     const rows = body as FirestoreRunQueryRow[];
 
