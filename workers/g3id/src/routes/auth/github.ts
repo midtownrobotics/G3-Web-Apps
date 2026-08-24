@@ -250,8 +250,8 @@ export const githubAuthRouter = new Hono<AppEnv>()
       await db.insert(coreUsers).values({
         id: targetUserId,
         email: githubUser.email,
-        name: githubUser.name,
-        status: "active", // Change to "pending" if you require explicit admin approvals
+        displayName: githubUser.name, //  Fixed to match database schema
+        status: "active", 
         createdAt: now,
         updatedAt: now,
       });
