@@ -202,7 +202,7 @@ export const githubAuthRouter = new Hono<AppEnv>()
     }
 
     // --- Sign-in flow ---
-        // --- Sign-in flow ---
+    // --- Sign-in flow ---
     const identity = await db
       .select({ userId: coreUserIdentities.userId })
       .from(coreUserIdentities)
@@ -260,7 +260,7 @@ export const githubAuthRouter = new Hono<AppEnv>()
     // Link the new/existing user to this GitHub Identity
     await db.insert(coreUserIdentities).values({ 
       ...identityValues, 
-      userId: targetUserId 
+      userId: targetUserId,
     });
 
     const sessionId = await createSession(targetUserId, c.env);
