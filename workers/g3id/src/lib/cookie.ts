@@ -11,9 +11,13 @@ function cookieDomain(frontendUrl: string): string | undefined {
 
 export function sessionCookieOptions(frontendUrl: string) {
   const domain = cookieDomain(frontendUrl);
+  let secure = true;
+  try {
+    secure = new URL(frontendUrl).protocol === "https:";
+  } catch {}
   return {
     httpOnly: true,
-    secure: true,
+    secure,
     sameSite: "Lax" as const,
     maxAge: 60 * 60 * 24 * 7,
     path: "/",

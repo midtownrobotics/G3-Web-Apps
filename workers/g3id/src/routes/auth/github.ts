@@ -149,7 +149,7 @@ export const githubAuthRouter = new Hono<AppEnv>()
       id: newId(),
       provider: "github" as const,
       providerId: sub,
-      providerEmail: githubUser.login,
+      providerEmail: githubUser.email,
       accessToken,
       createdAt: now,
       updatedAt: now,
@@ -212,6 +212,27 @@ export const githubAuthRouter = new Hono<AppEnv>()
     }
 
     // No GitHub identity found — account must already exist
+    const matchingUser = await db
+      .select({ id: coreUsers.id, status: coreUsers.status })
+      .from(coreUsers)
+      .where(eq(coreUsers.email, githubUser.email.toLowerCase()))
+      .get();
+
+    if (matchingUser) {
+      if (matchingUser.status !== "active") {
+        const message =
+          matchingUser.status === "pending"
+            ? "Your account is awaiting admin approval."
+            : "Your account is not active.";
+        return err(message);
+      }
+
+      await db.insert(coreUserIdentities).values({ ...identityValues, userId: matchingUser.id });
+      const sessionId = await createSession(matchingUser.id, c.env);
+      setCookie(c, "g3_session", sessionId, sessionCookieOptions(c.env.FRONTEND_URL));
+      return c.redirect(redirectTo ?? app("/dashboard"));
+    }
+
     return err(
       "No account found with this GitHub account. Sign up with Slack or contact an administrator.",
     );
