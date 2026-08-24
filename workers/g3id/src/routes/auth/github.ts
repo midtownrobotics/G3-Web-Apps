@@ -202,6 +202,7 @@ export const githubAuthRouter = new Hono<AppEnv>()
     }
 
     // --- Sign-in flow ---
+        // --- Sign-in flow ---
     const identity = await db
       .select({ userId: coreUserIdentities.userId })
       .from(coreUserIdentities)
@@ -228,8 +229,41 @@ export const githubAuthRouter = new Hono<AppEnv>()
       return c.redirect(redirectTo ?? app("/dashboard"));
     }
 
-    // No GitHub identity found — account must already exist
-    return err(
-      "No account found with this GitHub account. Sign up with Slack or contact an administrator.",
-    );
+    // --- Account Provisioning (New User Registration) ---
+    // If no existing account matches the GitHub ID, verify the email isn't registered elsewhere
+    const existingUserByEmail = await db
+      .select({ id: coreUsers.id, status: coreUsers.status })
+      .from(coreUsers)
+      .where(eq(coreUsers.email, githubUser.email))
+      .get();
+
+    let targetUserId: string;
+
+    if (existingUserByEmail) {
+      if (existingUserByEmail.status !== "active") {
+        return err("Your matching email account is not active or is pending approval.");
+      }
+      targetUserId = existingUserByEmail.id;
+    } else {
+      // Completely new user registration
+      targetUserId = newId();
+      await db.insert(coreUsers).values({
+        id: targetUserId,
+        email: githubUser.email,
+        name: githubUser.name,
+        status: "active", // Change to "pending" if you require explicit admin approvals
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    // Link the new/existing user to this GitHub Identity
+    await db.insert(coreUserIdentities).values({ 
+      ...identityValues, 
+      userId: targetUserId 
+    });
+
+    const sessionId = await createSession(targetUserId, c.env);
+    setCookie(c, "g3_session", sessionId, sessionCookieOptions(c.env.FRONTEND_URL));
+    return c.redirect(redirectTo ?? app("/dashboard"));
   });
