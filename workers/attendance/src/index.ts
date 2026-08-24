@@ -46,16 +46,14 @@ function db(env: AppEnv["Bindings"]) {
 
 async function listOpenSessions(fs: Firestore) {
   // A collection-group query is one Firestore subrequest regardless of member
-  // count. Filter locally because a status filter requires a collection-group
-  // field index that is not configured for this project.
+  // count. The previous fan-out made /status and every sign-in consume N+1.
   const [members, sessions] = await Promise.all([
     fs.listCollection("members"),
-    fs.collectionGroupQuery("sessions", []),
+    fs.collectionGroupQuery("sessions", [{ field: "status", op: "EQUAL", value: "open" }]),
   ]);
   const membersById = new Map(members.map((member) => [member.id, member]));
 
   return sessions.flatMap((session) => {
-    if (session.data.status !== "open") return [];
     const match = session.path.match(/\/members\/([^/]+)\/sessions\//);
     const member = match ? membersById.get(match[1]) : undefined;
     return member ? [{ session, member }] : [];
