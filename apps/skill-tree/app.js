@@ -10,7 +10,7 @@ import {
 // API URLs
 const isDev=window.location.hostname==='localhost'||window.location.hostname==='127.0.0.1';
 const G3ID_API=localStorage.getItem('g3id_api')||(isDev?'http://localhost:8787':'https://api.g3id.g3robotics.com');
-const SKILL_TREE_API=localStorage.getItem('skill_tree_api')||(isDev?'http://localhost:8790':'https://api.skill-tree.g3robotics.com');
+const SKILL_TREE_API=localStorage.getItem('skill_tree_api')||(isDev?'http://localhost:8790':'https://api.skilltree.g3robotics.com');
 
 // ═══════════════════════════════════════════════════════
 // LAYOUT ENGINE
@@ -735,6 +735,17 @@ function bulkOnSkillChange(){
     document.getElementById('bulkSkillSelect').value='';
     bulkRenderSkillOptions();
   }
+}
+
+function bulkRenderSkillOptions(){
+  const treeId=document.getElementById('bulkTreeSelect').value;
+  const catId=document.getElementById('bulkSubtreeSelect').value;
+  const skillSel=document.getElementById('bulkSkillSelect');
+  skillSel.innerHTML='<option value="">Choose a skill...</option>';
+  if(!treeId || !catId)return;
+  const tree=TREES.find(t=>t.id===treeId);
+  const skills=tree.nodes.filter(n=>n.cat===catId);
+  skills.forEach(sk=>{const o=document.createElement('option');o.value=sk.id;o.textContent=sk.label;skillSel.appendChild(o);});
 }
 
 function bulkRenderSelectedSkills(){
