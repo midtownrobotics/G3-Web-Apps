@@ -1,11 +1,11 @@
+import { useEffect, useRef, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
-import { exitKioskMode, kioskLogout } from "./kiosk";
 import { matchMachineProcess } from "./derive";
+import { exitKioskMode, kioskLogout } from "./kiosk";
 import { processPath } from "./nav";
 import type { PluginNavItem } from "./plugin-types";
 import { useAuthUser, useKiosk } from "./use-auth";
 import { useShopData } from "./use-shop-data";
-import { useEffect, useRef, useState } from "react";
 
 export function NavBar({ items }: { items: PluginNavItem[] }) {
   const [open, setOpen] = useState(false);
@@ -51,7 +51,10 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
   return (
     <>
       <nav className="sticky top-0 z-50 bg-paper border-b border-steel/25 px-6 flex items-center gap-8 h-14">
-        <Link to={logoHref} className="font-display text-2xl text-crimson tracking-wide leading-none">
+        <Link
+          to={logoHref}
+          className="font-display text-2xl text-crimson tracking-wide leading-none"
+        >
           G3 SHOP
         </Link>
 

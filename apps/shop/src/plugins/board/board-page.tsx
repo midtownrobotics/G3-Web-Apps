@@ -265,7 +265,9 @@ function OverviewView({
           {loads
             .filter((load) => {
               if (!kiosk.active) return true;
-              return load.process.name.trim().toLowerCase() === kiosk.machineName?.trim().toLowerCase();
+              return (
+                load.process.name.trim().toLowerCase() === kiosk.machineName?.trim().toLowerCase()
+              );
             })
             .map((load) => (
               <Link
@@ -276,28 +278,28 @@ function OverviewView({
                   touch ? "p-5" : "p-4"
                 }`}
               >
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-semibold text-ink truncate">{load.process.name}</span>
-                <span
-                  title={load.doing > 0 ? "Running" : "Idle"}
-                  className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                    load.doing > 0 ? "bg-emerald-500 animate-pulse" : "bg-steel/40"
-                  }`}
-                />
-              </div>
-              <p className="text-xs text-steel-dark mt-2">
-                {load.doing} running · {load.todo} to do
-              </p>
-              {peopleAt(load.process.name).length > 0 && (
-                <p
-                  className="text-xs text-emerald-700 mt-1.5 truncate"
-                  title={`At this machine: ${peopleAt(load.process.name).join(", ")}`}
-                >
-                  👤 {peopleAt(load.process.name).join(", ")}
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-semibold text-ink truncate">{load.process.name}</span>
+                  <span
+                    title={load.doing > 0 ? "Running" : "Idle"}
+                    className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                      load.doing > 0 ? "bg-emerald-500 animate-pulse" : "bg-steel/40"
+                    }`}
+                  />
+                </div>
+                <p className="text-xs text-steel-dark mt-2">
+                  {load.doing} running · {load.todo} to do
                 </p>
-              )}
-            </Link>
-          ))}
+                {peopleAt(load.process.name).length > 0 && (
+                  <p
+                    className="text-xs text-emerald-700 mt-1.5 truncate"
+                    title={`At this machine: ${peopleAt(load.process.name).join(", ")}`}
+                  >
+                    👤 {peopleAt(load.process.name).join(", ")}
+                  </p>
+                )}
+              </Link>
+            ))}
         </div>
       )}
 
