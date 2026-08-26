@@ -1,4 +1,5 @@
-import { Link } from "react-router-dom";
+import { useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { buildInstanceRows, machineMood, matchMachineProcess } from "../../shared/derive";
 import { processPath } from "../../shared/nav";
 import { useAuthUser, useKiosk } from "../../shared/use-auth";
@@ -19,10 +20,19 @@ function greeting(): string {
 }
 
 export function HomePage() {
+  const navigate = useNavigate();
   const user = useAuthUser();
   const kiosk = useKiosk();
   const { data } = useShopData();
   const name = user?.displayName;
+
+  useEffect(() => {
+    if (!kiosk.active || !kiosk.machineName || !data) return;
+    const machine = matchMachineProcess(data.processes, kiosk.machineName);
+    if (machine) {
+      navigate(processPath(machine.id), { replace: true });
+    }
+  }, [kiosk.active, kiosk.machineName, data, navigate]);
 
   const rows = data ? buildInstanceRows(data) : [];
   const doing = rows.filter((r) => r.state === "doing").length;
