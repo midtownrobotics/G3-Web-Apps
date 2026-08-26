@@ -3733,12 +3733,24 @@ body.map-workspace-open {
   }
 
   .map-editor-fullscreen {
-    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-rows: auto minmax(0, 1fr);
   }
 
   .map-editor-fullscreen .map-toolbar {
     top: auto;
-    padding-top: max(8px, env(safe-area-inset-top));
+    min-height: 0;
+    padding: max(4px, env(safe-area-inset-top)) 4px 4px;
+    scrollbar-width: none;
+  }
+
+  .map-editor-fullscreen .map-toolbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .map-editor-fullscreen .map-toolbar button,
+  .map-editor-fullscreen .upload-button {
+    min-height: 40px;
+    padding: 6px 8px;
   }
 
   .map-editor-fullscreen .canvas-shell {
@@ -3751,19 +3763,7 @@ body.map-workspace-open {
   }
 
   .map-editor-fullscreen .map-details {
-    display: flex;
-    overflow-x: auto;
-    gap: 7px;
-    padding: 8px 8px max(8px, env(safe-area-inset-bottom));
-  }
-
-  .map-editor-fullscreen .map-details input {
-    min-width: 150px;
-  }
-
-  .map-editor-fullscreen .map-details .primary-button {
-    min-width: max-content;
-    min-height: 46px;
+    display: none;
   }
 
   .auto-dialog-backdrop {
@@ -3805,7 +3805,7 @@ body.map-workspace-open {
 
 @media (max-width: 760px) and (orientation: landscape) {
   .map-editor-fullscreen {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
   }
 
@@ -3813,15 +3813,10 @@ body.map-workspace-open {
     grid-column: 1 / -1;
   }
 
-  .map-editor-fullscreen .map-details {
-    width: min(230px, 34vw);
-    flex-direction: column;
-    overflow-y: auto;
-  }
-
-  .map-editor-fullscreen .map-details input {
-    width: 100%;
-    min-width: 0;
+  .map-editor-fullscreen .canvas-shell canvas {
+    width: auto;
+    height: 100%;
+    max-width: 100%;
   }
 }
 

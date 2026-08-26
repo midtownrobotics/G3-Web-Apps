@@ -121,9 +121,12 @@ const TIER_COLORS = [
 
 function drawingColorAt(hex: string, progress: number) {
   const value = Number.parseInt(hex.slice(1), 16);
-  const isYellow = hex.toLowerCase() === "#f9a825";
-  const factor = Math.max(isYellow ? 0.6 : 0.4, 1 - progress * (isYellow ? 0.0025 : 0.005));
-  const channel = (shift: number) => Math.round(((value >> shift) & 255) * factor);
+  const normalized = Math.max(0, Math.min(1, progress));
+  const channel = (shift: number) => {
+    const base = (value >> shift) & 255;
+    if (normalized < 0.5) return Math.round(base + (255 - base) * (0.32 * (1 - normalized * 2)));
+    return Math.round(base * (1 - 0.42 * ((normalized - 0.5) * 2)));
+  };
   return `rgb(${channel(16)}, ${channel(8)}, ${channel(0)})`;
 }
 
@@ -429,7 +432,6 @@ function MapCanvas({
     points: { x: number; y: number }[];
     color: string;
     size: number;
-    startProgress: number;
     mode: "draw" | "sotm";
   } | null>(null);
   const drawingProgress = useRef(0);
@@ -588,7 +590,6 @@ function MapCanvas({
       points: [position],
       color,
       size: DRAW_LINE_WIDTH,
-      startProgress: drawingProgress.current,
       mode: tool === "sotm" ? "sotm" : "draw",
     };
   }
@@ -641,7 +642,6 @@ function MapCanvas({
         Math.hypot(point.x - stroke.points[index].x, point.y - stroke.points[index].y),
       );
     const totalLength = lengths.reduce((sum, length) => sum + length, 0);
-    const progressSpan = Math.min(110, Math.max(55, totalLength / 12));
     let traveled = 0;
     context.globalCompositeOperation = "source-over";
     context.lineCap = "round";
@@ -651,9 +651,9 @@ function MapCanvas({
     lengths.forEach((length, index) => {
       const start = stroke.points[index];
       const end = stroke.points[index + 1];
-      const startProgress = stroke.startProgress + (traveled / totalLength) * progressSpan;
+      const startProgress = traveled / totalLength;
       traveled += length;
-      const endProgress = stroke.startProgress + (traveled / totalLength) * progressSpan;
+      const endProgress = traveled / totalLength;
       const gradient = context.createLinearGradient(start.x, start.y, end.x, end.y);
       gradient.addColorStop(0, drawingColorAt(stroke.color, startProgress));
       gradient.addColorStop(1, drawingColorAt(stroke.color, endProgress));
@@ -663,7 +663,6 @@ function MapCanvas({
       context.lineTo(end.x, end.y);
       context.stroke();
     });
-    drawingProgress.current = stroke.startProgress + progressSpan;
     if (stroke.mode === "sotm") {
       const middle = stroke.points[Math.floor(stroke.points.length / 2)];
       const hub = {
@@ -682,8 +681,13 @@ function MapCanvas({
   ) {
     context.save();
     context.globalCompositeOperation = "source-over";
-    context.fillStyle = coneColor;
-    context.strokeStyle = coneColor;
+    const routeStart = path[0];
+    const gradient = context.createLinearGradient(routeStart.x, routeStart.y, hub.x, hub.y);
+    gradient.addColorStop(0, drawingColorAt(coneColor, 0));
+    gradient.addColorStop(0.72, drawingColorAt(coneColor, 0.72));
+    gradient.addColorStop(1, drawingColorAt(coneColor, 1));
+    context.fillStyle = gradient;
+    context.strokeStyle = gradient;
     context.lineWidth = 3;
     context.lineJoin = "round";
     context.globalAlpha = 0.2;
