@@ -1,7 +1,7 @@
 function cookieDomain(frontendUrl: string): string | undefined {
   try {
     const { hostname } = new URL(frontendUrl);
-    if (hostname === "localhost") return undefined;
+    if (hostname === "localhost") return "localhost";
     // For subdomains like g3id.g3robotics.com, share the cookie across all subdomains
     const parts = hostname.split(".");
     if (parts.length >= 2) return parts.slice(-2).join(".");
@@ -11,9 +11,13 @@ function cookieDomain(frontendUrl: string): string | undefined {
 
 export function sessionCookieOptions(frontendUrl: string) {
   const domain = cookieDomain(frontendUrl);
+  let secure = true;
+  try {
+    secure = new URL(frontendUrl).protocol === "https:";
+  } catch {}
   return {
     httpOnly: true,
-    secure: true,
+    secure,
     sameSite: "Lax" as const,
     maxAge: 60 * 60 * 24 * 7,
     path: "/",

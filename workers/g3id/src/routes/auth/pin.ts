@@ -22,8 +22,6 @@ export const pinAuthRouter = new Hono<AppEnv>().post("/pin", requireKioskToken, 
   }
 
   const db = createDb(c.env.DB);
-  const kioskDeviceId = c.get("kioskDeviceId");
-
   const userPin = await db
     .select({ userId: coreUserPins.userId })
     .from(coreUserPins)
@@ -45,12 +43,6 @@ export const pinAuthRouter = new Hono<AppEnv>().post("/pin", requireKioskToken, 
   }
 
   const sessionId = await createSession(userPin.userId, c.env);
-  const sessionData = JSON.stringify({
-    userId: userPin.userId,
-    sessionType: "pin",
-    kioskDeviceId,
-  });
-  await c.env.SESSIONS.put(sessionId, sessionData, { expirationTtl: 7 * 24 * 60 * 60 });
 
   setCookie(c, "g3_session", sessionId, sessionCookieOptions(c.env.FRONTEND_URL));
 
