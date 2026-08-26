@@ -126,7 +126,7 @@ export function BoardPage() {
   return (
     <main className="min-h-screen bg-mist">
       <div className="max-w-5xl mx-auto px-6 py-8 space-y-5">
-        {view !== "overview" && (
+        {view !== "overview" && !kiosk.active && (
           <Link
             to="/board"
             className={`inline-flex items-center gap-1.5 text-sm text-steel hover:text-ink transition-colors ${
@@ -137,30 +137,29 @@ export function BoardPage() {
           </Link>
         )}
 
-        <div className="flex flex-wrap items-center gap-3">
-          {view === "overview" ? (
-            <h1 className="font-display text-4xl text-ink">Shop Floor</h1>
+        <div>
+          {kiosk.active ? (
+            <h1 className="font-display text-4xl text-ink">
+              {view === "overview" ? "Shop Floor" : processName(view)}
+            </h1>
           ) : (
-            <h1 className="font-display text-4xl text-ink">{processName(view)}</h1>
+            <select
+              value={view === "overview" ? "overview" : String(view)}
+              onChange={(e) =>
+                navigate(
+                  e.target.value === "overview" ? "/board" : processPath(Number(e.target.value)),
+                )
+              }
+              className="font-display text-4xl text-ink bg-paper border border-steel/40 focus:outline-none focus:ring-2 focus:ring-crimson rounded-lg px-1"
+            >
+              <option value="overview">Shop Floor</option>
+              {data?.processes.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
           )}
-          <select
-            value={view === "overview" ? "overview" : String(view)}
-            onChange={(e) =>
-              navigate(
-                e.target.value === "overview" ? "/board" : processPath(Number(e.target.value)),
-              )
-            }
-            className={`bg-paper border border-steel/40 rounded-lg px-3 text-sm font-semibold text-ink focus:outline-none focus:border-crimson ${
-              touch ? "py-3" : "py-2"
-            }`}
-          >
-            <option value="overview">Overview</option>
-            {data?.processes.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
         </div>
 
         {error && <ErrorBanner message={error} />}
@@ -174,6 +173,7 @@ export function BoardPage() {
             touch={touch}
             navigate={navigate}
             presence={presence}
+            kiosk={kiosk}
           />
         ) : (
           <ProcessView
@@ -228,6 +228,7 @@ function OverviewView({
   touch,
   navigate,
   presence,
+  kiosk,
 }: {
   rows: InstanceRow[];
   loads: ReturnType<typeof processLoads>;
@@ -235,6 +236,7 @@ function OverviewView({
   touch: boolean;
   navigate: (path: string) => void;
   presence: KioskPresence[];
+  kiosk: ReturnType<typeof useKiosk>;
 }) {
   const mood = shopMood(loads);
   const inProgress = rows.filter((r) => r.state === "doing");
@@ -260,15 +262,20 @@ function OverviewView({
         <p className="text-steel text-sm">No processes defined yet — add some on the Admin page.</p>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-          {loads.map((load) => (
-            <Link
-              key={load.process.id}
-              to={processPath(load.process.id)}
-              title={`${load.doing} in progress, ${load.todo} to do — click to open`}
-              className={`rounded-xl border text-left transition-transform hover:-translate-y-0.5 ${LOAD_STYLES[load.level]} ${
-                touch ? "p-5" : "p-4"
-              }`}
-            >
+          {loads
+            .filter((load) => {
+              if (!kiosk.active) return true;
+              return load.process.name.trim().toLowerCase() === kiosk.machineName?.trim().toLowerCase();
+            })
+            .map((load) => (
+              <Link
+                key={load.process.id}
+                to={processPath(load.process.id)}
+                title={`${load.doing} in progress, ${load.todo} to do — click to open`}
+                className={`rounded-xl border text-left transition-transform hover:-translate-y-0.5 ${LOAD_STYLES[load.level]} ${
+                  touch ? "p-5" : "p-4"
+                }`}
+              >
               <div className="flex items-center justify-between gap-2">
                 <span className="font-semibold text-ink truncate">{load.process.name}</span>
                 <span

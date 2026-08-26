@@ -1,17 +1,28 @@
-import { useEffect, useRef, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { exitKioskMode, kioskLogout } from "./kiosk";
+import { matchMachineProcess } from "./derive";
+import { processPath } from "./nav";
 import type { PluginNavItem } from "./plugin-types";
-import { useKiosk } from "./use-auth";
+import { useAuthUser, useKiosk } from "./use-auth";
+import { useShopData } from "./use-shop-data";
+import { useEffect, useRef, useState } from "react";
 
 export function NavBar({ items }: { items: PluginNavItem[] }) {
   const [open, setOpen] = useState(false);
   const [visible, setVisible] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const kiosk = useKiosk();
+  const user = useAuthUser();
+  const { data } = useShopData();
 
-  // Kiosk sessions have no admin rights — don't offer the page at all.
-  const visibleItems = kiosk.active ? items.filter((item) => item.to !== "/admin") : items;
+  let logoHref = "/";
+  if (kiosk.active && data && kiosk.machineName) {
+    const machine = matchMachineProcess(data.processes, kiosk.machineName);
+    if (machine) logoHref = processPath(machine.id);
+  }
+
+  // In kiosk mode hide all nav items, show only logout buttons.
+  const visibleItems = kiosk.active ? [] : items;
 
   function openMenu() {
     setOpen(true);
@@ -40,7 +51,7 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
   return (
     <>
       <nav className="sticky top-0 z-50 bg-paper border-b border-steel/25 px-6 flex items-center gap-8 h-14">
-        <Link to="/" className="font-display text-2xl text-crimson tracking-wide leading-none">
+        <Link to={logoHref} className="font-display text-2xl text-crimson tracking-wide leading-none">
           G3 SHOP
         </Link>
 
@@ -53,8 +64,11 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
         </div>
 
         {kiosk.active ? (
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-3">
             <KioskBadge machineName={kiosk.machineName} />
+            {user?.displayName && (
+              <p className="text-sm font-semibold text-steel-dark">{user.displayName}</p>
+            )}
             <button
               type="button"
               onClick={() => kioskLogout()}
@@ -120,7 +134,6 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
   );
 }
 
-/** Machine name chip shown in kiosk mode; clicking it reveals the exit control. */
 function KioskBadge({ machineName }: { machineName: string | null }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -145,10 +158,12 @@ function KioskBadge({ machineName }: { machineName: string | null }) {
         {machineName ?? "Kiosk"}
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-2 bg-paper border border-steel/30 rounded-xl shadow-lg p-3 w-56 space-y-2">
-          <p className="text-xs text-steel">
-            This device is in kiosk mode{machineName ? ` as “${machineName}”` : ""}.
-          </p>
+        <div className="absolute right-0 top-full mt-2 bg-paper border border-steel/30 rounded-xl shadow-lg p-4 w-64 space-y-3">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-widest text-steel">Machine</p>
+            <p className="text-2xl font-display text-ink mt-1">{machineName ?? "Kiosk"}</p>
+            <p className="text-xs text-steel mt-1">This device is in kiosk mode</p>
+          </div>
           <button
             type="button"
             onClick={() => exitKioskMode()}
