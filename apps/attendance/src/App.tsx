@@ -65,9 +65,15 @@ export default function App() {
 
   // Fixed side-by-side kiosk view available on both attendance sites.
   if (window.location.pathname === "/display") {
+    const primaryType = hostPageType();
+    const columns =
+      primaryType === "signin"
+        ? "minmax(0, 2.4fr) minmax(0, 1fr)"
+        : "minmax(0, 1fr) minmax(0, 2.4fr)";
+
     return (
       <main
-        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", width: "100%", height: "100dvh" }}
+        style={{ display: "grid", gridTemplateColumns: columns, width: "100%", height: "100dvh" }}
       >
         <iframe
           title="G3 Attendance Sign In"
