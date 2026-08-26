@@ -12,7 +12,7 @@ function hostPageType(): PageType {
 
 // The kiosk display (QR + live code) is admin-only. Members never need it — they
 // just scan it. Non-admins are redirected to G3ID; logged-in non-admins are denied.
-function KioskGate({ type }: { type: PageType }) {
+function KioskGate({ types }: { types: PageType[] }) {
   const [state, setState] = useState<"loading" | "ok" | "denied">("loading");
 
   useEffect(() => {
@@ -36,11 +36,11 @@ function KioskGate({ type }: { type: PageType }) {
   }, []);
 
   if (state === "ok") {
-    return <KioskPage types={[type]} />;
+    return <KioskPage types={types} />;
   }
 
   return (
-    <div className={`kiosk kiosk--${type}`}>
+    <div className={`kiosk ${types.length > 1 ? "kiosk--combined" : `kiosk--${types[0]}`}`}>
       <div className="scanlines" aria-hidden="true" />
       <div className="kiosk__content kiosk-gate">
         {state === "loading" ? (
@@ -65,22 +65,7 @@ export default function App() {
 
   // Fixed side-by-side kiosk view available on both attendance sites.
   if (window.location.pathname === "/display") {
-    return (
-      <main
-        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", width: "100%", height: "100dvh" }}
-      >
-        <iframe
-          title="G3 Attendance Sign In"
-          src="https://signin.attendance.g3robotics.com/"
-          style={{ width: "100%", height: "100%", border: 0, display: "block" }}
-        />
-        <iframe
-          title="G3 Attendance Sign Out"
-          src="https://signout.attendance.g3robotics.com/"
-          style={{ width: "100%", height: "100%", border: 0, display: "block" }}
-        />
-      </main>
-    );
+    return <KioskGate types={["signin", "signout"]} />;
   }
 
   // Member scanned the kiosk QR → confirm sign-in/out as their G3ID identity.
@@ -89,5 +74,5 @@ export default function App() {
   }
 
   // Default: the (admin-gated) kiosk QR display.
-  return <KioskGate type={hostPageType()} />;
+  return <KioskGate types={[hostPageType()]} />;
 }

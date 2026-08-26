@@ -21,11 +21,83 @@ function buildGithubUrl(env: AppEnv["Bindings"], state: string): string {
 }
 
 async function generateState(env: AppEnv["Bindings"], value: string): Promise<string> {
-  const state = Array.from(crypto.getRandomValues(new Uint8Array(16)))
+  const nonce = Array.from(crypto.getRandomValues(new Uint8Array(16)))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
-  await env.RATE_LIMIT.put(`oauth_state:${state}`, value, { expirationTtl: 600 });
-  return state;
+  const payload = JSON.stringify({ value, expiresAt: Date.now() + 10 * 60 * 1000, nonce });
+  const encodedPayload = bytesToBase64Url(new TextEncoder().encode(payload));
+  const signature = await signState(env.GITHUB_CLIENT_SECRET, encodedPayload);
+  return `${encodedPayload}.${bytesToBase64Url(signature)}`;
+}
+
+function bytesToBase64Url(bytes: Uint8Array): string {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function base64UrlToBytes(value: string): Uint8Array<ArrayBuffer> {
+  const padded = value
+    .replace(/-/g, "+")
+    .replace(/_/g, "/")
+    .padEnd(Math.ceil(value.length / 4) * 4, "=");
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index++) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
+async function stateKey(secret: string): Promise<CryptoKey> {
+  return crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign", "verify"],
+  );
+}
+
+async function signState(secret: string, payload: string): Promise<Uint8Array> {
+  const signature = await crypto.subtle.sign(
+    "HMAC",
+    await stateKey(secret),
+    new TextEncoder().encode(payload),
+  );
+  return new Uint8Array(signature);
+}
+
+async function verifyState(env: AppEnv["Bindings"], state: string): Promise<string | null> {
+  const parts = state.split(".");
+  if (parts.length !== 2) return null;
+
+  try {
+    const valid = await crypto.subtle.verify(
+      "HMAC",
+      await stateKey(env.GITHUB_CLIENT_SECRET),
+      base64UrlToBytes(parts[1]),
+      new TextEncoder().encode(parts[0]),
+    );
+    if (!valid) return null;
+
+    const payload = JSON.parse(new TextDecoder().decode(base64UrlToBytes(parts[0]))) as {
+      value?: unknown;
+      expiresAt?: unknown;
+      nonce?: unknown;
+    };
+    if (
+      typeof payload.value !== "string" ||
+      typeof payload.expiresAt !== "number" ||
+      typeof payload.nonce !== "string" ||
+      payload.expiresAt < Date.now()
+    ) {
+      return null;
+    }
+    return payload.value;
+  } catch {
+    return null;
+  }
 }
 
 async function getGithubUser(
@@ -99,8 +171,7 @@ export const githubAuthRouter = new Hono<AppEnv>()
     if (oauthError) return err("Sign-in was cancelled or denied.");
     if (!code || !state) return err("Missing code or state.");
 
-    const stateValue = await c.env.RATE_LIMIT.get(`oauth_state:${state}`);
-    await c.env.RATE_LIMIT.delete(`oauth_state:${state}`);
+    const stateValue = await verifyState(c.env, state);
     if (!stateValue) return err("This sign-in link has expired. Please try again.");
 
     const isLink = stateValue.startsWith("link:");
@@ -151,12 +222,6 @@ export const githubAuthRouter = new Hono<AppEnv>()
       return err("Failed to fetch your GitHub profile. Please try again.");
     }
 
-    if (!githubUser.email) {
-      return err(
-        "Your GitHub account has no verified public email. Add a public email in your GitHub settings and try again.",
-      );
-    }
-
     const sub = githubUser.id;
 
     const db = createDb(c.env.DB);
@@ -174,6 +239,11 @@ export const githubAuthRouter = new Hono<AppEnv>()
 
     // --- Link flow ---
     if (isLink && linkUserId) {
+      const currentUserId = await resolveUserId(c.req.header("Cookie") ?? "", c.env);
+      if (currentUserId !== linkUserId) {
+        return err("Your sign-in session expired. Sign in again before linking GitHub.");
+      }
+
       const linkUser = await db
         .select({ id: coreUsers.id, status: coreUsers.status })
         .from(coreUsers)
@@ -229,28 +299,7 @@ export const githubAuthRouter = new Hono<AppEnv>()
     }
 
     // No GitHub identity found — account must already exist
-    const matchingUser = await db
-      .select({ id: coreUsers.id, status: coreUsers.status })
-      .from(coreUsers)
-      .where(eq(coreUsers.email, githubUser.email.toLowerCase()))
-      .get();
-
-    if (matchingUser) {
-      if (matchingUser.status !== "active") {
-        const message =
-          matchingUser.status === "pending"
-            ? "Your account is awaiting admin approval."
-            : "Your account is not active.";
-        return err(message);
-      }
-
-      await db.insert(coreUserIdentities).values({ ...identityValues, userId: matchingUser.id });
-      const sessionId = await createSession(matchingUser.id, c.env);
-      setCookie(c, "g3_session", sessionId, sessionCookieOptions(c.env.FRONTEND_URL));
-      return c.redirect(redirectTo ?? app("/dashboard"));
-    }
-
     return err(
-      "No account found with this GitHub account. Sign up with Slack or contact an administrator.",
+      "No linked account found. Sign in with an existing method, then link GitHub from your dashboard.",
     );
   });
