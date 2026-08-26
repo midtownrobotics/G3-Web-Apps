@@ -54,6 +54,12 @@
   animation: fadeUp .6s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+.kiosk--combined .kiosk__content {
+  box-sizing: border-box;
+  min-height: 100dvh;
+  justify-content: center;
+}
+
 .kiosk__codes {
   display: flex;
   justify-content: center;
@@ -62,7 +68,7 @@
 
 .kiosk__codes--combined {
   align-items: flex-start;
-  gap: clamp(18px, 3vw, 52px);
+  gap: clamp(28px, 4vw, 72px);
 }
 
 .kiosk__code {
@@ -224,6 +230,15 @@
   letter-spacing: .05em;
   min-width: 3ch;
   text-align: center;
+}
+
+.kiosk--combined .kiosk__timer {
+  margin-top: 22px;
+}
+
+.kiosk--combined .kiosk__timer-seconds {
+  color: #ffd84d;
+  font-size: 38px;
 }
 
 @media (max-width: 720px) {
