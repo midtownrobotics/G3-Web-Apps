@@ -22,8 +22,6 @@ export const pinAuthRouter = new Hono<AppEnv>().post("/pin", requireKioskToken, 
   }
 
   const db = createDb(c.env.DB);
-  const kioskDeviceId = c.get("kioskDeviceId");
-
   const userPin = await db
     .select({ userId: coreUserPins.userId })
     .from(coreUserPins)
