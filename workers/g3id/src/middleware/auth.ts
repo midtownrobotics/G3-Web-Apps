@@ -17,18 +17,17 @@ export const requireAdmin = createMiddleware<AppEnv>(async (c, next) => {
   const userId = await resolveUserId(c.req.header("Cookie") ?? "", c.env);
   if (!userId) return c.json({ error: "Unauthorized." }, 401);
 
-  // Reject PIN sessions from accessing admin routes
   const sessionId = getCookie(c, "g3_session");
   if (sessionId) {
-    const sessionData = await c.env.SESSIONS.get(sessionId);
-    if (sessionData) {
+    const metaData = await c.env.SESSIONS.get(`session:${sessionId}:meta`);
+    if (metaData) {
       try {
-        const session = JSON.parse(sessionData) as { sessionType?: string };
-        if (session.sessionType === "pin") {
+        const parsed = JSON.parse(metaData) as { sessionType?: string };
+        if (parsed.sessionType === "pin") {
           return c.json({ error: "Admin access not allowed from kiosk." }, 403);
         }
       } catch {
-        // Continue if session parsing fails
+        // Ignore parse errors
       }
     }
   }
