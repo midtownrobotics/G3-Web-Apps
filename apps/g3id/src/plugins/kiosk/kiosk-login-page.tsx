@@ -37,13 +37,16 @@ export function KioskLoginPage() {
         setLoading(false);
         return;
       }
+      const body = JSON.stringify({ pin: fullPin });
+      console.log("Submitting PIN:", { fullPin, token, apiBase, body });
       const res = await fetch(`${apiBase}/auth/pin`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "X-Kiosk-Token": token,
         },
-        body: JSON.stringify({ pin: fullPin }),
+        body,
+        credentials: "include",
       });
 
       if (!res.ok) {
