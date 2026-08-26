@@ -47,10 +47,10 @@ export const authRouter = new Hono<AppEnv>()
     let kioskDeviceId: number | undefined;
 
     if (sessionId) {
-      const sessionData = await c.env.SESSIONS.get(sessionId);
-      if (sessionData) {
+      const metaData = await c.env.SESSIONS.get(`session:${sessionId}:meta`);
+      if (metaData) {
         try {
-          const parsed = JSON.parse(sessionData) as {
+          const parsed = JSON.parse(metaData) as {
             sessionType?: string;
             kioskDeviceId?: number;
           };
@@ -59,7 +59,7 @@ export const authRouter = new Hono<AppEnv>()
             kioskDeviceId = parsed.kioskDeviceId;
           }
         } catch {
-          // Session data is not JSON, treat as oauth
+          // Session metadata is not JSON, treat as oauth
         }
       }
     }

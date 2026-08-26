@@ -30,5 +30,6 @@ export async function deleteSession(sessionId: string, env: AppEnv["Bindings"]):
   await Promise.all([
     db.delete(coreSessions).where(eq(coreSessions.id, sessionId)),
     env.SESSIONS.delete(`session:${sessionId}`),
+    env.SESSIONS.delete(`session:${sessionId}:meta`),
   ]);
 }
