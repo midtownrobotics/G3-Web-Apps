@@ -350,7 +350,7 @@ export function DashboardPage() {
               {slackCode ? (
                 <div className="rounded-lg bg-gray-700 border border-gray-600 px-4 py-3 space-y-2">
                   <p className="text-xs text-secondary-200 text-center">
-                    DM this code to the{" "}
+                    DM this code to the {""}
                     <span className="text-primary-500 font-medium">"G3 Bot" user in Slack</span>, or
                     run <span className="font-mono text-primary-400">/link {slackCode}</span>
                   </p>
