@@ -1,4 +1,4 @@
-import { Loader2 } from "lucide-react";
+import { Check, Copy, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../../lib/api";
@@ -17,6 +17,7 @@ export function SlackLoginPage() {
   const code = searchParams.get("code") ?? "";
   const redirect = searchParams.get("redirect");
   const [pollStatus, setPollStatus] = useState<PollStatus>({ status: "pending" });
+  const [copied, setCopied] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const formattedCode = code;
@@ -76,6 +77,13 @@ export function SlackLoginPage() {
     navigate("/login");
   }
 
+  function handleCopy() {
+    const command = `/signin ${formattedCode}`;
+    navigator.clipboard.writeText(command);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
   const isTerminal = pollStatus.status === "failed" || pollStatus.status === "expired";
 
   return (
@@ -97,12 +105,24 @@ export function SlackLoginPage() {
               </p>
             </div>
 
-            <div className="space-y-1">
+            <div className="space-y-3">
               <p className="text-sm text-gray-200">
                 DM this code to the{" "}
-                <span className="text-primary-500 font-medium">G3 Slack bot</span>, or run:
+                <span className="text-primary-400 font-medium">"G3 Bot"</span> user in slack, or send this command in any channel:
               </p>
-              <p className="font-mono text-sm text-primary-400">/signin {formattedCode}</p>
+              <div className="bg-secondary-700 border border-secondary-600 rounded-xl px-8 py-6 flex items-center justify-center gap-3">
+                <p className="font-mono text-3xl font-bold text-primary-400 tracking-wide">
+                  /signin {formattedCode}
+                </p>
+                <button
+                  type="button"
+                  onClick={handleCopy}
+                  className="p-2 rounded-lg hover:bg-secondary-600 transition-colors text-secondary-300 hover:text-primary-400 shrink-0"
+                  title={copied ? "Copied!" : "Copy command"}
+                >
+                  {copied ? <Check size={24} /> : <Copy size={24} />}
+                </button>
+              </div>
             </div>
 
             <div className="flex items-center justify-center gap-2 text-sm text-secondary-300 mb-2">
