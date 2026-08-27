@@ -1,4 +1,4 @@
-import { Check, Copy, Loader2 } from "lucide-react";
+import { Check, Copy, Loader2, Send } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../../lib/api";
@@ -10,6 +10,11 @@ type PollStatus =
   | { status: "expired" }
   | { status: "signup_pending" };
 
+type BotInfo = {
+  dmChannelId: string;
+  teamId: string;
+};
+
 export function SlackLoginPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -18,9 +23,26 @@ export function SlackLoginPage() {
   const redirect = searchParams.get("redirect");
   const [pollStatus, setPollStatus] = useState<PollStatus>({ status: "pending" });
   const [copied, setCopied] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
+  const [botInfo, setBotInfo] = useState<BotInfo | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const formattedCode = code;
+
+  useEffect(() => {
+    const fetchBotInfo = async () => {
+      try {
+        const res = await api.auth.slack.bot.$get();
+        if (res.ok) {
+          setBotInfo((await res.json()) as BotInfo);
+        }
+      } catch {
+        // Failed to fetch bot info, continue anyway
+      }
+    };
+
+    fetchBotInfo();
+  }, []);
 
   useEffect(() => {
     if (!token) {
@@ -84,6 +106,21 @@ export function SlackLoginPage() {
     setTimeout(() => setCopied(false), 2000);
   }
 
+  function handleCopyCode() {
+    navigator.clipboard.writeText(formattedCode);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2000);
+  }
+
+  function handleOpenSlack() {
+    navigator.clipboard.writeText(formattedCode);
+
+    if (botInfo) {
+      const slackUrl = `slack://channel?team=${botInfo.teamId}&id=${botInfo.dmChannelId}`;
+      window.location.href = slackUrl;
+    }
+  }
+
   const isTerminal = pollStatus.status === "failed" || pollStatus.status === "expired";
 
   return (
@@ -93,45 +130,67 @@ export function SlackLoginPage() {
           <h1 className="text-5xl font-bold text-white">
             <span className="text-primary-500">G3</span>ID
           </h1>
-          <p className="mt-2 text-secondary-200 text-sm">Sign in with Slack</p>
         </div>
 
         {!isTerminal && (
           <>
-            <div className="bg-secondary-700 border border-secondary-600 rounded-xl px-8 py-6">
-              <p className="text-xs text-secondary-300 uppercase tracking-wide mb-3">Your code</p>
-              <p className="text-5xl font-mono font-bold text-white tracking-widest">
-                {formattedCode}
-              </p>
-            </div>
+            <div className="space-y-4">
+              {botInfo && (
+                <div className="space-y-2">
+                  <p className="text-sm text-gray-200">
+                    EASIEST: Click to copy the code and open the Slack DM:
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleOpenSlack}
+                    className="w-full rounded-lg bg-primary-500 hover:bg-primary-600 text-white font-semibold py-2.5 text-sm transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Send size={16} />
+                    Open Slack
+                  </button>
+                </div>
+              )}
 
-            <div className="space-y-3">
-              <p className="text-sm text-gray-200">
-                DM this code to the{" "}
-                <span className="text-primary-400 font-medium">"G3 Bot"</span> user in slack, or send this command in any channel:
-              </p>
-              <div className="bg-secondary-700 border border-secondary-600 rounded-xl px-8 py-6 flex items-center justify-center gap-3">
-                <p className="font-mono text-3xl font-bold text-primary-400 tracking-wide">
-                  /signin {formattedCode}
+              <div className="space-y-2">
+                <p className="text-sm text-gray-200">
+                  Or DM this code to the <span className="text-primary-400 font-medium">"G3 Bot"</span> user:
                 </p>
-                <button
-                  type="button"
-                  onClick={handleCopy}
-                  className="p-2 rounded-lg hover:bg-secondary-600 transition-colors text-secondary-300 hover:text-primary-400 shrink-0"
-                  title={copied ? "Copied!" : "Copy command"}
-                >
-                  {copied ? <Check size={24} /> : <Copy size={24} />}
-                </button>
+                <div className="bg-secondary-700 border border-secondary-600 rounded-xl px-6 py-4 flex items-center justify-center gap-3">
+                  <p className="text-5xl font-mono font-bold text-white tracking-widest">
+                    {formattedCode}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleCopyCode}
+                    className="p-2 rounded-lg hover:bg-secondary-600 transition-colors text-secondary-300 hover:text-primary-400 shrink-0"
+                    title={copiedCode ? "Copied!" : "Copy code"}
+                  >
+                    {copiedCode ? <Check size={24} /> : <Copy size={24} />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm text-gray-200">Or run this command in any channel:</p>
+                <div className="bg-secondary-700 border border-secondary-600 rounded-xl px-6 py-4 flex items-center justify-center gap-3">
+                  <p className="font-mono text-3xl font-bold text-primary-400 tracking-wide">
+                    /signin {formattedCode}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleCopy}
+                    className="p-2 rounded-lg hover:bg-secondary-600 transition-colors text-secondary-300 hover:text-primary-400 shrink-0"
+                    title={copied ? "Copied!" : "Copy command"}
+                  >
+                    {copied ? <Check size={24} /> : <Copy size={24} />}
+                  </button>
+                </div>
               </div>
             </div>
 
             <div className="flex items-center justify-center gap-2 text-sm text-secondary-300 mb-2">
               <Loader2 size={16} className="animate-spin" />
               Waiting for Slack confirmation…
-            </div>
-
-            <div className="flex justify-center text-sm text-secondary-300 mt-0">
-              Be patient: this can take up to a minute after the code is sent on slower networks.
             </div>
           </>
         )}
