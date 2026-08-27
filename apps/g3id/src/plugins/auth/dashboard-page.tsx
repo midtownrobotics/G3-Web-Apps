@@ -150,29 +150,6 @@ export function DashboardPage() {
     }
   }
 
-  async function regeneratePin() {
-    const confirmed = window.confirm(
-      "Generate a new PIN? Your old PIN will no longer work on kiosks.",
-    );
-    if (!confirmed) return;
-
-    setPinError(null);
-    setPinLoading(true);
-    try {
-      const res = await api.auth.pin.regenerate.$post();
-      if (!res.ok) {
-        setPinError("Failed to regenerate PIN");
-        return;
-      }
-      const data = (await res.json()) as { pin: string };
-      setPin(data.pin);
-    } catch {
-      setPinError("Failed to regenerate PIN");
-    } finally {
-      setPinLoading(false);
-    }
-  }
-
   async function handleUnlink(identityId: string, provider: string) {
     if (!me || me.identities.length <= 1) {
       alert("You must keep at least one sign-in method linked.");
@@ -374,8 +351,8 @@ export function DashboardPage() {
                 <div className="rounded-lg bg-gray-700 border border-gray-600 px-4 py-3 space-y-2">
                   <p className="text-xs text-secondary-200 text-center">
                     DM this code to the{" "}
-                    <span className="text-primary-500 font-medium">"G3 Bot" user in Slack</span>, or run{" "}
-                    <span className="font-mono text-primary-400">/link {slackCode}</span>
+                    <span className="text-primary-500 font-medium">"G3 Bot" user in Slack</span>, or
+                    run <span className="font-mono text-primary-400">/link {slackCode}</span>
                   </p>
                   <p className="font-mono text-3xl font-bold text-white text-center tracking-widest">
                     {slackCode}
@@ -417,19 +394,8 @@ export function DashboardPage() {
           <div className="px-5 py-4">
             <p className="text-xs text-secondary-300 uppercase tracking-wide mb-3">Kiosk PIN</p>
             {pin && showPin ? (
-              <div className="space-y-3">
-                <div className="bg-gray-700 border border-gray-600 rounded-lg p-3 text-center">
-                  <p className="text-2xl font-mono font-bold text-white tracking-widest">{pin}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={regeneratePin}
-                  disabled={pinLoading}
-                  className="w-full px-4 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-sm text-white transition-colors"
-                >
-                  {pinLoading ? "Regenerating..." : "Generate New PIN"}
-                </button>
-                {pinError && <p className="text-xs text-primary-400 text-center">{pinError}</p>}
+              <div className="bg-gray-700 border border-gray-600 rounded-lg p-3 text-center">
+                <p className="text-2xl font-mono font-bold text-white tracking-widest">{pin}</p>
               </div>
             ) : (
               <button

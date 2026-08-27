@@ -153,7 +153,8 @@ export function SlackLoginPage() {
 
               <div className="space-y-2">
                 <p className="text-sm text-gray-200">
-                  Or DM this code to the <span className="text-primary-400 font-medium">"G3 Bot"</span> user:
+                  Or DM this code to the{" "}
+                  <span className="text-primary-400 font-medium">"G3 Bot"</span> user:
                 </p>
                 <div className="bg-secondary-700 border border-secondary-600 rounded-xl px-6 py-4 flex items-center justify-center gap-3">
                   <p className="text-5xl font-mono font-bold text-white tracking-widest">
