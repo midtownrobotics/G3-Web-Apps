@@ -70,7 +70,7 @@ export const adminRouter = new Hono<AppEnv>()
     if (slackIdentity?.providerId) {
       await sendDM(
         slackIdentity.providerId,
-        "✅ Your G3 account has been approved! You can now sign in.",
+        "✅ Your G3 account has been approved! Click <https://g3id.g3robotics.com/login|here> to go to the login page and *sign in with Slack*. Yes, you will have to repeat the code sending process.",
         c.env,
       );
     }

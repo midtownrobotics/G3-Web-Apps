@@ -223,4 +223,10 @@ export const authRouter = new Hono<AppEnv>()
     await db.delete(coreUserIdentities).where(eq(coreUserIdentities.id, identityId));
 
     return c.json({ ok: true });
+  })
+  .get("/slack/bot", (c) => {
+    return c.json({
+      dmChannelId: c.env.SLACK_BOT_DM_CHANNEL_ID,
+      teamId: c.env.SLACK_TEAM_ID,
+    });
   });
