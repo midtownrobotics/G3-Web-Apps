@@ -4,7 +4,34 @@ export type SlackBindings = {
 };
 
 export async function sendDM(slackUserId: string, message: string, env: SlackBindings) {
-  await sendMessage(slackUserId, message, env);
+  // Never accept channel IDs here. A DM must be addressed to a linked Slack user.
+  if (!/^[UW][A-Z0-9]+$/.test(slackUserId)) {
+    throw new Error("A valid linked Slack user ID is required for a direct message.");
+  }
+
+  const openResponse = await fetch("https://slack.com/api/conversations.open", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${env.SLACK_BOT_TOKEN}`,
+    },
+    body: JSON.stringify({ users: slackUserId, return_im: true }),
+  });
+  const openResult = (await openResponse.json()) as {
+    ok?: boolean;
+    error?: string;
+    channel?: { id?: string; is_im?: boolean };
+  };
+  const dmChannelId = openResult.channel?.id;
+  if (!openResult.ok || !dmChannelId || !openResult.channel?.is_im) {
+    console.error("[Slack API Error] Could not open DM", {
+      slackUserId,
+      error: openResult.error,
+    });
+    throw new Error(`Slack API error: ${openResult.error ?? "could_not_open_dm"}`);
+  }
+
+  await sendMessage(dmChannelId, message, env);
 }
 
 export async function sendMessage(

@@ -1,7 +1,6 @@
 import {
   ArrowRight,
   Camera,
-  ChevronRight,
   CirclePlus,
   Image,
   ImagePlus,
@@ -33,6 +32,8 @@ import {
   useRef,
   useState,
 } from "react";
+import { Analysis } from "./Analysis";
+import { ScoutingForms } from "./ScoutingForms";
 import { API_URL, G3ID_URL, api } from "./api";
 import {
   deleteLocalFieldMap,
@@ -43,8 +44,15 @@ import {
 } from "./local-field-maps";
 import { type ParsedTrajectory, parseTrajectoryFile, trajectoryToPng } from "./trajectory-files";
 
-type Page = "overview" | "tiers" | "maps" | "autos" | "robots";
-type User = { userId: string; displayName: string; email: string; isAdmin: boolean };
+type Page = "forms" | "analysis" | "autos" | "other" | "tiers" | "maps";
+type User = {
+  userId: string;
+  displayName: string;
+  email: string;
+  isAdmin: boolean;
+  isG3IdAdmin: boolean;
+  isHelper: boolean;
+};
 type Tier = { id: string; name: string; color: string; items: string[] };
 type TierList = {
   id?: string;
@@ -160,46 +168,22 @@ function EmptyState({
   );
 }
 
-function Overview({ go }: { go: (page: Page) => void }) {
-  const cards = [
-    {
-      page: "tiers" as const,
-      label: "Tier Lists",
-    },
-    {
-      page: "maps" as const,
-      label: "Field Maps",
-    },
-    {
-      page: "autos" as const,
-      label: "Auto Library",
-    },
-    {
-      page: "robots" as const,
-      label: "Robot Library",
-    },
+function OtherTools({ go }: { go: (page: Page) => void }) {
+  const tools = [
+    { page: "tiers" as const, label: "Tier Lists" },
+    { page: "maps" as const, label: "Field Maps" },
   ];
   return (
-    <section className="page overview">
-      <div className="hero">
+    <section className="page other-tools-page">
+      <div className="page-heading">
         <div>
-          <h1>
-            G3
-            <br />
-            <span>Strategy</span>
-          </h1>
-        </div>
-        <div className="hero-logo" aria-hidden="true">
-          <G3Logo size={230} />
+          <h1>Other Tools</h1>
         </div>
       </div>
       <div className="tool-grid">
-        {cards.map(({ page, label }) => (
-          <button type="button" className="tool-card" key={page} onClick={() => go(page)}>
-            <h2>{label}</h2>
-            <span className="tool-link">
-              Open tool <ChevronRight size={16} />
-            </span>
+        {tools.map((tool) => (
+          <button type="button" className="tool-card" key={tool.page} onClick={() => go(tool.page)}>
+            <h2>{tool.label}</h2>
           </button>
         ))}
       </div>
@@ -858,13 +842,6 @@ function MapCanvas({
           {isFullscreen ? "Exit fullscreen" : "Fullscreen map"}
         </button>
         <span className="toolbar-divider" />
-        <label className="upload-button">
-          <Upload size={17} /> {hasImage ? "Replace field preset" : "Upload field preset"}
-          <input type="file" accept="image/*" onChange={(e) => loadFile(e.target.files?.[0])} />
-        </label>
-        <button type="button" onClick={() => useRebuiltField().catch(() => undefined)}>
-          <MapIcon size={16} /> Use REBUILT
-        </button>
         <span className="toolbar-divider" />
         <button
           type="button"
@@ -1009,6 +986,7 @@ function FieldMaps({ user }: { user: User }) {
   }, [load]);
 
   async function remove(map: FieldMap) {
+    if (!window.confirm(`Delete “${map.name}”? This cannot be undone.`)) return;
     if (map.shared) await api(`/field-maps/${map.id}`, { method: "DELETE" });
     else await deleteLocalFieldMap(map.id);
     await load();
@@ -1045,6 +1023,7 @@ function FieldMaps({ user }: { user: User }) {
   }
 
   async function revokeAccess(email: string) {
+    if (!window.confirm(`Remove field-map publishing access for ${email}?`)) return;
     await api(`/field-map-publishers/${encodeURIComponent(email)}`, { method: "DELETE" });
     await load();
   }
@@ -1069,7 +1048,6 @@ function FieldMaps({ user }: { user: User }) {
         <div className="map-sharing-access">
           <div>
             <h2>Map sharing access</h2>
-            <span>Admins can always share. Select an active G3ID account to give access.</span>
           </div>
           <form onSubmit={grantAccess}>
             <select
@@ -1305,8 +1283,10 @@ function AutoLibrary() {
               />
             </label>
             <label>
-              Team
+              Team number
               <input
+                inputMode="numeric"
+                pattern="[0-9]+"
                 value={form.team}
                 onChange={(e) => setForm({ ...form, team: e.target.value })}
                 placeholder="1648"
@@ -1756,12 +1736,14 @@ function RobotLibrary() {
           <form onSubmit={create}>
             {saveError && <div className="wide save-status">{saveError}</div>}
             <label className="wide">
-              Team name *
+              Team number *
               <input
                 required
+                inputMode="numeric"
+                pattern="[0-9]+"
                 value={teamName}
                 onChange={(event) => setTeamName(event.target.value)}
-                placeholder="Team 1648"
+                placeholder="1648"
               />
             </label>
             <label className="wide">
@@ -1898,20 +1880,17 @@ function RobotLibrary() {
   );
 }
 
+void RobotLibrary;
+
 export function App() {
-  const [page, setPage] = useState<Page>("overview");
+  const [page, setPage] = useState<Page>("forms");
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [theme, setTheme] = useState<"light" | "dark">(() => {
-    const saved = localStorage.getItem("g3-strategy-theme");
-    if (saved === "light" || saved === "dark") return saved;
-    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-  });
+  const [theme, setTheme] = useState<"light" | "dark">("dark");
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
-    localStorage.setItem("g3-strategy-theme", theme);
   }, [theme]);
 
   useEffect(() => {
@@ -1925,7 +1904,7 @@ export function App() {
     return (
       <div className="auth-screen">
         <Loader2 className="spin" />
-        <span>Opening strategy workspace…</span>
+        <span>Opening scouting workspace…</span>
       </div>
     );
   }
@@ -1937,7 +1916,7 @@ export function App() {
         <div className="auth-mark">
           <G3Logo size={38} />
         </div>
-        <h1>Strategy starts with G3ID</h1>
+        <h1>Scouting starts with G3ID</h1>
         <p>Sign in with your team account to open shared tier lists, field maps, and autos.</p>
         <a href={`${G3ID_URL}/login?redirect=${encodeURIComponent(returnTo)}`}>
           <LogIn size={18} /> Sign in with G3ID
@@ -1946,13 +1925,13 @@ export function App() {
     );
   }
 
-  const nav = [
-    { id: "overview" as const, label: "Overview" },
-    { id: "tiers" as const, label: "Tier Lists" },
-    { id: "maps" as const, label: "Field Maps" },
+  const adminNav = [
+    { id: "forms" as const, label: "Scouting Forms" },
+    { id: "analysis" as const, label: "Command Center" },
     { id: "autos" as const, label: "Auto Library" },
-    { id: "robots" as const, label: "Robot Library" },
+    { id: "other" as const, label: "Other Tools" },
   ];
+  const nav = user.isAdmin ? adminNav : [{ id: "forms" as const, label: "Scouting Forms" }];
 
   return (
     <div className="app-shell">
@@ -1972,14 +1951,18 @@ export function App() {
             <button
               type="button"
               key={id}
-              className={page === id ? "active" : ""}
+              className={
+                page === id || (id === "other" && ["tiers", "maps"].includes(page)) ? "active" : ""
+              }
               onClick={() => {
                 setPage(id);
                 setMenuOpen(false);
               }}
             >
               {label}
-              {page === id && <span className="active-dot" />}
+              {(page === id || (id === "other" && ["tiers", "maps"].includes(page))) && (
+                <span className="active-dot" />
+              )}
             </button>
           ))}
         </nav>
@@ -2011,11 +1994,19 @@ export function App() {
           </button>
           <span>G3 Strategy</span>
         </header>
-        {page === "overview" && <Overview go={setPage} />}
+        {page === "forms" && (
+          <ScoutingForms
+            isAdmin={user.isAdmin}
+            isG3IdAdmin={user.isG3IdAdmin}
+            scoutName={user.displayName}
+            canManageServiceCrew={user.isAdmin || user.isHelper}
+          />
+        )}
+        {page === "other" && <OtherTools go={setPage} />}
         {page === "tiers" && <TierLists />}
         {page === "maps" && <FieldMaps user={user} />}
         {page === "autos" && <AutoLibrary />}
-        {page === "robots" && <RobotLibrary />}
+        {page === "analysis" && user.isAdmin && <Analysis />}
       </main>
     </div>
   );
