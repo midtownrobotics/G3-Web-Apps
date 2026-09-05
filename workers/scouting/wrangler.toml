@@ -6,6 +6,10 @@ compatibility_date = "2026-05-17"
 binding = "G3ID"
 service = "g3id-production"
 
+[[services]]
+binding = "PIT"
+service = "pit-production"
+
 [[d1_databases]]
 binding = "SCOUTING_DB"
 database_name = "g3-scouting-prod"
@@ -19,6 +23,8 @@ bucket_name = "g3-scouting"
 [vars]
 FRONTEND_URL = "https://scouting.g3robotics.com"
 LOCAL_AUTH_BYPASS = "false"
+# Configure SLACK_BOT_TOKEN as a Wrangler secret using the same token as G3ID.
+# Configure TBA_AUTH_KEY as a Wrangler secret for event schedules.
 
 [[routes]]
 pattern = "api.scouting.g3robotics.com"
@@ -32,6 +38,10 @@ name = "scouting-production"
 [[env.production.services]]
 binding = "G3ID"
 service = "g3id-production"
+
+[[env.production.services]]
+binding = "PIT"
+service = "pit-production"
 
 [[env.production.d1_databases]]
 binding = "SCOUTING_DB"

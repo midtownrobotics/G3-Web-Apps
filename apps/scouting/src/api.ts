@@ -1,7 +1,9 @@
-export const API_URL = import.meta.env.VITE_API_BASE_URL ?? "";
+const API_ORIGIN = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
+export const API_URL = `${API_ORIGIN}/scouting`;
 export const G3ID_URL = import.meta.env.VITE_G3ID_URL ?? "https://g3id.g3robotics.com";
+const inflightGets = new Map<string, Promise<unknown>>();
 
-export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {
     ...init,
     credentials: "include",
@@ -13,4 +15,14 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const body = (await response.json().catch(() => ({}))) as T & { error?: string };
   if (!response.ok) throw new Error(body.error ?? "Request failed.");
   return body;
+}
+
+export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  const method = init?.method?.toUpperCase() ?? "GET";
+  if (method !== "GET") return request<T>(path, init);
+  const existing = inflightGets.get(path);
+  if (existing) return existing as Promise<T>;
+  const pending = request<T>(path, init).finally(() => inflightGets.delete(path));
+  inflightGets.set(path, pending);
+  return pending;
 }
