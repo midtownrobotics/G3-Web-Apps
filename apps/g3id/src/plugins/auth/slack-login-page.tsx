@@ -11,7 +11,7 @@ type PollStatus =
   | { status: "signup_pending" };
 
 type BotInfo = {
-  dmChannelId: string;
+  appId: string;
   teamId: string;
 };
 
@@ -116,7 +116,7 @@ export function SlackLoginPage() {
     navigator.clipboard.writeText(formattedCode);
 
     if (botInfo) {
-      const slackUrl = `slack://channel?team=${botInfo.teamId}&id=${botInfo.dmChannelId}`;
+      const slackUrl = `slack://app?team=${botInfo.teamId}&id=${botInfo.appId}&tab=messages`;
       window.location.href = slackUrl;
     }
   }
