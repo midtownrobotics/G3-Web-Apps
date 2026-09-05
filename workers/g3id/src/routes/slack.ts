@@ -129,4 +129,31 @@ export const slackRouter = new Hono<AppEnv>()
     );
 
     return c.text("", 200);
+  })
+  // Slack workflow custom function handler — invoked via link trigger
+  .post("/functions/complete-login", async (c) => {
+    const rawBody = await c.req.text();
+    if (!(await verifySlackSignature(c.req.raw, rawBody, c.env))) {
+      return c.json({ error: "Invalid signature" }, 401);
+    }
+
+    const body = (JSON.parse(rawBody) as Record<string, unknown>) ?? {};
+    const inputs = (body.inputs ?? {}) as Record<string, string>;
+    const code = (inputs.code ?? "").toString();
+    const slackUserId = (inputs.user_id ?? "").toString();
+    const workspaceId = ((body.team_id as string) ?? "").toString();
+
+    if (!code || !slackUserId) {
+      return c.json({ error: "Missing code or user_id" }, 400);
+    }
+
+    const result = await handleSlackCode({
+      code,
+      slackUserId,
+      workspaceId,
+      type: "signin",
+      env: c.env,
+    });
+
+    return c.json({ completed: result.success });
   });

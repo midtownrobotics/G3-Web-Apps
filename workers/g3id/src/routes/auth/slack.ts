@@ -19,6 +19,56 @@ function generateToken(): string {
     .join("");
 }
 
+async function createSlackWorkflowTrigger(
+  recordId: string,
+  code: string,
+  env: AppEnv["Bindings"],
+): Promise<string | null> {
+  try {
+    const response = await fetch("https://www.slack.com/api/workflows.triggers.create", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${env.SLACK_BOT_TOKEN}`,
+      },
+      body: JSON.stringify({
+        type: "link",
+        description: `G3 Login Button (${code})`,
+        inputs: {
+          code: {
+            type: "text",
+            value: code,
+          },
+          user_id: {
+            type: "slack#/types/user_id",
+          },
+        },
+        output_channels: ["*"],
+      }),
+    });
+
+    if (!response.ok) {
+      console.error(`Failed to create trigger: ${response.statusText}`);
+      return null;
+    }
+
+    const data = (await response.json()) as Record<string, unknown>;
+    const triggerId = (data.trigger_id ?? null) as string | null;
+
+    if (triggerId) {
+      await createDb(env.DB)
+        .update(coreSlackLinkCodes)
+        .set({ triggerId })
+        .where(eq(coreSlackLinkCodes.id, recordId));
+    }
+
+    return triggerId;
+  } catch (err) {
+    console.error(`Error creating trigger: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
+}
+
 export const slackAuthRouter = new Hono<AppEnv>()
   // Sign-in initiation — generates code, redirects to /login/slack
   .get("/slack/initiate", async (c) => {
@@ -26,11 +76,12 @@ export const slackAuthRouter = new Hono<AppEnv>()
     const code = generateCode();
     const token = generateToken();
     const now = Math.floor(Date.now() / 1000);
+    const recordId = newId();
 
     await createDb(c.env.DB)
       .insert(coreSlackLinkCodes)
       .values({
-        id: newId(),
+        id: recordId,
         userId: null,
         code,
         type: "signin",
@@ -39,6 +90,8 @@ export const slackAuthRouter = new Hono<AppEnv>()
         used: 0,
         createdAt: now,
       });
+
+    c.executionCtx.waitUntil(createSlackWorkflowTrigger(recordId, code, c.env));
 
     const redirectParam = redirect ? `&redirect=${encodeURIComponent(redirect)}` : "";
     return c.redirect(

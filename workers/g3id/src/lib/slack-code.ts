@@ -62,6 +62,27 @@ export async function handleSlackCode(opts: {
   // Mark used immediately to prevent races
   await db.update(coreSlackLinkCodes).set({ used: 1 }).where(eq(coreSlackLinkCodes.id, record.id));
 
+  // Delete the Slack workflow trigger if one exists (background cleanup)
+  if (record.triggerId) {
+    (async () => {
+      try {
+        const response = await fetch("https://www.slack.com/api/workflows.triggers.delete", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${env.SLACK_BOT_TOKEN}`,
+          },
+          body: JSON.stringify({ trigger_id: record.triggerId }),
+        });
+        if (!response.ok) {
+          console.error(`Failed to delete trigger ${record.triggerId}: ${response.statusText}`);
+        }
+      } catch (err) {
+        console.error(`Error deleting trigger: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    })();
+  }
+
   const updateStatus = async (status: string, message?: string, sessionId?: string) => {
     await db
       .update(coreSlackLinkCodes)

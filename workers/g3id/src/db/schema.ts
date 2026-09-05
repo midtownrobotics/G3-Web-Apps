@@ -80,6 +80,7 @@ export const coreSlackLinkCodes = sqliteTable(
     status: text("status").notNull().default("pending"), // pending, success, failed, linked, signup_pending
     statusMessage: text("status_message"), // error message if status is 'failed'
     sessionId: text("session_id"), // session ID if status is 'success'
+    triggerId: text("trigger_id"), // Slack workflow trigger ID for link-based login
     createdAt: integer("created_at").notNull(),
   },
   (table) => [
