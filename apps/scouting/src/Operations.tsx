@@ -1,5 +1,6 @@
-import { CheckCircle, Hand, Plus, Trash2 } from "lucide-react";
+import { CheckCircle, Hand, MessageSquarePlus, Plus, Trash2 } from "lucide-react";
 import { type SyntheticEvent, useCallback, useEffect, useState } from "react";
+import { TeamLookupInput } from "./TeamLookupInput";
 import { api } from "./api";
 
 type Ticket = {
@@ -67,7 +68,7 @@ export function Operations({ embedded = false }: { embedded?: boolean }) {
     >
       <div className="page-heading">
         <div>
-          <h1>Service Crew</h1>
+          <h1>Service Tickets</h1>
         </div>
       </div>
       <div className="analysis-tabs service-ticket-tabs">
@@ -88,13 +89,9 @@ export function Operations({ embedded = false }: { embedded?: boolean }) {
       </div>
       {ticketView === "active" && (
         <form className="operation-form" onSubmit={createTicket}>
-          <input
-            required
-            inputMode="numeric"
-            pattern="[0-9]+"
-            placeholder="Team number"
+          <TeamLookupInput
             value={ticket.teamName}
-            onChange={(e) => setTicket({ ...ticket, teamName: e.target.value })}
+            onChange={(teamName) => setTicket({ ...ticket, teamName })}
           />
           <select
             value={ticket.issueType}
@@ -165,13 +162,34 @@ export function Operations({ embedded = false }: { embedded?: boolean }) {
               </button>
             )}
             {item.resolution && <div className="ticket-resolution">{item.resolution}</div>}
+            {item.status === "closed" && (
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={async () => {
+                  const comment = window.prompt(
+                    `Add a lasting comment about team ${item.team_name}:`,
+                  );
+                  if (!comment) return;
+                  await api("/team-comments", {
+                    method: "POST",
+                    body: JSON.stringify({
+                      teamName: item.team_name,
+                      comment,
+                      sourceTicketId: item.id,
+                    }),
+                  });
+                  window.alert("Team comment saved.");
+                }}
+              >
+                <MessageSquarePlus size={15} /> Add team comment
+              </button>
+            )}
           </article>
         ))}
         {!data.tickets.length && (
           <div className="forms-empty">
-            {ticketView === "closed"
-              ? "No closed tickets from the last 24 hours."
-              : "No active tickets."}
+            {ticketView === "closed" ? "No closed tickets." : "No active tickets."}
           </div>
         )}
       </div>

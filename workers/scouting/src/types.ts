@@ -5,6 +5,7 @@ export type AppEnv = {
     SCOUTING_DB: D1Database;
     FIELD_MAPS: R2Bucket;
     G3ID: Fetcher;
+    PIT: Fetcher;
     SLACK_BOT_TOKEN?: string;
     TBA_AUTH_KEY?: string;
   };

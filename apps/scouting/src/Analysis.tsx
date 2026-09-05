@@ -1,6 +1,7 @@
-import { Map as MapIcon, Scale, Search, Trash2 } from "lucide-react";
-import { type SyntheticEvent, useState } from "react";
+import { Map as MapIcon, Scale, Search, Star, Trash2 } from "lucide-react";
+import { type SyntheticEvent, useEffect, useState } from "react";
 import type { ScoutingField } from "./ScoutingForms";
+import { TeamLookupInput } from "./TeamLookupInput";
 import { API_URL, api } from "./api";
 
 type Report = {
@@ -15,18 +16,9 @@ type Report = {
   eventKey?: string;
   matchKey?: string;
   matchNumber?: number;
-};
-type ServiceTicket = {
-  id: string;
-  team_name: string;
-  issue_type: string;
-  description: string;
-  status: string;
-  resolution?: string;
-  created_by_name: string;
-  claimed_by_name?: string;
-  match_number?: number;
-  updated_at: number;
+  starredFieldIds: string[];
+  archivedAt?: number | null;
+  archiveReason?: string;
 };
 type TeamMatch = {
   key: string;
@@ -40,6 +32,14 @@ type TeamMatch = {
   relationTo1648: "with" | "against" | "none";
   played: boolean;
 };
+type TeamComment = {
+  id: string;
+  team_name: string;
+  comment: string;
+  event_key?: string;
+  created_by_name: string;
+  created_at: number;
+};
 
 export function Analysis() {
   const [team, setTeam] = useState("");
@@ -47,40 +47,78 @@ export function Analysis() {
   const [reports, setReports] = useState<Report[]>([]);
   const [teamB, setTeamB] = useState("");
   const [reportsB, setReportsB] = useState<Report[]>([]);
-  const [serviceTickets, setServiceTickets] = useState<ServiceTicket[]>([]);
   const [teamMatches, setTeamMatches] = useState<TeamMatch[]>([]);
-  const [tab, setTab] = useState<"stats" | "matches" | "service" | "auto" | "compare">("stats");
+  const [teamComments, setTeamComments] = useState<TeamComment[]>([]);
+  const [competition, setCompetition] = useState("all");
+  const [loaded, setLoaded] = useState(false);
+  const [tab, setTab] = useState<"stats" | "matches" | "auto" | "compare">("stats");
 
-  async function search(event: SyntheticEvent) {
-    event.preventDefault();
+  async function loadData(teamFilter = team, teamBFilter = teamB) {
     const result = await api<{
       reports: Report[];
-      serviceTickets: ServiceTicket[];
       teamMatches: TeamMatch[];
+      teamComments: TeamComment[];
     }>(
-      `/analysis?team=${encodeURIComponent(team)}${tab === "compare" ? `&teamB=${encodeURIComponent(teamB)}` : ""}`,
+      `/analysis?team=${encodeURIComponent(teamFilter)}${tab === "compare" ? `&teamB=${encodeURIComponent(teamBFilter)}` : ""}`,
     );
     setReports(
-      result.reports.filter((report) => report.teamName.toLowerCase() === team.toLowerCase()),
+      teamFilter
+        ? result.reports.filter(
+            (report) => report.teamName.toLowerCase() === teamFilter.toLowerCase(),
+          )
+        : result.reports,
     );
-    setSearched(team);
-    setServiceTickets(result.serviceTickets.filter((ticket) => ticket.team_name === team));
+    setCompetition("all");
+    setSearched(teamFilter);
+    setTeamComments(result.teamComments);
     setTeamMatches(result.teamMatches);
+    setLoaded(true);
     setReportsB(
       tab === "compare"
-        ? result.reports.filter((report) => report.teamName.toLowerCase() === teamB.toLowerCase())
+        ? result.reports.filter(
+            (report) => report.teamName.toLowerCase() === teamBFilter.toLowerCase(),
+          )
         : [],
     );
   }
 
-  async function removeReport(report: Report) {
-    const confirmed = window.confirm(
-      `Permanently delete this ${report.formName} report for team ${report.teamName}? This cannot be undone.`,
+  async function search(event: SyntheticEvent) {
+    event.preventDefault();
+    await loadData();
+  }
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: this intentionally loads the unfiltered directory once on mount.
+  useEffect(() => {
+    loadData("", "").catch(() => undefined);
+  }, []);
+
+  async function permanentlyDeleteReport(report: Report) {
+    if (
+      !window.confirm(
+        `Permanently delete this report for team ${report.teamName}? This cannot be undone.`,
+      )
+    )
+      return;
+    if (!window.confirm("Confirm permanent deletion one more time.")) return;
+    await api(`/analysis/reports/${report.id}/permanent`, { method: "DELETE" });
+    setReports((items) => items.filter((item) => item.id !== report.id));
+    setReportsB((items) => items.filter((item) => item.id !== report.id));
+  }
+
+  async function toggleStar(report: Report, fieldId: string) {
+    const result = await api<{ starredFieldIds: string[] }>(
+      `/analysis/reports/${report.id}/stars`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ fieldId, starred: !report.starredFieldIds.includes(fieldId) }),
+      },
     );
-    if (!confirmed) return;
-    await api(`/analysis/reports/${report.id}`, { method: "DELETE" });
-    setReports((current) => current.filter((item) => item.id !== report.id));
-    setReportsB((current) => current.filter((item) => item.id !== report.id));
+    const update = (items: Report[]) =>
+      items.map((item) =>
+        item.id === report.id ? { ...item, starredFieldIds: result.starredFieldIds } : item,
+      );
+    setReports(update);
+    setReportsB(update);
   }
 
   function numericSummary(items: Report[]) {
@@ -101,48 +139,91 @@ export function Analysis() {
     );
   }
 
-  const summaryA = numericSummary(reports);
-  const summaryB = numericSummary(reportsB);
+  const activeReports = reports.filter((report) => !report.archivedAt);
+  const activeReportsB = reportsB.filter((report) => !report.archivedAt);
+  const summaryA = numericSummary(activeReports);
+  const summaryB = numericSummary(activeReportsB);
   const comparisonLabels = [...new Set([...summaryA.keys(), ...summaryB.keys()])];
+  const competitions = [
+    ...new Set([
+      ...reports.map((report) => report.eventKey || "Unassigned"),
+      ...teamComments.map((comment) => comment.event_key || "Unassigned"),
+    ]),
+  ].sort();
+  const visibleReports = reports
+    .filter((report) => competition === "all" || (report.eventKey || "Unassigned") === competition)
+    .sort((left, right) => {
+      const eventOrder = (left.eventKey || "Unassigned").localeCompare(
+        right.eventKey || "Unassigned",
+      );
+      if (eventOrder !== 0) return eventOrder;
+      const leftDay = new Date(left.createdAt).setHours(0, 0, 0, 0);
+      const rightDay = new Date(right.createdAt).setHours(0, 0, 0, 0);
+      const dayOrder = rightDay - leftDay;
+      if (dayOrder !== 0) return dayOrder;
+      const matchOrder =
+        (left.matchNumber ?? Number.MAX_SAFE_INTEGER) -
+        (right.matchNumber ?? Number.MAX_SAFE_INTEGER);
+      if (matchOrder !== 0) return matchOrder;
+      const teamOrder = Number(left.teamName) - Number(right.teamName);
+      if (teamOrder !== 0) return teamOrder;
+      const starOrder =
+        Number(right.starredFieldIds.length > 0) - Number(left.starredFieldIds.length > 0);
+      return starOrder || right.createdAt - left.createdAt;
+    });
 
-  const autoFields = reports.flatMap((report) =>
-    report.fields
-      .filter((field) => field.type === "fieldMap" && report.drawings[field.id])
-      .map((field) => ({ report, field, url: report.drawings[field.id] })),
-  );
-
+  const autoFields = activeReports
+    .filter((report) => competition === "all" || (report.eventKey || "Unassigned") === competition)
+    .flatMap((report) =>
+      report.fields
+        .filter((field) => field.type === "fieldMap" && report.drawings[field.id])
+        .map((field) => ({ report, field, url: report.drawings[field.id] })),
+    );
+  const visibleComments = teamComments
+    .filter(
+      (comment) => competition === "all" || (comment.event_key || "Unassigned") === competition,
+    )
+    .sort((left, right) => {
+      const eventOrder = (left.event_key || "Unassigned").localeCompare(
+        right.event_key || "Unassigned",
+      );
+      return eventOrder || right.created_at - left.created_at;
+    });
+  const commentsByTeam = new Map<string, TeamComment[]>();
+  for (const comment of visibleComments) {
+    commentsByTeam.set(comment.team_name, [
+      ...(commentsByTeam.get(comment.team_name) ?? []),
+      comment,
+    ]);
+  }
   return (
     <section className="page analysis-page">
       <div className="page-heading">
         <div>
-          <h1>Command Center</h1>
+          <h1>Analysis</h1>
         </div>
       </div>
       <form className="analysis-search" onSubmit={search}>
         <Search size={19} />
-        <input
-          required
-          inputMode="numeric"
-          pattern="[0-9]+"
+        <TeamLookupInput
+          required={tab === "compare"}
           value={team}
-          onChange={(event) => setTeam(event.target.value)}
-          placeholder={tab === "compare" ? "Team A number" : "Team number"}
+          onChange={setTeam}
+          placeholder={tab === "compare" ? "Team A number or name" : "Team number or name"}
         />
         {tab === "compare" && (
           <>
             <Scale size={18} />
-            <input
+            <TeamLookupInput
               required
-              inputMode="numeric"
-              pattern="[0-9]+"
               value={teamB}
-              onChange={(event) => setTeamB(event.target.value)}
-              placeholder="Team B number"
+              onChange={setTeamB}
+              placeholder="Team B number or name"
             />
           </>
         )}
         <button type="submit" className="primary-button">
-          Search
+          {tab === "compare" ? "Enter" : team ? "Filter" : "Show all"}
         </button>
       </form>
       <div className="analysis-tabs">
@@ -152,13 +233,6 @@ export function Analysis() {
           onClick={() => setTab("matches")}
         >
           Matches
-        </button>
-        <button
-          type="button"
-          className={tab === "service" ? "active" : ""}
-          onClick={() => setTab("service")}
-        >
-          Service
         </button>
         <button
           type="button"
@@ -182,45 +256,112 @@ export function Analysis() {
           Compare
         </button>
       </div>
-      {tab === "stats" && searched && !reports.length && (
-        <div className="forms-empty">No reports found for {searched}.</div>
-      )}
       {tab === "stats" ? (
         <div className="analysis-results-stack">
+          {competitions.length > 0 && (
+            <label className="competition-filter">
+              Competition
+              <select value={competition} onChange={(event) => setCompetition(event.target.value)}>
+                <option value="all">All competitions</option>
+                {competitions.map((eventKey) => (
+                  <option value={eventKey} key={eventKey}>
+                    {eventKey}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {loaded && !reports.length && !teamComments.length && (
+            <div className="forms-empty">
+              {searched ? `No reports found for team ${searched}.` : "No reports found."}
+            </div>
+          )}
+          {commentsByTeam.size > 0 && (
+            <section className="team-comment-directory">
+              {[...commentsByTeam].map(([teamNumber, comments]) => (
+                <article key={teamNumber}>
+                  <h2>Team {teamNumber}</h2>
+                  {comments.map((comment) => (
+                    <div key={comment.id}>
+                      <p>{comment.comment}</p>
+                      <small>
+                        {comment.event_key || "Unassigned"} · {comment.created_by_name} ·{" "}
+                        {new Date(comment.created_at).toLocaleString()}
+                      </small>
+                    </div>
+                  ))}
+                </article>
+              ))}
+            </section>
+          )}
           <div className="analysis-reports">
-            {reports.map((report) => (
-              <article key={report.id}>
-                <header>
-                  <div>
-                    <strong>{report.formName}</strong>
-                    <span>{report.submittedByName}</span>
-                    {report.matchNumber && <span>Match {report.matchNumber}</span>}
-                  </div>
-                  <time>{new Date(report.createdAt).toLocaleString()}</time>
-                  <button
-                    type="button"
-                    className="delete-report-button"
-                    onClick={() => removeReport(report)}
-                    aria-label={`Delete report for ${report.teamName}`}
-                  >
-                    <Trash2 size={16} /> Remove bad data
-                  </button>
-                </header>
-                <dl>
-                  {report.fields
-                    .filter((field) => field.type !== "fieldMap")
-                    .map((field) => (
-                      <div key={field.id}>
-                        <dt>{field.label}</dt>
-                        <dd>
-                          {Array.isArray(report.answers[field.id])
-                            ? (report.answers[field.id] as unknown[]).join(", ")
-                            : String(report.answers[field.id] ?? "—")}
-                        </dd>
-                      </div>
-                    ))}
-                </dl>
-              </article>
+            {visibleReports.map((report, index) => (
+              <div className="report-result" key={report.id}>
+                {(index === 0 ||
+                  `${visibleReports[index - 1].eventKey || "Unassigned"}-${new Date(visibleReports[index - 1].createdAt).toDateString()}-${visibleReports[index - 1].matchNumber ?? "none"}` !==
+                    `${report.eventKey || "Unassigned"}-${new Date(report.createdAt).toDateString()}-${report.matchNumber ?? "none"}`) && (
+                  <h2 className="competition-heading">
+                    {report.eventKey || "Unassigned"} ·{" "}
+                    {new Date(report.createdAt).toLocaleDateString()} ·{" "}
+                    {report.matchNumber ? `Match ${report.matchNumber}` : "No match assigned"}
+                  </h2>
+                )}
+                <article
+                  className={`${report.starredFieldIds.length ? "starred-report" : ""} ${report.archivedAt ? "archived-report" : ""}`}
+                >
+                  <header>
+                    <div>
+                      <span className="report-team-line">
+                        <strong>Team {report.teamName}</strong>
+                        <button
+                          type="button"
+                          className={`star-button ${report.starredFieldIds.includes("__report") ? "active" : ""}`}
+                          onClick={() => toggleStar(report, "__report")}
+                          aria-label={
+                            report.starredFieldIds.includes("__report")
+                              ? `Unstar team ${report.teamName} report`
+                              : `Star team ${report.teamName} report`
+                          }
+                          title={
+                            report.starredFieldIds.includes("__report")
+                              ? "Unstar report"
+                              : "Star report"
+                          }
+                        >
+                          <Star size={16} fill="currentColor" />
+                        </button>
+                      </span>
+                      <span>{report.formName}</span>
+                      <span>{report.submittedByName}</span>
+                      {report.matchNumber && <span>Match {report.matchNumber}</span>}
+                    </div>
+                    <time>{new Date(report.createdAt).toLocaleString()}</time>
+                    <button
+                      type="button"
+                      className="delete-report-button"
+                      onClick={() => permanentlyDeleteReport(report)}
+                      aria-label={`Permanently delete report for ${report.teamName}`}
+                      title="Remove bad data"
+                    >
+                      <Trash2 size={17} />
+                    </button>
+                  </header>
+                  <dl>
+                    {report.fields
+                      .filter((field) => field.type !== "fieldMap")
+                      .map((field) => (
+                        <div key={field.id}>
+                          <dt>{field.label}</dt>
+                          <dd>
+                            {Array.isArray(report.answers[field.id])
+                              ? (report.answers[field.id] as unknown[]).join(", ")
+                              : String(report.answers[field.id] ?? "—")}
+                          </dd>
+                        </div>
+                      ))}
+                  </dl>
+                </article>
+              </div>
             ))}
           </div>
         </div>
@@ -250,35 +391,10 @@ export function Analysis() {
           {searched && !teamMatches.length && (
             <div className="forms-empty">No TBA matches found.</div>
           )}
-        </div>
-      ) : tab === "service" ? (
-        <section className="service-history">
-          <div>
-            {serviceTickets.map((ticket) => (
-              <article key={ticket.id}>
-                <header>
-                  <strong>{ticket.issue_type}</strong>
-                  <span>{ticket.status}</span>
-                </header>
-                <p>{ticket.description || "No issue description."}</p>
-                {ticket.resolution && (
-                  <p>
-                    <b>Resolution:</b> {ticket.resolution}
-                  </p>
-                )}
-                <small>
-                  Reported by {ticket.created_by_name}
-                  {ticket.claimed_by_name ? ` · Helped by ${ticket.claimed_by_name}` : ""}
-                  {ticket.match_number ? ` · Match ${ticket.match_number}` : ""}
-                  {` · ${new Date(ticket.updated_at).toLocaleString()}`}
-                </small>
-              </article>
-            ))}
-          </div>
-          {searched && !serviceTickets.length && (
-            <div className="forms-empty">No service history found.</div>
+          {loaded && !searched && (
+            <div className="forms-empty">Enter a team number to load its TBA matches.</div>
           )}
-        </section>
+        </div>
       ) : tab === "auto" ? (
         <div className="auto-path-grid">
           {autoFields.map(({ report, field, url }) => (
@@ -286,22 +402,29 @@ export function Analysis() {
               <img src={`${API_URL}${url}`} alt={`${report.teamName} ${field.label}`} />
               <div>
                 <MapIcon size={16} />
-                <strong>{field.label}</strong>
+                <strong>
+                  Team {report.teamName} · {field.label}
+                </strong>
                 <span>
-                  {report.formName} · {new Date(report.createdAt).toLocaleDateString()}
+                  {report.eventKey || "Unassigned"} · {report.formName} ·{" "}
+                  {new Date(report.createdAt).toLocaleDateString()}
                 </span>
               </div>
               <button
                 type="button"
                 className="delete-report-button"
-                onClick={() => removeReport(report)}
+                onClick={() => permanentlyDeleteReport(report)}
+                aria-label={`Permanently delete report for ${report.teamName}`}
+                title="Remove bad data"
               >
-                <Trash2 size={15} /> Remove report
+                <Trash2 size={17} />
               </button>
             </article>
           ))}
-          {searched && !autoFields.length && (
-            <div className="forms-empty">No autonomous paths reported for {searched}.</div>
+          {loaded && !autoFields.length && (
+            <div className="forms-empty">
+              No autonomous paths reported{searched ? ` for ${searched}` : ""}.
+            </div>
           )}
         </div>
       ) : (
@@ -311,13 +434,13 @@ export function Analysis() {
               <div>
                 <span>Team A</span>
                 <strong>{searched}</strong>
-                <small>{reports.length} reports</small>
+                <small>{activeReports.length} reports</small>
               </div>
               <Scale size={28} />
               <div>
                 <span>Team B</span>
                 <strong>{teamB}</strong>
-                <small>{reportsB.length} reports</small>
+                <small>{activeReportsB.length} reports</small>
               </div>
             </div>
           )}

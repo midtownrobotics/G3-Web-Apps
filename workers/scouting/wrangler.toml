@@ -6,6 +6,10 @@ compatibility_date = "2026-05-17"
 binding = "G3ID"
 service = "g3id-production"
 
+[[services]]
+binding = "PIT"
+service = "pit-production"
+
 [[d1_databases]]
 binding = "SCOUTING_DB"
 database_name = "g3-scouting-prod"
@@ -34,6 +38,10 @@ name = "scouting-production"
 [[env.production.services]]
 binding = "G3ID"
 service = "g3id-production"
+
+[[env.production.services]]
+binding = "PIT"
+service = "pit-production"
 
 [[env.production.d1_databases]]
 binding = "SCOUTING_DB"

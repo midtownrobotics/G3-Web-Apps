@@ -9,6 +9,7 @@ type TierListInput = { name?: unknown; description?: unknown; tiers?: unknown };
 type ScoutingField = {
   id: string;
   label: string;
+  caption?: string;
   type: "shortText" | "longText" | "mcq" | "slider" | "fieldMap" | "multiSelect" | "counter";
   required: boolean;
   options: string[];
@@ -36,7 +37,9 @@ type TbaMatch = {
     blue: { team_keys: string[]; score: number };
   };
 };
+type TbaTeam = { key: string; team_number: number; nickname: string | null; name: string };
 const app = new Hono<AppEnv>();
+let pitSettingsSyncAt = 0;
 
 app.onError((error, c) => {
   console.error("[scouting]", error);
@@ -134,16 +137,83 @@ function matchLabel(match: TbaMatch) {
 
 function publicMatch(match: TbaMatch) {
   const scheduledTime = match.predicted_time ?? match.time;
+  const redTeams = match.alliances.red.team_keys.map((team) => team.replace(/^frc/, ""));
+  const blueTeams = match.alliances.blue.team_keys.map((team) => team.replace(/^frc/, ""));
   return {
     key: match.key,
     label: matchLabel(match),
     matchNumber: match.match_number,
     compLevel: match.comp_level,
     scheduledAt: scheduledTime ? scheduledTime * 1000 : null,
-    teams: [...match.alliances.red.team_keys, ...match.alliances.blue.team_keys].map((team) =>
-      team.replace(/^frc/, ""),
-    ),
+    teams: [...redTeams, ...blueTeams],
+    redTeams,
+    blueTeams,
   };
+}
+
+async function getTbaAuthKey(c: Context<AppEnv>) {
+  const config = await c.env.SCOUTING_DB.prepare(
+    "SELECT tba_auth_key FROM strategy_event_config WHERE id = 1",
+  ).first<{ tba_auth_key: string | null }>();
+  return config?.tba_auth_key || c.env.TBA_AUTH_KEY || "";
+}
+
+type PitSettings = {
+  eventKey: string;
+  nexusEventKey: string;
+  tbaAuthKey: string;
+  nexusApiKey: string;
+};
+
+async function syncPitSettings(c: Context<AppEnv>) {
+  if (!c.get("userIsAdmin")) return null;
+  if (Date.now() - pitSettingsSyncAt < 300_000) return null;
+  const response = await c.env.PIT.fetch(
+    new Request("http://pit/admin/settings", {
+      headers: { cookie: c.req.header("Cookie") ?? "" },
+    }),
+  );
+  if (!response.ok) return null;
+  const settings = (await response.json()) as PitSettings;
+  const current = await c.env.SCOUTING_DB.prepare(
+    "SELECT event_key, tba_auth_key, nexus_event_key, nexus_api_key FROM strategy_event_config WHERE id = 1",
+  ).first<{
+    event_key: string;
+    tba_auth_key: string | null;
+    nexus_event_key: string | null;
+    nexus_api_key: string | null;
+  }>();
+  const eventKey = current?.event_key || settings.eventKey;
+  const changed =
+    !current ||
+    current.event_key !== eventKey ||
+    current.tba_auth_key !== settings.tbaAuthKey ||
+    current.nexus_event_key !== settings.nexusEventKey ||
+    current.nexus_api_key !== settings.nexusApiKey;
+  if (changed)
+    await c.env.SCOUTING_DB.prepare(
+      `INSERT INTO strategy_event_config
+       (id, event_key, current_match_number, tba_auth_key, nexus_event_key, nexus_api_key, updated_by, updated_at)
+     VALUES (1, ?, NULL, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       event_key = CASE WHEN strategy_event_config.event_key = '' THEN excluded.event_key ELSE strategy_event_config.event_key END,
+       tba_auth_key = excluded.tba_auth_key,
+       nexus_event_key = excluded.nexus_event_key,
+       nexus_api_key = excluded.nexus_api_key,
+       updated_by = excluded.updated_by,
+       updated_at = excluded.updated_at`,
+    )
+      .bind(
+        eventKey,
+        settings.tbaAuthKey,
+        settings.nexusEventKey,
+        settings.nexusApiKey,
+        c.get("userId"),
+        Date.now(),
+      )
+      .run();
+  pitSettingsSyncAt = Date.now();
+  return settings;
 }
 
 async function getTbaMatches(c: Context<AppEnv>, eventKey: string) {
@@ -154,10 +224,11 @@ async function getTbaMatches(c: Context<AppEnv>, eventKey: string) {
     .bind(eventKey, now)
     .first<{ matches_json: string }>();
   if (cached) return parseJson<TbaMatch[]>(cached.matches_json, []);
-  if (!c.env.TBA_AUTH_KEY) throw new Error("TBA_AUTH_KEY is not configured.");
+  const tbaAuthKey = await getTbaAuthKey(c);
+  if (!tbaAuthKey) throw new Error("TBA authentication key is not configured.");
   const response = await fetch(
     `https://www.thebluealliance.com/api/v3/event/${encodeURIComponent(eventKey)}/matches`,
-    { headers: { "X-TBA-Auth-Key": c.env.TBA_AUTH_KEY } },
+    { headers: { "X-TBA-Auth-Key": tbaAuthKey } },
   );
   if (!response.ok) throw new Error(`The Blue Alliance returned ${response.status}.`);
   const matches = (await response.json()) as TbaMatch[];
@@ -169,10 +240,71 @@ async function getTbaMatches(c: Context<AppEnv>, eventKey: string) {
   return matches;
 }
 
+async function getTbaTeams(c: Context<AppEnv>, eventKey: string) {
+  const now = Date.now();
+  const cached = await c.env.SCOUTING_DB.prepare(
+    "SELECT teams_json FROM tba_team_cache WHERE event_key = ? AND expires_at > ?",
+  )
+    .bind(eventKey, now)
+    .first<{ teams_json: string }>();
+  if (cached) return parseJson<TbaTeam[]>(cached.teams_json, []);
+  const tbaAuthKey = await getTbaAuthKey(c);
+  if (!tbaAuthKey) throw new Error("TBA authentication key is not configured.");
+  const response = await fetch(
+    `https://www.thebluealliance.com/api/v3/event/${encodeURIComponent(eventKey)}/teams/simple`,
+    { headers: { "X-TBA-Auth-Key": tbaAuthKey } },
+  );
+  if (!response.ok) throw new Error(`The Blue Alliance returned ${response.status}.`);
+  const teams = (await response.json()) as TbaTeam[];
+  await c.env.SCOUTING_DB.prepare(
+    "INSERT OR REPLACE INTO tba_team_cache (event_key, teams_json, expires_at) VALUES (?, ?, ?)",
+  )
+    .bind(eventKey, JSON.stringify(teams), now + 3_600_000)
+    .run();
+  return teams;
+}
+
+app.get("/teams/search", requireAuth, async (c) => {
+  const query = text(c.req.query("q"), 80).toLowerCase();
+  if (!query) return c.json({ teams: [], message: null });
+  const config = await c.env.SCOUTING_DB.prepare(
+    "SELECT event_key FROM strategy_event_config WHERE id = 1",
+  ).first<{ event_key: string }>();
+  if (!config?.event_key)
+    return c.json({ teams: [], message: "Set the TBA event key in Scouting Forms first." });
+  try {
+    const teams = (await getTbaTeams(c, config.event_key))
+      .filter((team) => {
+        const number = String(team.team_number);
+        const name = (team.nickname || team.name || "").toLowerCase();
+        return number.includes(query) || name.includes(query);
+      })
+      .sort((left, right) => {
+        const leftNumber = String(left.team_number);
+        const rightNumber = String(right.team_number);
+        const leftExact = leftNumber === query ? 0 : leftNumber.startsWith(query) ? 1 : 2;
+        const rightExact = rightNumber === query ? 0 : rightNumber.startsWith(query) ? 1 : 2;
+        return leftExact - rightExact || left.team_number - right.team_number;
+      })
+      .slice(0, 8)
+      .map((team) => ({ number: String(team.team_number), name: team.nickname || team.name }));
+    return c.json({ teams, message: teams.length ? null : "No matching teams at this event." });
+  } catch (error) {
+    return c.json({
+      teams: [],
+      message: error instanceof Error ? error.message : "Could not load teams from TBA.",
+    });
+  }
+});
+
 async function resolveEventLink(c: Context<AppEnv>) {
   const config = await c.env.SCOUTING_DB.prepare(
-    "SELECT event_key, current_match_number FROM strategy_event_config WHERE id = 1",
-  ).first<{ event_key: string; current_match_number: number | null }>();
+    "SELECT event_key, current_match_number, tba_auth_key FROM strategy_event_config WHERE id = 1",
+  ).first<{
+    event_key: string;
+    current_match_number: number | null;
+    tba_auth_key: string | null;
+  }>();
   if (!config?.event_key) return { eventKey: null, matchKey: null, matchNumber: null };
   let current: TbaMatch | undefined;
   try {
@@ -203,16 +335,16 @@ async function resolveEventLink(c: Context<AppEnv>) {
 app.get("/event-context", requireAuth, async (c) => {
   const admin = await isStrategyAdmin(c);
   const now = Date.now();
-  if (admin) {
-    await c.env.SCOUTING_DB.prepare(
-      "INSERT OR REPLACE INTO strategy_presence (user_id, display_name, is_admin, last_seen_at) VALUES (?, ?, 1, ?)",
-    )
-      .bind(c.get("userId"), c.get("userDisplayName"), now)
-      .run();
-  }
+  if (admin) await syncPitSettings(c).catch(() => null);
   const config = await c.env.SCOUTING_DB.prepare(
-    "SELECT event_key, current_match_number FROM strategy_event_config WHERE id = 1",
-  ).first<{ event_key: string; current_match_number: number | null }>();
+    "SELECT event_key, current_match_number, tba_auth_key, nexus_event_key, nexus_api_key FROM strategy_event_config WHERE id = 1",
+  ).first<{
+    event_key: string;
+    current_match_number: number | null;
+    tba_auth_key: string | null;
+    nexus_event_key: string | null;
+    nexus_api_key: string | null;
+  }>();
   const eventKey = config?.event_key ?? "";
   let matches: TbaMatch[] = [];
   let scheduleError = "";
@@ -253,11 +385,16 @@ app.get("/event-context", requireAuth, async (c) => {
   return c.json({
     eventKey: admin ? eventKey : "",
     currentMatchNumber: admin ? (config?.current_match_number ?? null) : null,
-    currentMatch: admin && current ? publicMatch(current) : null,
+    currentMatch: current ? publicMatch(current) : null,
     nextTeamMatch: nextTeamMatch ? publicMatch(nextTeamMatch) : null,
     teamSchedule: admin ? teamSchedule.map(publicMatch) : [],
     onlineAdmins: onlineAdmins?.results ?? [],
     scheduleError: admin ? scheduleError : "",
+    hasTbaAuthKey: admin ? Boolean(config?.tba_auth_key || c.env.TBA_AUTH_KEY) : false,
+    tbaAuthKey: "",
+    nexusEventKey: admin ? config?.nexus_event_key || eventKey : "",
+    hasNexusApiKey: admin ? Boolean(config?.nexus_api_key) : false,
+    nexusApiKey: "",
   });
 });
 
@@ -265,6 +402,11 @@ app.put("/event-context", requireAuth, async (c) => {
   if (!(await isStrategyAdmin(c))) return c.json({ error: "Strategy lead access required." }, 403);
   const body = await c.req.json<Record<string, unknown>>();
   const eventKey = text(body.eventKey, 30).toLowerCase();
+  const tbaAuthKey = text(body.tbaAuthKey, 200);
+  const nexusEventKey = text(body.nexusEventKey, 30).toLowerCase() || eventKey;
+  const nexusApiKey = text(body.nexusApiKey, 300);
+  if ((tbaAuthKey || nexusApiKey) && !c.get("userIsAdmin"))
+    return c.json({ error: "Only a G3ID admin can update API keys." }, 403);
   if (eventKey && !/^\d{4}[a-z0-9]+$/.test(eventKey))
     return c.json({ error: "Enter a valid TBA event key, such as 2026gadal." }, 400);
   const requestedMatch = body.currentMatchNumber;
@@ -278,11 +420,113 @@ app.put("/event-context", requireAuth, async (c) => {
   )
     return c.json({ error: "Current match must be a positive qualification match number." }, 400);
   await c.env.SCOUTING_DB.prepare(
-    "INSERT OR REPLACE INTO strategy_event_config (id, event_key, current_match_number, updated_by, updated_at) VALUES (1, ?, ?, ?, ?)",
+    `INSERT INTO strategy_event_config (id, event_key, current_match_number, tba_auth_key, nexus_event_key, nexus_api_key, updated_by, updated_at)
+     VALUES (1, ?, ?, NULLIF(?, ''), ?, NULLIF(?, ''), ?, ?)
+     ON CONFLICT(id) DO UPDATE SET event_key = excluded.event_key,
+       current_match_number = excluded.current_match_number,
+       tba_auth_key = CASE WHEN excluded.tba_auth_key IS NULL THEN strategy_event_config.tba_auth_key ELSE excluded.tba_auth_key END,
+       nexus_event_key = excluded.nexus_event_key,
+       nexus_api_key = CASE WHEN excluded.nexus_api_key IS NULL THEN strategy_event_config.nexus_api_key ELSE excluded.nexus_api_key END,
+       updated_by = excluded.updated_by, updated_at = excluded.updated_at`,
   )
-    .bind(eventKey, currentMatchNumber, c.get("userId"), Date.now())
+    .bind(
+      eventKey,
+      currentMatchNumber,
+      tbaAuthKey,
+      nexusEventKey,
+      nexusApiKey,
+      c.get("userId"),
+      Date.now(),
+    )
     .run();
   return c.json({ ok: true });
+});
+
+app.get("/announcements/active", requireAuth, async (c) => {
+  const rows = await c.env.SCOUTING_DB.prepare(
+    `SELECT id, message, created_by_name, created_at, expires_at
+     FROM strategy_announcements
+     WHERE expires_at > ?
+     ORDER BY created_at DESC
+     LIMIT 5`,
+  )
+    .bind(Date.now())
+    .all<Record<string, unknown>>();
+  return c.json({ announcements: rows.results });
+});
+
+app.put("/presence", requireAuth, async (c) => {
+  const body: Record<string, unknown> = await c.req
+    .json<Record<string, unknown>>()
+    .catch(() => ({}));
+  const allowedPages = new Set([
+    "forms",
+    "admin",
+    "analysis",
+    "service",
+    "autos",
+    "other",
+    "tiers",
+    "maps",
+  ]);
+  const requestedPage = text(body.page, 30);
+  const currentPage = allowedPages.has(requestedPage) ? requestedPage : "forms";
+  await c.env.SCOUTING_DB.prepare(
+    `INSERT INTO strategy_presence (user_id, display_name, is_admin, last_seen_at, current_page)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(user_id) DO UPDATE SET display_name = excluded.display_name,
+       is_admin = excluded.is_admin, last_seen_at = excluded.last_seen_at,
+       current_page = excluded.current_page`,
+  )
+    .bind(
+      c.get("userId"),
+      c.get("userDisplayName"),
+      (await isStrategyAdmin(c)) ? 1 : 0,
+      Date.now(),
+      currentPage,
+    )
+    .run();
+  return c.json({ ok: true });
+});
+
+app.get("/presence", requireAuth, async (c) => {
+  if (!(await isStrategyAdmin(c))) return c.json({ error: "Strategy lead access required." }, 403);
+  const rows = await c.env.SCOUTING_DB.prepare(
+    `SELECT user_id, display_name, is_admin, last_seen_at, current_page
+     FROM strategy_presence
+     WHERE last_seen_at >= ?
+     ORDER BY is_admin DESC, display_name`,
+  )
+    .bind(Date.now() - 75_000)
+    .all<Record<string, unknown>>();
+  return c.json({ users: rows.results });
+});
+
+app.post("/announcements", requireAuth, async (c) => {
+  if (!(await isStrategyAdmin(c))) return c.json({ error: "Strategy lead access required." }, 403);
+  const body = await c.req.json<Record<string, unknown>>();
+  const message = text(body.message, 500);
+  const durationSeconds = Number(body.durationSeconds);
+  if (!message) return c.json({ error: "Enter an announcement." }, 400);
+  if (![30, 60, 300, 600].includes(durationSeconds))
+    return c.json({ error: "Choose a valid announcement duration." }, 400);
+  const now = Date.now();
+  const announcementId = id("announcement");
+  await c.env.SCOUTING_DB.prepare(
+    `INSERT INTO strategy_announcements
+       (id, message, created_by, created_by_name, created_at, expires_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  )
+    .bind(
+      announcementId,
+      message,
+      c.get("userId"),
+      c.get("userDisplayName"),
+      now,
+      now + durationSeconds * 1000,
+    )
+    .run();
+  return c.json({ id: announcementId }, 201);
 });
 
 function parseScoutingFields(value: unknown): ScoutingField[] | null {
@@ -301,6 +545,7 @@ function parseScoutingFields(value: unknown): ScoutingField[] | null {
     return {
       id: text(field.id, 100),
       label: text(field.label, 120),
+      caption: text(field.caption, 500),
       type: text(field.type, 20) as ScoutingField["type"],
       required: field.required === true,
       options: stringArray(field.options, 30),
@@ -387,16 +632,7 @@ app.put("/scouting-forms/:id", requireAuth, async (c) => {
 
 app.delete("/scouting-forms/:id", requireAuth, async (c) => {
   if (!(await isStrategyAdmin(c))) return c.json({ error: "Strategy lead access required." }, 403);
-  const drawings = await c.env.SCOUTING_DB.prepare(
-    "SELECT drawing_r2_key FROM scouting_form_submissions WHERE form_id = ? AND drawing_r2_key IS NOT NULL",
-  )
-    .bind(c.req.param("id"))
-    .all<{ drawing_r2_key: string }>();
-  await Promise.all(drawings.results.map((row) => c.env.FIELD_MAPS.delete(row.drawing_r2_key)));
-  await c.env.SCOUTING_DB.prepare("DELETE FROM scouting_form_submissions WHERE form_id = ?")
-    .bind(c.req.param("id"))
-    .run();
-  await c.env.SCOUTING_DB.prepare("DELETE FROM scouting_forms WHERE id = ?")
+  await c.env.SCOUTING_DB.prepare("UPDATE scouting_forms SET is_active = 0 WHERE id = ?")
     .bind(c.req.param("id"))
     .run();
   return c.json({ ok: true });
@@ -466,11 +702,12 @@ app.post("/scouting-forms/:id/submissions", requireAuth, async (c) => {
   const submittedAt = Date.now();
   const eventLink = await resolveEventLink(c);
   await c.env.SCOUTING_DB.prepare(
-    "INSERT INTO scouting_form_submissions (id, form_id, answers_json, drawing_r2_key, drawing_content_type, submitted_by, submitted_by_name, created_at, team_name, drawing_fields_json, event_key, match_key, match_number) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO scouting_form_submissions (id, form_id, fields_json, answers_json, drawing_r2_key, drawing_content_type, submitted_by, submitted_by_name, created_at, team_name, drawing_fields_json, event_key, match_key, match_number) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
   )
     .bind(
       submissionId,
       c.req.param("id"),
+      formDefinition.fields_json,
       JSON.stringify(cleanAnswers),
       drawingKey,
       drawingType,
@@ -713,24 +950,23 @@ app.get("/analysis", requireAuth, async (c) => {
   if (!(await isStrategyAdmin(c))) return c.json({ error: "Strategy lead access required." }, 403);
   const team = teamNumber(c.req.query("team"));
   const teamB = teamNumber(c.req.query("teamB"));
-  if (!team) return c.json({ reports: [] });
-  const where = teamB
-    ? "LOWER(s.team_name) IN (LOWER(?), LOWER(?))"
-    : "LOWER(s.team_name) = LOWER(?)";
-  const bindings = teamB ? [team, teamB] : [team];
-  const [rows, serviceTickets, eventConfig] = await Promise.all([
+  const includeArchived = c.req.query("archived") === "true";
+  const where = team ? (teamB ? "s.team_name IN (?, ?)" : "s.team_name = ?") : "1 = 1";
+  const bindings = team ? (teamB ? [team, teamB] : [team]) : [];
+  const commentWhere = team ? (teamB ? "team_name IN (?, ?)" : "team_name = ?") : "1 = 1";
+  const [rows, teamComments, eventConfig] = await Promise.all([
     c.env.SCOUTING_DB.prepare(
-      `SELECT s.*, f.name AS form_name, f.form_kind, f.fields_json
+      `SELECT s.*, f.name AS form_name, f.form_kind,
+         COALESCE(s.fields_json, f.fields_json) AS fields_json
        FROM scouting_form_submissions s
        JOIN scouting_forms f ON f.id = s.form_id
-       WHERE ${where}
-       ORDER BY s.created_at DESC
-       LIMIT 500`,
+       WHERE ${where} ${includeArchived ? "" : "AND s.archived_at IS NULL"}
+       ORDER BY CASE WHEN s.starred_fields_json = '[]' THEN 1 ELSE 0 END, s.created_at DESC`,
     )
       .bind(...bindings)
       .all<Record<string, unknown>>(),
     c.env.SCOUTING_DB.prepare(
-      `SELECT * FROM service_tickets WHERE ${teamB ? "team_name IN (?, ?)" : "team_name = ?"} ORDER BY updated_at DESC LIMIT 200`,
+      `SELECT * FROM team_comments WHERE ${commentWhere} ORDER BY created_at DESC`,
     )
       .bind(...bindings)
       .all<Record<string, unknown>>(),
@@ -739,7 +975,7 @@ app.get("/analysis", requireAuth, async (c) => {
     }>(),
   ]);
   let teamMatches: Record<string, unknown>[] = [];
-  if (eventConfig?.event_key) {
+  if (team && eventConfig?.event_key) {
     try {
       const matches = (await getTbaMatches(c, eventConfig.event_key)).sort(
         (a, b) => matchOrder(a) - matchOrder(b),
@@ -766,7 +1002,7 @@ app.get("/analysis", requireAuth, async (c) => {
           };
         });
     } catch {
-      // Scouting and service data remain available when TBA is unavailable.
+      // Scouting data remains available when TBA is unavailable.
     }
   }
   return c.json({
@@ -787,13 +1023,69 @@ app.get("/analysis", requireAuth, async (c) => {
       eventKey: row.event_key,
       matchKey: row.match_key,
       matchNumber: row.match_number,
+      starredFieldIds: parseJson<string[]>(row.starred_fields_json, []),
+      archivedAt: row.archived_at,
+      archiveReason: row.archive_reason,
     })),
-    serviceTickets: serviceTickets.results,
+    teamComments: teamComments.results,
     teamMatches,
   });
 });
 
+app.put("/analysis/reports/:id/stars", requireAuth, async (c) => {
+  if (!(await isStrategyAdmin(c))) return c.json({ error: "Strategy lead access required." }, 403);
+  const body = await c.req.json<{ fieldId?: unknown; starred?: unknown }>();
+  const fieldId = text(body.fieldId, 100);
+  if (!fieldId) return c.json({ error: "Choose a report or answer to star." }, 400);
+  const report = await c.env.SCOUTING_DB.prepare(
+    `SELECT s.starred_fields_json, f.fields_json
+     FROM scouting_form_submissions s
+     JOIN scouting_forms f ON f.id = s.form_id
+     WHERE s.id = ?`,
+  )
+    .bind(c.req.param("id"))
+    .first<{ starred_fields_json: string; fields_json: string }>();
+  if (!report) return c.json({ error: "Report not found." }, 404);
+  const validFieldIds = new Set([
+    "__report",
+    ...parseJson<ScoutingField[]>(report.fields_json, []).map((field) => field.id),
+  ]);
+  if (!validFieldIds.has(fieldId)) return c.json({ error: "That answer no longer exists." }, 400);
+  const starred = new Set(parseJson<string[]>(report.starred_fields_json, []));
+  if (body.starred === true) starred.add(fieldId);
+  else starred.delete(fieldId);
+  await c.env.SCOUTING_DB.prepare(
+    "UPDATE scouting_form_submissions SET starred_fields_json = ? WHERE id = ?",
+  )
+    .bind(JSON.stringify(Array.from(starred)), c.req.param("id"))
+    .run();
+  return c.json({ starredFieldIds: Array.from(starred) });
+});
+
 app.delete("/analysis/reports/:id", requireAuth, async (c) => {
+  if (!(await isStrategyAdmin(c))) return c.json({ error: "Strategy lead access required." }, 403);
+  const body: { reason?: unknown } = await c.req.json<{ reason?: unknown }>().catch(() => ({}));
+  const result = await c.env.SCOUTING_DB.prepare(
+    "UPDATE scouting_form_submissions SET archived_at = ?, archived_by = ?, archive_reason = ? WHERE id = ? AND archived_at IS NULL",
+  )
+    .bind(Date.now(), c.get("userId"), text(body.reason, 500), c.req.param("id"))
+    .run();
+  if (!result.meta.changes) return c.json({ error: "Active report not found." }, 404);
+  return c.json({ ok: true });
+});
+
+app.put("/analysis/reports/:id/restore", requireAuth, async (c) => {
+  if (!(await isStrategyAdmin(c))) return c.json({ error: "Strategy lead access required." }, 403);
+  const result = await c.env.SCOUTING_DB.prepare(
+    "UPDATE scouting_form_submissions SET archived_at = NULL, archived_by = NULL, archive_reason = NULL WHERE id = ? AND archived_at IS NOT NULL",
+  )
+    .bind(c.req.param("id"))
+    .run();
+  if (!result.meta.changes) return c.json({ error: "Archived report not found." }, 404);
+  return c.json({ ok: true });
+});
+
+app.delete("/analysis/reports/:id/permanent", requireAuth, async (c) => {
   if (!(await isStrategyAdmin(c))) return c.json({ error: "Strategy lead access required." }, 403);
   const report = await c.env.SCOUTING_DB.prepare(
     "SELECT drawing_r2_key, drawing_fields_json FROM scouting_form_submissions WHERE id = ?",
@@ -1144,15 +1436,12 @@ app.get("/operations", requireAuth, async (c) => {
   const allowed = admin || (await isServiceHelper(c));
   if (!allowed) return c.json({ error: "Service crew access required." }, 403);
   const status = c.req.query("status") === "closed" ? "closed" : "active";
-  const closedCutoff = Date.now() - 24 * 60 * 60 * 1000;
   const [rows, helpers, users] = await Promise.all([
     c.env.SCOUTING_DB.prepare(
       status === "closed"
-        ? "SELECT * FROM service_tickets WHERE status = 'closed' AND updated_at >= ? ORDER BY updated_at DESC LIMIT 200"
+        ? "SELECT * FROM service_tickets WHERE status = 'closed' ORDER BY updated_at DESC LIMIT 500"
         : "SELECT * FROM service_tickets WHERE status IN ('open', 'claimed') ORDER BY CASE status WHEN 'open' THEN 0 ELSE 1 END, created_at DESC LIMIT 200",
-    )
-      .bind(...(status === "closed" ? [closedCutoff] : []))
-      .all<Record<string, unknown>>(),
+    ).all<Record<string, unknown>>(),
     admin
       ? c.env.SCOUTING_DB.prepare("SELECT * FROM service_helpers ORDER BY display_name").all<
           Record<string, unknown>
@@ -1209,6 +1498,45 @@ app.post("/service-tickets", requireAuth, async (c) => {
     );
   }
   return c.json({ id: ticketId }, 201);
+});
+
+app.post("/team-comments", requireAuth, async (c) => {
+  if (!(await isStrategyAdmin(c)) && !(await isServiceHelper(c)))
+    return c.json({ error: "Service crew access required." }, 403);
+  const body = await c.req.json<Record<string, unknown>>();
+  const teamName = teamNumber(body.teamName);
+  const comment = text(body.comment, 1000);
+  if (!teamName || !comment)
+    return c.json({ error: "A valid team number and comment are required." }, 400);
+  const sourceTicketId = text(body.sourceTicketId, 200) || null;
+  let eventKey: string | null = null;
+  if (sourceTicketId) {
+    const ticket = await c.env.SCOUTING_DB.prepare(
+      "SELECT event_key FROM service_tickets WHERE id = ? AND team_name = ? AND status = 'closed'",
+    )
+      .bind(sourceTicketId, teamName)
+      .first<{ event_key: string | null }>();
+    if (!ticket) return c.json({ error: "Choose a closed ticket for this team." }, 400);
+    eventKey = ticket.event_key;
+  } else {
+    eventKey = (await resolveEventLink(c)).eventKey || null;
+  }
+  const commentId = id("team_comment");
+  await c.env.SCOUTING_DB.prepare(
+    "INSERT INTO team_comments (id, team_name, comment, event_key, source_ticket_id, created_by, created_by_name, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+  )
+    .bind(
+      commentId,
+      teamName,
+      comment,
+      eventKey,
+      sourceTicketId,
+      c.get("userId"),
+      c.get("userDisplayName"),
+      Date.now(),
+    )
+    .run();
+  return c.json({ id: commentId }, 201);
 });
 
 app.put("/service-tickets/:id", requireAuth, async (c) => {

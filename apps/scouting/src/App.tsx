@@ -33,8 +33,10 @@ import {
   useState,
 } from "react";
 import { Analysis } from "./Analysis";
-import { ScoutingForms } from "./ScoutingForms";
+import { Operations } from "./Operations";
+import { ScoutingAdminPage, ScoutingForms } from "./ScoutingForms";
 import { API_URL, G3ID_URL, api } from "./api";
+import { clearInputError, showTeamNumberError } from "./input-validation";
 import {
   deleteLocalFieldMap,
   getFieldMapPreset,
@@ -44,7 +46,7 @@ import {
 } from "./local-field-maps";
 import { type ParsedTrajectory, parseTrajectoryFile, trajectoryToPng } from "./trajectory-files";
 
-type Page = "forms" | "analysis" | "autos" | "other" | "tiers" | "maps";
+type Page = "forms" | "admin" | "analysis" | "service" | "autos" | "other" | "tiers" | "maps";
 type User = {
   userId: string;
   displayName: string;
@@ -89,6 +91,48 @@ type RobotTeam = {
   images: { id: string; url: string; createdAt: number }[];
   updatedAt: number;
 };
+type StrategyAnnouncement = {
+  id: string;
+  message: string;
+  created_by_name: string;
+  created_at: number;
+  expires_at: number;
+};
+
+function AnnouncementBanner() {
+  const [announcements, setAnnouncements] = useState<StrategyAnnouncement[]>([]);
+  useEffect(() => {
+    const load = () =>
+      api<{ announcements: StrategyAnnouncement[] }>("/announcements/active")
+        .then((result) => setAnnouncements(result.announcements))
+        .catch(() => undefined);
+    load();
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") load();
+    }, 10_000);
+    return () => window.clearInterval(interval);
+  }, []);
+  useEffect(() => {
+    if (!announcements.length) return;
+    const nextExpiry = Math.min(...announcements.map((announcement) => announcement.expires_at));
+    const timeout = window.setTimeout(
+      () => setAnnouncements((items) => items.filter((item) => item.expires_at > Date.now())),
+      Math.max(0, nextExpiry - Date.now() + 25),
+    );
+    return () => window.clearTimeout(timeout);
+  }, [announcements]);
+  if (!announcements.length) return null;
+  return (
+    <div className="strategy-announcements" role="status" aria-live="polite">
+      {announcements.map((announcement) => (
+        <div key={announcement.id}>
+          <strong>{announcement.message}</strong>
+          <span>{announcement.created_by_name}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function G3Logo({ size = 20, className = "" }: { size?: number; className?: string }) {
   return (
@@ -170,6 +214,7 @@ function EmptyState({
 
 function OtherTools({ go }: { go: (page: Page) => void }) {
   const tools = [
+    { page: "autos" as const, label: "Auto Library" },
     { page: "tiers" as const, label: "Tier Lists" },
     { page: "maps" as const, label: "Field Maps" },
   ];
@@ -1177,7 +1222,9 @@ function AutoLibrary() {
   }, []);
   useEffect(() => {
     load().catch(() => undefined);
-    const interval = window.setInterval(() => load().catch(() => undefined), 15_000);
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") load().catch(() => undefined);
+    }, 60_000);
     const refresh = () => load().catch(() => undefined);
     window.addEventListener("focus", refresh);
     return () => {
@@ -1285,10 +1332,14 @@ function AutoLibrary() {
             <label>
               Team number
               <input
+                className="team-number-input"
                 inputMode="numeric"
                 pattern="[0-9]+"
+                title="Enter a team number using digits only, such as 1648."
                 value={form.team}
                 onChange={(e) => setForm({ ...form, team: e.target.value })}
+                onInput={clearInputError}
+                onInvalid={showTeamNumberError}
                 placeholder="1648"
               />
             </label>
@@ -1900,6 +1951,21 @@ export function App() {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    if (!user) return;
+    const heartbeat = () => {
+      if (document.visibilityState !== "visible") return;
+      api("/presence", { method: "PUT", body: JSON.stringify({ page }) }).catch(() => undefined);
+    };
+    heartbeat();
+    const interval = window.setInterval(heartbeat, 30_000);
+    document.addEventListener("visibilitychange", heartbeat);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", heartbeat);
+    };
+  }, [page, user]);
+
   if (loading) {
     return (
       <div className="auth-screen">
@@ -1927,11 +1993,17 @@ export function App() {
 
   const adminNav = [
     { id: "forms" as const, label: "Scouting Forms" },
-    { id: "analysis" as const, label: "Command Center" },
-    { id: "autos" as const, label: "Auto Library" },
+    { id: "admin" as const, label: "Admin" },
+    { id: "analysis" as const, label: "Analysis" },
+    { id: "service" as const, label: "Service Tickets" },
     { id: "other" as const, label: "Other Tools" },
   ];
-  const nav = user.isAdmin ? adminNav : [{ id: "forms" as const, label: "Scouting Forms" }];
+  const nav = user.isAdmin
+    ? adminNav
+    : [
+        { id: "forms" as const, label: "Scouting Forms" },
+        ...(user.isHelper ? [{ id: "service" as const, label: "Service Tickets" }] : []),
+      ];
 
   return (
     <div className="app-shell">
@@ -1952,7 +2024,9 @@ export function App() {
               type="button"
               key={id}
               className={
-                page === id || (id === "other" && ["tiers", "maps"].includes(page)) ? "active" : ""
+                page === id || (id === "other" && ["autos", "tiers", "maps"].includes(page))
+                  ? "active"
+                  : ""
               }
               onClick={() => {
                 setPage(id);
@@ -1960,7 +2034,7 @@ export function App() {
               }}
             >
               {label}
-              {(page === id || (id === "other" && ["tiers", "maps"].includes(page))) && (
+              {(page === id || (id === "other" && ["autos", "tiers", "maps"].includes(page))) && (
                 <span className="active-dot" />
               )}
             </button>
@@ -1994,19 +2068,20 @@ export function App() {
           </button>
           <span>G3 Strategy</span>
         </header>
+        <AnnouncementBanner />
         {page === "forms" && (
           <ScoutingForms
             isAdmin={user.isAdmin}
-            isG3IdAdmin={user.isG3IdAdmin}
-            scoutName={user.displayName}
             canManageServiceCrew={user.isAdmin || user.isHelper}
           />
         )}
+        {page === "admin" && user.isAdmin && <ScoutingAdminPage isG3IdAdmin={user.isG3IdAdmin} />}
         {page === "other" && <OtherTools go={setPage} />}
         {page === "tiers" && <TierLists />}
         {page === "maps" && <FieldMaps user={user} />}
         {page === "autos" && <AutoLibrary />}
         {page === "analysis" && user.isAdmin && <Analysis />}
+        {page === "service" && (user.isAdmin || user.isHelper) && <Operations />}
       </main>
     </div>
   );
