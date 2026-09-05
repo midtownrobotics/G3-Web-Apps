@@ -226,7 +226,7 @@ export const authRouter = new Hono<AppEnv>()
   })
   .get("/slack/bot", (c) => {
     return c.json({
-      dmChannelId: c.env.SLACK_BOT_DM_CHANNEL_ID,
+      appId: c.env.SLACK_APP_ID,
       teamId: c.env.SLACK_TEAM_ID,
     });
   });
