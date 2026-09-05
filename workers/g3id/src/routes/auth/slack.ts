@@ -54,15 +54,16 @@ async function createSlackWorkflowTrigger(
 
     const data = (await response.json()) as Record<string, unknown>;
     const triggerId = (data.trigger_id ?? null) as string | null;
+    const shortcutUrl = (data.shortcut_url ?? null) as string | null;
 
-    if (triggerId) {
+    if (triggerId || shortcutUrl) {
       await createDb(env.DB)
         .update(coreSlackLinkCodes)
-        .set({ triggerId })
+        .set({ triggerId: triggerId ?? undefined, shortcutUrl: shortcutUrl ?? undefined })
         .where(eq(coreSlackLinkCodes.id, recordId));
     }
 
-    return triggerId;
+    return shortcutUrl;
   } catch (err) {
     console.error(`Error creating trigger: ${err instanceof Error ? err.message : String(err)}`);
     return null;
@@ -70,7 +71,7 @@ async function createSlackWorkflowTrigger(
 }
 
 export const slackAuthRouter = new Hono<AppEnv>()
-  // Sign-in initiation — generates code, redirects to /login/slack
+  // Sign-in initiation — generates code, creates workflow trigger, redirects to /login/slack
   .get("/slack/initiate", async (c) => {
     const redirect = sanitizeRedirect(c.req.query("redirect"));
     const code = generateCode();
@@ -91,11 +92,12 @@ export const slackAuthRouter = new Hono<AppEnv>()
         createdAt: now,
       });
 
-    c.executionCtx.waitUntil(createSlackWorkflowTrigger(recordId, code, c.env));
+    const shortcutUrl = await createSlackWorkflowTrigger(recordId, code, c.env);
 
     const redirectParam = redirect ? `&redirect=${encodeURIComponent(redirect)}` : "";
+    const slackUrlParam = shortcutUrl ? `&slackUrl=${encodeURIComponent(shortcutUrl)}` : "";
     return c.redirect(
-      `${c.env.FRONTEND_URL}/login/slack?token=${token}&code=${code}${redirectParam}`,
+      `${c.env.FRONTEND_URL}/login/slack?token=${token}&code=${code}${slackUrlParam}${redirectParam}`,
     );
   })
   // Link initiation — user must already be signed in, returns JSON code + token

@@ -81,6 +81,7 @@ export const coreSlackLinkCodes = sqliteTable(
     statusMessage: text("status_message"), // error message if status is 'failed'
     sessionId: text("session_id"), // session ID if status is 'success'
     triggerId: text("trigger_id"), // Slack workflow trigger ID for link-based login
+    shortcutUrl: text("shortcut_url"), // Slack workflow shortcut URL for direct button click
     createdAt: integer("created_at").notNull(),
   },
   (table) => [

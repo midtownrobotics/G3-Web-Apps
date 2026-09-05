@@ -21,6 +21,7 @@ export function SlackLoginPage() {
   const token = searchParams.get("token") ?? "";
   const code = searchParams.get("code") ?? "";
   const redirect = searchParams.get("redirect");
+  const slackUrl = searchParams.get("slackUrl") ?? "";
   const [pollStatus, setPollStatus] = useState<PollStatus>({ status: "pending" });
   const [copied, setCopied] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
@@ -115,9 +116,11 @@ export function SlackLoginPage() {
   function handleOpenSlack() {
     navigator.clipboard.writeText(formattedCode);
 
-    if (botInfo) {
-      const slackUrl = `slack://app?team=${botInfo.teamId}&id=${botInfo.appId}&tab=messages`;
+    if (slackUrl) {
       window.location.href = slackUrl;
+    } else if (botInfo) {
+      const fallbackUrl = `slack://app?team=${botInfo.teamId}&id=${botInfo.appId}&tab=messages`;
+      window.location.href = fallbackUrl;
     }
   }
 
@@ -135,10 +138,10 @@ export function SlackLoginPage() {
         {!isTerminal && (
           <>
             <div className="space-y-4">
-              {botInfo && (
+              {(slackUrl || botInfo) && (
                 <div className="space-y-2">
                   <p className="text-sm text-gray-200">
-                    EASIEST: Click to copy the code and open the Slack DM:
+                    EASIEST: Click to open the Slack login button:
                   </p>
                   <button
                     type="button"
