@@ -10,6 +10,7 @@ import { processPath } from "../../shared/nav";
 import { ErrorBanner, PageLoading } from "../../shared/ui";
 import type { ShopData } from "../../shared/use-shop-data";
 import { useShopData } from "../../shared/use-shop-data";
+import { useAuthUser } from "../../shared/use-auth";
 import { useTouchDevice } from "../../shared/use-touch";
 import { PartCard } from "./part-card";
 
@@ -48,8 +49,18 @@ export function PartsPage() {
   const { data, loading, error, refresh } = useShopData();
   const touch = useTouchDevice();
   const navigate = useNavigate();
+  const user = useAuthUser();
   const [selectedInstanceId, setSelectedInstanceId] = useState<number | null>(null);
   const [lookupPartNumber, setLookupPartNumber] = useState("");
+  const [showRestrictedModal, setShowRestrictedModal] = useState(false);
+
+  const handleAddPartClick = () => {
+    if (user?.isAdmin) {
+      navigate("/parts/new");
+    } else {
+      setShowRestrictedModal(true);
+    }
+  };
 
   // Live (non-obsolete) rows split into "in production" vs. fully complete;
   // obsolete rows get their own table.
@@ -82,14 +93,14 @@ export function PartsPage() {
       <div className="max-w-5xl mx-auto px-6 py-8 space-y-8">
         <div className="flex items-center justify-between gap-3">
           <h1 className="font-display text-4xl text-ink">Parts</h1>
-          <Link
-            to="/parts/new"
+          <button
+            onClick={handleAddPartClick}
             className={`bg-crimson hover:bg-crimson-dark text-paper text-sm font-semibold rounded-lg transition-colors ${
               touch ? "px-5 py-3" : "px-4 py-2"
             }`}
           >
             + Add Part
-          </Link>
+          </button>
         </div>
 
         {error && <ErrorBanner message={error} />}
@@ -164,6 +175,35 @@ export function PartsPage() {
           onClose={() => setSelectedInstanceId(null)}
           onChanged={refresh}
         />
+      )}
+
+      {/* Restricted Add Part Modal */}
+      {showRestrictedModal && (
+        <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-paper rounded-lg shadow-lg max-w-sm w-full p-6 space-y-4">
+            <h3 className="text-lg font-bold text-ink">Manual Part Entry Restricted</h3>
+            <p className="text-sm text-steel space-y-3">
+              <div>You can no longer manually create parts.</div>
+              <div className="space-y-2">
+                <div>To add a new part, follow these steps:</div>
+                <ol className="list-decimal list-inside space-y-1 text-xs">
+                  <li>Release the part in OnShape</li>
+                  <li>Get it approved</li>
+                  <li>Assign manufacturing processes</li>
+                  <li>It will then appear in the shop software</li>
+                </ol>
+              </div>
+              <div>If you absolutely need a part manually created, see an admin.</div>
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowRestrictedModal(false)}
+              className="w-full py-2 rounded-lg bg-crimson text-paper text-sm font-semibold hover:bg-crimson-dark transition-colors"
+            >
+              OK
+            </button>
+          </div>
+        </div>
       )}
     </main>
   );
@@ -427,10 +467,12 @@ function PartsTable({
       <div className="bg-paper border border-steel/30 rounded-xl overflow-hidden">
         <div className="flex items-center gap-3 px-3 py-2 border-b border-steel/25 bg-mist text-xs font-semibold uppercase tracking-wider text-steel">
           <span className="w-3.5 shrink-0" />
-          <span className="flex-1 min-w-0">Part</span>
-          <span className="w-44 shrink-0 hidden sm:block">Number / Rev</span>
-          <span className="w-36 shrink-0 hidden md:block">Current process</span>
-          <span className="w-28 shrink-0">Status</span>
+          <span className="flex-1 min-w-0 text-center">Part</span>
+          <span className="w-44 shrink-0 hidden sm:block text-center">Number</span>
+          <span className="w-12 shrink-0 hidden sm:block text-center">Rev</span>
+          <span className="w-16 shrink-0 hidden sm:block text-center">Instance</span>
+          <span className="w-40 shrink-0 hidden md:block text-center">Process</span>
+          <span className="w-20 shrink-0 text-center">Progress</span>
         </div>
 
         {groups.length === 0 && (
@@ -482,11 +524,14 @@ function PartRow({
   touch: boolean;
   onOpen: () => void;
 }) {
-  // Obsolete parts read simply as "Obsolete" regardless of their pipeline state.
-  const isObsolete = !!row.instance.isStale;
-  const status = isObsolete
-    ? { label: "Obsolete", badge: "bg-steel-tint text-steel-dark border-steel/40" }
-    : STATE_META[row.state];
+
+  // Progress indicator: colors based on current process and completion
+  const progressSteps = row.procs.map((proc) => {
+    if (proc.status === "done") return "done";
+    if (row.current?.id === proc.id && proc.status !== "todo") return "current";
+    return "pending";
+  });
+
   return (
     <div
       className={`relative flex items-center gap-3 px-3 cursor-pointer hover:bg-mist/70 transition-colors ${
@@ -503,22 +548,33 @@ function PartRow({
 
       <span
         className="flex-1 min-w-0 text-sm font-medium text-ink truncate"
-        title={`Part name: ${row.definition.name} (instance ${row.instance.instanceNumber} of ${total})`}
+        title={`Part name: ${row.definition.name}`}
       >
         {row.definition.name}
-        <span className="text-steel font-normal ml-1.5">
-          #{row.instance.instanceNumber} of {total}
-        </span>
       </span>
 
       <span
         className="w-44 shrink-0 hidden sm:block text-sm font-mono text-steel-dark truncate"
-        title={`Onshape part number ${row.definition.onshapePartNumber}, revision ${row.definition.revision}`}
+        title={`Onshape part number: ${row.definition.onshapePartNumber}`}
       >
-        {row.definition.onshapePartNumber} · Rev {row.definition.revision}
+        {row.definition.onshapePartNumber}
       </span>
 
-      <span className="w-36 shrink-0 hidden md:block text-sm text-ink truncate">
+      <span
+        className="w-12 shrink-0 hidden sm:block text-xs font-mono text-steel-dark text-center"
+        title={`Revision: ${row.definition.revision}`}
+      >
+        {row.definition.revision}
+      </span>
+
+      <span
+        className="w-16 shrink-0 hidden sm:block text-xs text-steel-dark text-center"
+        title={`Instance ${row.instance.instanceNumber} of ${total}`}
+      >
+        {row.instance.instanceNumber}/{total}
+      </span>
+
+      <span className="w-40 shrink-0 hidden md:block text-sm text-ink text-center">
         {row.current ? (
           <Link
             to={processPath(row.current.processId)}
@@ -533,13 +589,21 @@ function PartRow({
         )}
       </span>
 
-      <span className="w-28 shrink-0" title={`Status: ${status.label}`}>
-        <span
-          className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full border ${status.badge}`}
-        >
-          {status.label}
-        </span>
+      <span className="w-20 shrink-0 flex gap-1.5 items-center justify-center" title={row.procs.length > 0 ? "Manufacturing progress" : ""}>
+        {progressSteps.map((step, i) => (
+          <span
+            key={i}
+            className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+              step === "done"
+                ? "bg-emerald-500"
+                : step === "current"
+                  ? "bg-amber-400"
+                  : "bg-steel/20"
+            }`}
+          />
+        ))}
       </span>
+
     </div>
   );
 }
