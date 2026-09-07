@@ -102,3 +102,32 @@ export async function fetchAllInstanceProcesses(
   const lists = await Promise.all(processes.map((p) => fetchProcessQueue(p.id)));
   return lists.flat();
 }
+
+/** URL of the released drawing PDF for a part revision, served from R2 by the shop worker. */
+export function drawingUrl(partNumber: string, revision: string): string {
+  const base = import.meta.env.VITE_API_BASE_URL ?? "";
+  return `${base}/parts/${encodeURIComponent(partNumber)}/${encodeURIComponent(revision)}/drawing`;
+}
+
+/**
+ * Fetches the drawing PDF as an object URL, or null when R2 has no drawing for this revision.
+ *
+ * The PDF is downloaded once and handed to the viewer as a blob rather than pointing an
+ * <iframe> straight at the endpoint: a miss returns JSON, which the browser's PDF viewer
+ * would render as a broken document instead of letting us fall back cleanly.
+ * Callers must revoke the returned URL when done.
+ */
+export async function fetchDrawingObjectUrl(
+  partNumber: string,
+  revision: string,
+  signal?: AbortSignal,
+): Promise<string | null> {
+  const res = await fetch(drawingUrl(partNumber, revision), {
+    credentials: "include",
+    signal,
+  });
+  if (!res.ok) return null;
+  const blob = await res.blob();
+  if (!blob.type.includes("pdf")) return null;
+  return URL.createObjectURL(blob);
+}

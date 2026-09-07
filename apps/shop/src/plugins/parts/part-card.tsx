@@ -6,6 +6,7 @@ import type { InstanceRow } from "../../shared/derive";
 import { processPath } from "../../shared/nav";
 import type { ShopData } from "../../shared/use-shop-data";
 import { useUserNames } from "../../shared/use-user-names";
+import { DrawingPreview } from "./drawing-preview";
 
 /** Advance a revision by one for convenience (A→B, Z→AA, 1→2). */
 export function advanceRevision(rev: string): string {
@@ -208,23 +209,11 @@ export function PartCard({
             </p>
           )}
 
-          {/* Picture placeholder */}
-          <div className="h-44 rounded-xl border border-dashed border-steel/40 bg-mist flex flex-col items-center justify-center gap-1 text-steel">
-            <svg
-              width="32"
-              height="32"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              aria-hidden="true"
-            >
-              <rect x="3" y="3" width="18" height="18" rx="2" />
-              <circle cx="8.5" cy="8.5" r="1.5" />
-              <path d="m21 15-5-5L5 21" />
-            </svg>
-            <span className="text-xs">Photo coming soon</span>
-          </div>
+          {/* The released drawing, when R2 has one for this revision. */}
+          <DrawingPreview
+            partNumber={row.definition.onshapePartNumber}
+            revision={row.definition.revision}
+          />
 
           {/* Information */}
           <Section title="Information">
