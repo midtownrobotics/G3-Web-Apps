@@ -1,7 +1,7 @@
 import { eq, isNull } from "drizzle-orm";
 import { Hono } from "hono";
 import { createDb } from "../db";
-import { coreUserPins, coreUsers } from "../db/schema";
+import { coreUserIdentities, coreUserPins, coreUsers } from "../db/schema";
 import { requireAdmin, requireAuth } from "../middleware/auth";
 import type { AppEnv } from "../types";
 
@@ -13,6 +13,7 @@ export type BasicUserInfo = {
   isAdmin: boolean;
   createdAt: number;
   lastLoginAt: number | null;
+  slackUserId?: string;
 };
 
 export type UserWithPin = BasicUserInfo & {
@@ -37,10 +38,19 @@ export const usersRouter = new Hono<AppEnv>()
       .where(isNull(coreUsers.deletedAt))
       .all();
 
+    const slackIdentities = await db
+      .select({ userId: coreUserIdentities.userId, slackUserId: coreUserIdentities.providerId })
+      .from(coreUserIdentities)
+      .where(eq(coreUserIdentities.provider, "slack"))
+      .all();
+    const slackIds = new Map(
+      slackIdentities.map((identity) => [identity.userId, identity.slackUserId] as const),
+    );
     const basicUsers: BasicUserInfo[] = users.map((user) => ({
       ...user,
       isAdmin: user.isAdmin === 1,
       status: user.status as "pending" | "active" | "rejected" | "merged",
+      slackUserId: slackIds.get(user.id) ?? undefined,
     }));
 
     return c.json(basicUsers);

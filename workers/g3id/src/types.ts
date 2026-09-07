@@ -12,7 +12,7 @@ export type AppEnv = {
     SLACK_BOT_TOKEN: string;
     SLACK_SIGNING_SECRET: string;
     SLACK_TEAM_ID: string;
-    SLACK_BOT_DM_CHANNEL_ID: string;
+    SLACK_APP_ID: string;
     STEAM_API_KEY: string;
     STEAM_REDIRECT_URI: string;
     ONSHAPE_CLIENT_ID: string;

@@ -6,6 +6,10 @@ compatibility_date = "2026-05-17"
 binding = "G3ID"
 service = "g3id"
 
+[[services]]
+binding = "PIT"
+service = "pit"
+
 [[d1_databases]]
 binding = "SCOUTING_DB"
 database_name = "g3-scouting-local"

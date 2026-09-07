@@ -1,0 +1,1067 @@
+import {
+  AlertCircle,
+  CalendarClock,
+  Check,
+  CheckCircle2,
+  GripVertical,
+  Maximize2,
+  Megaphone,
+  Minimize2,
+  Pencil,
+  Plus,
+  Save,
+  Shield,
+  Trash2,
+  Users,
+  X,
+} from "lucide-react";
+import {
+  type RefObject,
+  type SyntheticEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { FormFieldMap } from "./FormFieldMap";
+import { Operations } from "./Operations";
+import { TeamLookupInput } from "./TeamLookupInput";
+import { api } from "./api";
+import { clearInputError, showTeamNumberError } from "./input-validation";
+
+export type FieldType =
+  | "shortText"
+  | "longText"
+  | "mcq"
+  | "slider"
+  | "fieldMap"
+  | "multiSelect"
+  | "counter";
+export type ScoutingField = {
+  id: string;
+  label: string;
+  caption?: string;
+  type: FieldType;
+  required: boolean;
+  options: string[];
+  min: number;
+  max: number;
+  step: number;
+};
+export type ScoutingForm = {
+  id: string;
+  name: string;
+  description: string;
+  fields: ScoutingField[];
+  isActive: boolean;
+  kind: "scouting" | "pit";
+};
+type UserOption = { id: string; displayName: string; email: string; status: string };
+type StrategyAdmin = { user_id: string; display_name: string; email: string };
+
+const TYPES: { type: FieldType; label: string }[] = [
+  { type: "shortText", label: "Text entry — short" },
+  { type: "longText", label: "Text entry — long" },
+  { type: "mcq", label: "Multiple choice" },
+  { type: "slider", label: "Slider" },
+  { type: "fieldMap", label: "Field map drawing" },
+  { type: "multiSelect", label: "Multiple select" },
+  { type: "counter", label: "Counter" },
+];
+
+const COUNTER_INTERVALS = [1, 5, 10, 20] as const;
+
+function FieldInput({
+  field,
+  value,
+  setValue,
+  canvasRef,
+}: {
+  field: ScoutingField;
+  value: unknown;
+  setValue: (value: unknown) => void;
+  canvasRef?: RefObject<HTMLCanvasElement | null>;
+}) {
+  const inputId = `field-${field.id}`;
+  const [counterInterval, setCounterInterval] = useState<(typeof COUNTER_INTERVALS)[number]>(1);
+  if (field.type === "fieldMap" && canvasRef) return <FormFieldMap canvasRef={canvasRef} />;
+  if (field.type === "counter") {
+    const current = Number(value ?? 0);
+    return (
+      <div className="counter-control">
+        <div className="counter-intervals" aria-label="Counter interval">
+          {COUNTER_INTERVALS.map((interval) => (
+            <button
+              type="button"
+              className={counterInterval === interval ? "active" : ""}
+              key={interval}
+              onClick={() => setCounterInterval(interval)}
+              aria-pressed={counterInterval === interval}
+            >
+              ±{interval}
+            </button>
+          ))}
+        </div>
+        <div className="counter-input">
+          <button
+            type="button"
+            aria-label={`Subtract ${counterInterval}`}
+            onClick={() => setValue(current - counterInterval)}
+          >
+            −{counterInterval}
+          </button>
+          <strong aria-live="polite">{current}</strong>
+          <button
+            type="button"
+            aria-label={`Add ${counterInterval}`}
+            onClick={() => setValue(current + counterInterval)}
+          >
+            +{counterInterval}
+          </button>
+        </div>
+      </div>
+    );
+  }
+  if (field.type === "slider")
+    return (
+      <div className="slider-control">
+        <div className="slider-input">
+          <input
+            id={inputId}
+            type="range"
+            min={field.min}
+            max={field.max}
+            step={field.step}
+            value={Number(value ?? field.min)}
+            onChange={(event) => setValue(Number(event.target.value))}
+          />
+          <output>{String(value ?? field.min)}</output>
+        </div>
+      </div>
+    );
+  if (field.type === "longText")
+    return (
+      <textarea
+        id={inputId}
+        required={field.required}
+        value={String(value ?? "")}
+        onChange={(event) => setValue(event.target.value)}
+      />
+    );
+  if (field.type === "mcq")
+    return (
+      <select
+        id={inputId}
+        required={field.required}
+        value={String(value ?? "")}
+        onChange={(event) => setValue(event.target.value)}
+      >
+        <option value="">Select…</option>
+        {field.options.map((option) => (
+          <option key={option}>{option}</option>
+        ))}
+      </select>
+    );
+  if (field.type === "multiSelect") {
+    const selected = Array.isArray(value) ? (value as string[]) : [];
+    return (
+      <div className="multi-select-control">
+        <div className="multi-select">
+          {field.options.map((option) => (
+            <label key={option}>
+              <input
+                type="checkbox"
+                checked={selected.includes(option)}
+                onChange={(event) =>
+                  setValue(
+                    event.target.checked
+                      ? [...selected, option]
+                      : selected.filter((item) => item !== option),
+                  )
+                }
+              />{" "}
+              {option}
+            </label>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  return (
+    <input
+      id={inputId}
+      type="text"
+      required={field.required}
+      value={String(value ?? "")}
+      onChange={(event) => setValue(event.target.value)}
+    />
+  );
+}
+
+function EntryForm({
+  form,
+  currentMatch,
+}: {
+  form: ScoutingForm;
+  currentMatch: EventMatch | null;
+}) {
+  const [teamName, setTeamName] = useState("");
+  const [answers, setAnswers] = useState<Record<string, unknown>>({});
+  const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState<"success" | "error">("success");
+  const [saving, setSaving] = useState(false);
+  const canvases = useRef<Record<string, HTMLCanvasElement | null>>({});
+  async function submit(event: SyntheticEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setMessage("");
+    try {
+      const payload = new FormData();
+      payload.set("teamName", teamName);
+      payload.set("answers", JSON.stringify(answers));
+      for (const field of form.fields.filter((item) => item.type === "fieldMap")) {
+        const canvas = canvases.current[field.id];
+        if (canvas) {
+          const blob = await new Promise<Blob | null>((resolve) =>
+            canvas.toBlob(resolve, "image/png"),
+          );
+          if (blob) payload.set(`drawing:${field.id}`, blob, `${field.id}.png`);
+        }
+      }
+      await api(`/scouting-forms/${form.id}/submissions`, { method: "POST", body: payload });
+      setTeamName("");
+      setAnswers({});
+      setMessageType("success");
+      setMessage("Report submitted.");
+    } catch (error) {
+      setMessageType("error");
+      setMessage(error instanceof Error ? error.message : "Could not submit report.");
+    } finally {
+      setSaving(false);
+    }
+  }
+  return (
+    <form className="scouting-entry" onSubmit={submit}>
+      <div className="scouting-form-title">
+        <div className="scouting-form-heading-row">
+          <h2>{form.name}</h2>
+          {form.kind === "scouting" && (
+            <div className="scouting-match-summary">
+              <strong className="scouting-match-number">
+                Match Number:
+                <span>{currentMatch?.matchNumber ?? "--"}</span>
+              </strong>
+              {currentMatch ? (
+                <div className="scouting-match-teams">
+                  <span className="red-alliance">Red: {currentMatch.redTeams.join(", ")}</span>
+                  <span className="blue-alliance">Blue: {currentMatch.blueTeams.join(", ")}</span>
+                </div>
+              ) : (
+                <span>Teams unavailable</span>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+      <label className="team-entry" htmlFor={`team-${form.id}`}>
+        <span>
+          Team number <b>*</b>
+        </span>
+        <TeamLookupInput value={teamName} onChange={setTeamName} />
+      </label>
+      <div className="scouting-questions">
+        {form.fields.map((field) => {
+          const mapRef =
+            field.type === "fieldMap"
+              ? {
+                  get current() {
+                    return canvases.current[field.id] ?? null;
+                  },
+                  set current(value: HTMLCanvasElement | null) {
+                    canvases.current[field.id] = value;
+                  },
+                }
+              : undefined;
+          return (
+            <div
+              className={`scouting-question ${field.type === "fieldMap" ? "wide" : ""}`}
+              key={field.id}
+            >
+              <label htmlFor={`field-${field.id}`}>
+                {field.label}
+                {field.required && <b> *</b>}
+              </label>
+              {field.caption && <p className="question-caption">{field.caption}</p>}
+              <FieldInput
+                field={field}
+                value={answers[field.id]}
+                setValue={(value) => setAnswers((current) => ({ ...current, [field.id]: value }))}
+                canvasRef={mapRef}
+              />
+            </div>
+          );
+        })}
+      </div>
+      <button type="submit" className="primary-button" disabled={saving}>
+        <Check size={17} /> {saving ? "Submitting…" : "Submit report"}
+      </button>
+      {message && (
+        <div className={`status-toast ${messageType}`} role="status" aria-live="polite">
+          {messageType === "success" ? <CheckCircle2 size={21} /> : <AlertCircle size={21} />}
+          <div>
+            <strong>{messageType === "success" ? "Success" : "Couldn’t submit"}</strong>
+            <span>{message}</span>
+          </div>
+          <button type="button" onClick={() => setMessage("")} aria-label="Dismiss notification">
+            <X size={17} />
+          </button>
+        </div>
+      )}
+    </form>
+  );
+}
+
+function Editor({
+  form,
+  save,
+  close,
+}: { form: ScoutingForm; save: (form: ScoutingForm) => Promise<void>; close: () => void }) {
+  const [draft, setDraft] = useState({
+    ...form,
+    fields: form.fields.map((field) => ({ ...field, required: false })),
+  });
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [draggedFieldId, setDraggedFieldId] = useState<string | null>(null);
+  const [optionDrafts, setOptionDrafts] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      form.fields
+        .filter((field) => field.type === "mcq" || field.type === "multiSelect")
+        .map((field) => [field.id, field.options.join(", ")]),
+    ),
+  );
+  function patch(id: string, change: Partial<ScoutingField>) {
+    setDraft((current) => ({
+      ...current,
+      fields: current.fields.map((field) => (field.id === id ? { ...field, ...change } : field)),
+    }));
+  }
+  return (
+    <div className="form-designer editor-card">
+      <div className="form-designer-toolbar">
+        <div>
+          <h2>Edit {draft.name}</h2>
+        </div>
+        <button type="button" className="secondary-button" onClick={close}>
+          <X size={16} /> Close
+        </button>
+        <button
+          type="button"
+          className="primary-button"
+          onClick={async () => {
+            if (
+              !window.confirm(
+                `Save these changes to ${draft.name}? Scouts will see the updated form immediately.`,
+              )
+            )
+              return;
+            setSaving(true);
+            setSaveError("");
+            try {
+              await save(draft);
+            } catch (error) {
+              setSaveError(error instanceof Error ? error.message : "Could not save this form.");
+            } finally {
+              setSaving(false);
+            }
+          }}
+          disabled={saving}
+        >
+          <Save size={16} /> {saving ? "Saving…" : "Save changes"}
+        </button>
+      </div>
+      {saveError && (
+        <div className="editor-save-error" role="alert">
+          <AlertCircle size={18} /> {saveError}
+        </div>
+      )}
+      <div className="designer-field-list">
+        {draft.fields.map((field, index) => (
+          <div
+            className="designer-field"
+            key={field.id}
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={() => {
+              if (!draggedFieldId || draggedFieldId === field.id) return;
+              setDraft((current) => {
+                const from = current.fields.findIndex((item) => item.id === draggedFieldId);
+                const to = current.fields.findIndex((item) => item.id === field.id);
+                if (from < 0 || to < 0) return current;
+                const fields = [...current.fields];
+                const [moved] = fields.splice(from, 1);
+                fields.splice(to, 0, moved);
+                return { ...current, fields };
+              });
+              setDraggedFieldId(null);
+            }}
+          >
+            <button
+              type="button"
+              className="field-drag-handle"
+              draggable
+              onDragStart={(event) => {
+                setDraggedFieldId(field.id);
+                event.dataTransfer.effectAllowed = "move";
+              }}
+              onDragEnd={() => setDraggedFieldId(null)}
+              aria-label={`Drag question ${index + 1} to reorder`}
+              title="Drag to reorder"
+            >
+              <GripVertical size={18} />
+              <span>{index + 1}</span>
+            </button>
+            <input
+              value={field.label}
+              onChange={(event) => patch(field.id, { label: event.target.value })}
+              placeholder="Question"
+            />
+            <input
+              className="question-caption-input"
+              value={field.caption ?? ""}
+              onChange={(event) => patch(field.id, { caption: event.target.value })}
+              placeholder="Optional caption"
+            />
+            <select
+              value={field.type}
+              onChange={(event) => patch(field.id, { type: event.target.value as FieldType })}
+            >
+              {TYPES.map((item) => (
+                <option key={item.type} value={item.type}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+            {(field.type === "mcq" || field.type === "multiSelect") && (
+              <input
+                className="question-options-input"
+                value={optionDrafts[field.id] ?? field.options.join(", ")}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setOptionDrafts((current) => ({ ...current, [field.id]: value }));
+                  patch(field.id, {
+                    options: value.split(","),
+                  });
+                }}
+                placeholder="Choices, comma separated"
+              />
+            )}
+            {field.type === "slider" && (
+              <div className="number-settings">
+                <label>
+                  <span>Minimum</span>
+                  <input
+                    type="number"
+                    value={field.min}
+                    onChange={(event) => patch(field.id, { min: Number(event.target.value) })}
+                  />
+                </label>
+                <label>
+                  <span>Maximum</span>
+                  <input
+                    type="number"
+                    value={field.max}
+                    onChange={(event) => patch(field.id, { max: Number(event.target.value) })}
+                  />
+                </label>
+                <label>
+                  <span>Step</span>
+                  <input
+                    type="number"
+                    min="0.01"
+                    value={field.step}
+                    onChange={(event) => patch(field.id, { step: Number(event.target.value) })}
+                  />
+                </label>
+              </div>
+            )}
+            <div className="field-actions">
+              <button
+                type="button"
+                onClick={() =>
+                  setDraft({
+                    ...draft,
+                    fields: draft.fields.filter((item) => item.id !== field.id),
+                  })
+                }
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+      <button
+        type="button"
+        className="add-field-button"
+        onClick={() =>
+          setDraft({
+            ...draft,
+            fields: [
+              ...draft.fields,
+              {
+                id: crypto.randomUUID(),
+                label: "New question",
+                caption: "",
+                type: "shortText",
+                required: false,
+                options: [],
+                min: 0,
+                max: 10,
+                step: 1,
+              },
+            ],
+          })
+        }
+      >
+        <Plus size={17} /> Add question
+      </button>
+    </div>
+  );
+}
+
+function AdminManager({ isG3IdAdmin }: { isG3IdAdmin: boolean }) {
+  const [admins, setAdmins] = useState<StrategyAdmin[]>([]);
+  const [users, setUsers] = useState<UserOption[]>([]);
+  const [userId, setUserId] = useState("");
+  const load = useCallback(async () => {
+    const result = await api<{ admins: StrategyAdmin[]; users: UserOption[] }>("/strategy-admins");
+    setAdmins(result.admins);
+    setUsers(result.users);
+  }, []);
+  useEffect(() => {
+    load().catch(() => undefined);
+  }, [load]);
+  return (
+    <details className="strategy-admins" open>
+      <summary>
+        <Shield size={17} /> Add Strategy Lead
+      </summary>
+      {isG3IdAdmin && (
+        <form
+          onSubmit={async (event) => {
+            event.preventDefault();
+            if (!window.confirm("Make this person a Strategy lead?")) return;
+            await api("/strategy-admins", { method: "POST", body: JSON.stringify({ userId }) });
+            setUserId("");
+            await load();
+          }}
+        >
+          <select required value={userId} onChange={(event) => setUserId(event.target.value)}>
+            <option value="">Select a G3ID user</option>
+            {users
+              .filter((user) => user.status === "active")
+              .map((user) => {
+                const isLead = admins.some((admin) => admin.user_id === user.id);
+                return (
+                  <option key={user.id} value={user.id} disabled={isLead}>
+                    {isLead ? "🛡 Strategy lead · " : ""}
+                    {user.displayName} ({user.email})
+                  </option>
+                );
+              })}
+          </select>
+          <button className="primary-button" type="submit">
+            <Plus size={16} /> Add Strategy Lead
+          </button>
+        </form>
+      )}
+      <div className="strategy-admin-list">
+        {admins.map((admin) => (
+          <span key={admin.user_id}>
+            {admin.display_name}
+            <small>{admin.email}</small>
+            {isG3IdAdmin && (
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!window.confirm(`Remove ${admin.display_name} as a Strategy lead?`)) return;
+                  await api(`/strategy-admins/${admin.user_id}`, { method: "DELETE" });
+                  await load();
+                }}
+              >
+                <X size={14} />
+              </button>
+            )}
+          </span>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+function AnnouncementManager() {
+  const [message, setMessage] = useState("");
+  const [durationSeconds, setDurationSeconds] = useState("60");
+  const [sent, setSent] = useState(false);
+  return (
+    <section className="announcement-admin">
+      <h2>
+        <Megaphone size={18} /> Announcement
+      </h2>
+      <form
+        onSubmit={async (event) => {
+          event.preventDefault();
+          if (!window.confirm("Publish this announcement in G3 Strategy?")) return;
+          await api("/announcements", {
+            method: "POST",
+            body: JSON.stringify({ message, durationSeconds: Number(durationSeconds) }),
+          });
+          setMessage("");
+          setSent(true);
+        }}
+      >
+        <input
+          required
+          maxLength={500}
+          value={message}
+          onChange={(event) => {
+            setMessage(event.target.value);
+            setSent(false);
+          }}
+          placeholder="Announcement"
+        />
+        <select
+          value={durationSeconds}
+          onChange={(event) => setDurationSeconds(event.target.value)}
+        >
+          <option value="30">30 seconds</option>
+          <option value="60">1 minute</option>
+          <option value="300">5 minutes</option>
+          <option value="600">10 minutes</option>
+        </select>
+        <button type="submit" className="primary-button">
+          Announce
+        </button>
+      </form>
+      {sent && <span className="announcement-sent">Announcement published.</span>}
+    </section>
+  );
+}
+
+type LiveStrategyUser = {
+  user_id: string;
+  display_name: string;
+  is_admin: number;
+  last_seen_at: number;
+  current_page?: string;
+};
+
+function LiveStrategy() {
+  const [users, setUsers] = useState<LiveStrategyUser[]>([]);
+  useEffect(() => {
+    const load = () =>
+      api<{ users: LiveStrategyUser[] }>("/presence")
+        .then((result) => setUsers(result.users))
+        .catch(() => undefined);
+    load();
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") load();
+    }, 15_000);
+    return () => window.clearInterval(interval);
+  }, []);
+  return (
+    <section className="live-strategy">
+      <h2>See Live Users</h2>
+      {users.map((user) => (
+        <div key={user.user_id}>
+          <span className="live-dot" />
+          <strong>{user.display_name}</strong>
+          {Boolean(user.is_admin) && <small>Strategy lead</small>}
+          <span>{user.current_page || "forms"}</span>
+        </div>
+      ))}
+      {!users.length && <div className="forms-empty">No one is currently online.</div>}
+    </section>
+  );
+}
+
+function ServiceIssueReport() {
+  const [open, setOpen] = useState(false);
+  const [report, setReport] = useState({ teamName: "", issueType: "mechanical", description: "" });
+  const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState<"success" | "error">("success");
+  if (!open)
+    return (
+      <button type="button" className="service-issue-launch" onClick={() => setOpen(true)}>
+        Report a robot breakdown
+      </button>
+    );
+  return (
+    <form
+      className="service-issue-form"
+      onSubmit={async (event) => {
+        event.preventDefault();
+        if (
+          !window.confirm(
+            `Alert the service crew about a ${report.issueType} issue for team ${report.teamName}?`,
+          )
+        )
+          return;
+        try {
+          await api("/service-tickets", { method: "POST", body: JSON.stringify(report) });
+          setMessageType("success");
+          setMessage("Service crew alerted through Slack.");
+          setReport({ teamName: "", issueType: "mechanical", description: "" });
+        } catch (error) {
+          setMessageType("error");
+          setMessage(error instanceof Error ? error.message : "Could not alert the service crew.");
+        }
+      }}
+    >
+      <div>
+        <strong>Robot breakdown ticket</strong>
+      </div>
+      <input
+        className="team-number-input"
+        required
+        inputMode="numeric"
+        pattern="[0-9]+"
+        title="Enter a team number using digits only, such as 1648."
+        value={report.teamName}
+        onChange={(event) => setReport({ ...report, teamName: event.target.value })}
+        onInput={clearInputError}
+        onInvalid={showTeamNumberError}
+        placeholder="Team number"
+      />
+      <select
+        value={report.issueType}
+        onChange={(event) => setReport({ ...report, issueType: event.target.value })}
+      >
+        <option value="mechanical">Mechanical</option>
+        <option value="electrical">Electrical</option>
+        <option value="programming">Programming</option>
+        <option value="other">Other</option>
+      </select>
+      <input
+        value={report.description}
+        onChange={(event) => setReport({ ...report, description: event.target.value })}
+        placeholder="What appears to be broken?"
+      />
+      <button type="submit" className="primary-button">
+        Alert helpers
+      </button>
+      <button type="button" className="secondary-button" onClick={() => setOpen(false)}>
+        Cancel
+      </button>
+      {message && (
+        <div className={`status-toast ${messageType}`} role="status" aria-live="polite">
+          {messageType === "success" ? <CheckCircle2 size={21} /> : <AlertCircle size={21} />}
+          <div>
+            <strong>{messageType === "success" ? "Helpers alerted" : "Alert failed"}</strong>
+            <span>{message}</span>
+          </div>
+          <button type="button" onClick={() => setMessage("")} aria-label="Dismiss notification">
+            <X size={17} />
+          </button>
+        </div>
+      )}
+    </form>
+  );
+}
+
+type EventMatch = {
+  key: string;
+  label: string;
+  matchNumber: number;
+  scheduledAt: number | null;
+  teams: string[];
+  redTeams: string[];
+  blueTeams: string[];
+};
+type EventContext = {
+  eventKey: string;
+  currentMatchNumber: number | null;
+  currentMatch: EventMatch | null;
+  nextTeamMatch: EventMatch | null;
+  teamSchedule: EventMatch[];
+  onlineAdmins: { user_id: string; display_name: string; last_seen_at: number }[];
+  scheduleError: string;
+  hasTbaAuthKey: boolean;
+  tbaAuthKey: string;
+  nexusEventKey: string;
+  hasNexusApiKey: boolean;
+  nexusApiKey: string;
+};
+
+function EventStatus({ isAdmin, isG3IdAdmin }: { isAdmin: boolean; isG3IdAdmin: boolean }) {
+  const [context, setContext] = useState<EventContext | null>(null);
+  const [eventKey, setEventKey] = useState("");
+  const [matchNumber, setMatchNumber] = useState("");
+  const [tbaAuthKey, setTbaAuthKey] = useState("");
+  const [nexusEventKey, setNexusEventKey] = useState("");
+  const [nexusApiKey, setNexusApiKey] = useState("");
+  const [saving, setSaving] = useState(false);
+  const editingRef = useRef(false);
+  const load = useCallback(async () => {
+    const result = await api<EventContext>("/event-context");
+    setContext(result);
+    if (!editingRef.current) {
+      setEventKey(result.eventKey);
+      setMatchNumber(result.currentMatchNumber?.toString() ?? "");
+      setNexusEventKey(result.nexusEventKey || result.eventKey);
+    }
+  }, []);
+  useEffect(() => {
+    load().catch(() => undefined);
+    const interval = window.setInterval(() => load().catch(() => undefined), 30_000);
+    return () => window.clearInterval(interval);
+  }, [load]);
+  const next = context?.nextTeamMatch;
+  return (
+    <div className="event-context">
+      {isAdmin && (
+        <section className="event-admin-panel">
+          <header>
+            <h2>Event &amp; TBA Configuration</h2>
+            <p>Team 1648 match timing and schedule data for the active event.</p>
+          </header>
+          <form
+            onFocus={() => {
+              editingRef.current = true;
+            }}
+            onSubmit={async (event) => {
+              event.preventDefault();
+              if (!window.confirm("Update the active TBA event and current match?")) return;
+              setSaving(true);
+              await api("/event-context", {
+                method: "PUT",
+                body: JSON.stringify({
+                  eventKey,
+                  currentMatchNumber: matchNumber,
+                  tbaAuthKey,
+                  nexusEventKey,
+                  nexusApiKey,
+                }),
+              }).finally(() => setSaving(false));
+              editingRef.current = false;
+              await load();
+            }}
+          >
+            <label>
+              <strong>Change Match #</strong>
+              <input
+                type="number"
+                min="1"
+                value={matchNumber}
+                onChange={(event) => setMatchNumber(event.target.value)}
+                placeholder="Use TBA current match"
+              />
+              <span>Leave blank to use the current match reported by TBA.</span>
+            </label>
+            <label>
+              <strong>TBA Event Key</strong>
+              <input
+                value={eventKey}
+                onChange={(event) => setEventKey(event.target.value)}
+                placeholder="e.g. 2026gacmp"
+              />
+              <span>The competition attached to each submitted scouting form.</span>
+            </label>
+            {isG3IdAdmin && (
+              <label>
+                <strong>TBA Auth Key</strong>
+                <input
+                  type="password"
+                  value={tbaAuthKey}
+                  onChange={(event) => setTbaAuthKey(event.target.value)}
+                  placeholder={context?.hasTbaAuthKey ? "Configured" : "Required"}
+                  autoComplete="off"
+                />
+                <span>Synced from Pit. Updating it here keeps the Scouting copy current.</span>
+              </label>
+            )}
+            {isG3IdAdmin && (
+              <label>
+                <strong>Nexus API Key</strong>
+                <input
+                  type="password"
+                  value={nexusApiKey}
+                  onChange={(event) => setNexusApiKey(event.target.value)}
+                  placeholder={context?.hasNexusApiKey ? "Configured" : "Optional"}
+                  autoComplete="off"
+                />
+                <span>Nexus event: {nexusEventKey || eventKey || "Not configured"}</span>
+              </label>
+            )}
+            <button className="primary-button" type="submit" disabled={saving}>
+              {saving ? "Updating…" : "Update event"}
+            </button>
+          </form>
+          {context?.currentMatch && <p>Current: {context.currentMatch.label}</p>}
+          {context?.scheduleError && <p className="event-error">{context.scheduleError}</p>}
+          <div className="online-admins">
+            <strong>
+              <Users size={16} /> Online Strategy leads
+            </strong>
+            <span>
+              {context?.onlineAdmins.length
+                ? context.onlineAdmins.map((admin) => admin.display_name).join(", ")
+                : "No other Strategy leads online"}
+            </span>
+          </div>
+          <details className="team-schedule">
+            <summary>Team 1648 schedule</summary>
+            {context?.teamSchedule.map((match) => (
+              <div key={match.key}>
+                <strong>{match.label}</strong>
+                <span>{match.teams.join(" · ")}</span>
+                {match.scheduledAt && <time>{new Date(match.scheduledAt).toLocaleString()}</time>}
+              </div>
+            ))}
+          </details>
+        </section>
+      )}
+      <div className="next-match-status">
+        <CalendarClock size={20} />
+        <div>
+          <span>Next Team 1648 match</span>
+          <strong>{next?.label ?? "Schedule unavailable"}</strong>
+          {next?.scheduledAt && <time>{new Date(next.scheduledAt).toLocaleString()}</time>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function ScoutingForms({
+  isAdmin,
+  canManageServiceCrew,
+}: {
+  isAdmin: boolean;
+  canManageServiceCrew: boolean;
+}) {
+  const [forms, setForms] = useState<ScoutingForm[]>([]);
+  const [selected, setSelected] = useState<ScoutingForm | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [currentMatch, setCurrentMatch] = useState<EventMatch | null>(null);
+  const load = useCallback(async () => {
+    const result = await api<{ forms: ScoutingForm[] }>("/scouting-forms");
+    setForms(result.forms);
+    setSelected(
+      (current) => result.forms.find((form) => form.id === current?.id) ?? result.forms[0] ?? null,
+    );
+  }, []);
+  useEffect(() => {
+    load().catch(() => undefined);
+  }, [load]);
+  useEffect(() => {
+    const loadMatch = () =>
+      api<EventContext>("/event-context")
+        .then((result) => setCurrentMatch(result.currentMatch))
+        .catch(() => undefined);
+    loadMatch();
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") loadMatch();
+    }, 30_000);
+    return () => window.clearInterval(interval);
+  }, []);
+  useEffect(() => {
+    document.body.classList.toggle("scouting-workspace-open", isFullscreen);
+    if (!isFullscreen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsFullscreen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.classList.remove("scouting-workspace-open");
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [isFullscreen]);
+  return (
+    <section
+      className={`page scouting-forms-page ${isFullscreen ? "scouting-forms-fullscreen" : ""}`}
+    >
+      <div className="page-heading">
+        <div>
+          <h1>Scouting Forms</h1>
+        </div>
+        <button
+          type="button"
+          className="secondary-button scouting-fullscreen-toggle"
+          onClick={() => setIsFullscreen((current) => !current)}
+          aria-pressed={isFullscreen}
+        >
+          {isFullscreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
+          {isFullscreen ? "Exit full screen" : "Full screen"}
+        </button>
+      </div>
+      <div className="form-choice-grid">
+        {forms.map((form) => (
+          <div
+            className={selected?.id === form.id ? "form-choice active" : "form-choice"}
+            key={form.id}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setSelected(form);
+                setEditing(false);
+              }}
+            >
+              <strong>{form.name}</strong>
+            </button>
+            {isAdmin && (
+              <button
+                type="button"
+                className="edit-form-button"
+                onClick={() => {
+                  setSelected(form);
+                  setEditing(true);
+                }}
+              >
+                <Pencil size={15} /> Edit
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+      {selected &&
+        (editing && isAdmin ? (
+          <Editor
+            key={selected.id}
+            form={selected}
+            close={() => setEditing(false)}
+            save={async (form) => {
+              await api(`/scouting-forms/${form.id}`, {
+                method: "PUT",
+                body: JSON.stringify(form),
+              });
+              await load();
+              setEditing(false);
+            }}
+          />
+        ) : (
+          <EntryForm key={selected.id} form={selected} currentMatch={currentMatch} />
+        ))}
+      {selected?.kind === "pit" &&
+        (canManageServiceCrew ? <Operations embedded /> : <ServiceIssueReport />)}
+    </section>
+  );
+}
+
+export function ScoutingAdminPage({ isG3IdAdmin }: { isG3IdAdmin: boolean }) {
+  return (
+    <section className="page scouting-admin-page">
+      <div className="page-heading">
+        <div>
+          <h1>Admin</h1>
+        </div>
+      </div>
+      <EventStatus isAdmin isG3IdAdmin={isG3IdAdmin} />
+      <AdminManager isG3IdAdmin={isG3IdAdmin} />
+      <LiveStrategy />
+      <AnnouncementManager />
+    </section>
+  );
+}
