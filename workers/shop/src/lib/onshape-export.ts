@@ -2,7 +2,7 @@ import { desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "../db/schema";
 import type { AppEnv } from "../types";
-import { stampBarcode } from "./barcode";
+import { drawingBarcodeValue, stampBarcode } from "./barcode";
 
 export async function drawingExistsInR2(
   partNumber: string,
@@ -43,7 +43,7 @@ export async function storeDrawingInR2(
   // printed from R2 carries it. A stamping failure must not cost us the drawing itself.
   let body: ArrayBuffer | Uint8Array = pdfBuffer;
   try {
-    body = await stampBarcode(pdfBuffer, partNumber);
+    body = await stampBarcode(pdfBuffer, drawingBarcodeValue(partNumber, revision));
   } catch (err) {
     console.error("[OnShape Export] Barcode stamp failed, storing unstamped drawing", {
       partNumber,

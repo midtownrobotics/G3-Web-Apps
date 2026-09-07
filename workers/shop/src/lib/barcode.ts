@@ -162,7 +162,12 @@ function moduleCount(runs: number[]): number {
 }
 
 export type BarcodeLayout = {
-  /** Width of one narrow module, in points. 0.94pt ≈ 0.33mm, matching the pit labels. */
+  /**
+   * Width of one narrow module, in points. This is the single number that decides whether a
+   * scanner can read the symbol: camera-based decoders need roughly 2px per narrow module and
+   * want 3+, so 1.9pt (0.67mm) keeps the barcode readable from a screenshot or a phone photo,
+   * not just from a 300dpi print.
+   */
   moduleWidth: number;
   /** Height of the bars, in points. */
   barHeight: number;
@@ -184,28 +189,38 @@ export type BarcodeLayout = {
  * The bottom-left gap (x 27.4-327.2, y 27.4-157) is empty on these sheets.
  */
 export const DEFAULT_LAYOUT: BarcodeLayout = {
-  moduleWidth: 0.94,
-  barHeight: 40,
-  fontSize: 9,
+  moduleWidth: 1.9,
+  barHeight: 55,
+  fontSize: 11,
   textGap: 4,
   padding: 6,
   bottom: 39.4,
   centerWithin: [27.4, 327.2],
 };
 
+/** Never shrink below this: 0.33mm is the practical floor for a 300dpi print. */
+const MIN_MODULE_WIDTH = 0.94;
+
 const TEMPLATE_WIDTH = 792;
 const TEMPLATE_HEIGHT = 612;
 
 /**
- * Draws a Code 128 barcode for `partNumber` into the bottom-left corner of the first page,
- * in the gap between the sheet border and the title block.
- *
- * The barcode encodes the part number verbatim so a keyboard-wedge scanner types exactly
- * what the part lookup field on the shop site expects.
+ * Builds the value encoded on a drawing: the part number and the revision it was released at,
+ * e.g. "P-0042-A". A drawing is specific to one revision, so the barcode identifies the sheet
+ * rather than just the part, and a stale printout scans differently from the current one.
+ */
+export function drawingBarcodeValue(partNumber: string, revision: string): string {
+  return `${partNumber}-${revision}`;
+}
+
+/**
+ * Draws a Code 128 barcode for `value` into the bottom-left corner of the first page,
+ * in the gap between the sheet border and the title block. The same string is printed
+ * underneath in human-readable form, so a failed scan can be typed in instead.
  */
 export async function stampBarcode(
   pdfBytes: ArrayBuffer | Uint8Array,
-  partNumber: string,
+  value: string,
   layout: Partial<BarcodeLayout> = {},
 ): Promise<Uint8Array> {
   const opts: BarcodeLayout = { ...DEFAULT_LAYOUT, ...layout };
@@ -233,7 +248,7 @@ export async function stampBarcode(
   const bandRight = opts.centerWithin[1] * scaleX;
   const blockBottom = opts.bottom * scaleY;
 
-  const runs = encodeCode128B(partNumber);
+  const runs = encodeCode128B(value);
   const modules = moduleCount(runs);
 
   // Shrink the module width if the symbol would otherwise overrun the gap.
@@ -241,9 +256,9 @@ export async function stampBarcode(
   const totalModules = modules + QUIET_ZONE_MODULES * 2;
   let moduleWidth = opts.moduleWidth;
   if (totalModules * moduleWidth + opts.padding * 2 > bandWidth) {
-    moduleWidth = (bandWidth - opts.padding * 2) / totalModules;
+    moduleWidth = Math.max((bandWidth - opts.padding * 2) / totalModules, MIN_MODULE_WIDTH);
     console.warn(
-      `[Barcode] "${partNumber}" does not fit at the default density; ` +
+      `[Barcode] "${value}" does not fit at the default density; ` +
         `reduced module width to ${moduleWidth.toFixed(3)}pt.`,
     );
   }
@@ -283,8 +298,8 @@ export async function stampBarcode(
   }
 
   const font = await pdf.embedFont(StandardFonts.Helvetica);
-  const textWidth = font.widthOfTextAtSize(partNumber, opts.fontSize);
-  page.drawText(partNumber, {
+  const textWidth = font.widthOfTextAtSize(value, opts.fontSize);
+  page.drawText(value, {
     x: blockLeft + (blockWidth - textWidth) / 2,
     y: textBaseline,
     size: opts.fontSize,

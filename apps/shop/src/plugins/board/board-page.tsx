@@ -21,6 +21,7 @@ import { useTouchDevice } from "../../shared/use-touch";
 import { useUserNames } from "../../shared/use-user-names";
 import { PartCard } from "../parts/part-card";
 import { PartWorkView } from "./part-work-view";
+import { ScanDialog } from "./scan-dialog";
 
 const MOOD_TONES: Record<ShopMood["tone"], string> = {
   calm: "bg-emerald-50 border-emerald-300 text-emerald-800",
@@ -54,9 +55,16 @@ export function BoardPage() {
   const [selectedInstanceId, setSelectedInstanceId] = useState<number | null>(null);
   const [workingPartInstanceId, setWorkingPartInstanceId] = useState<number | null>(null);
   const [presence, setPresence] = useState<KioskPresence[]>([]);
+  const [scanOpen, setScanOpen] = useState(false);
 
   const rows = useMemo(() => (data ? buildInstanceRows(data) : []), [data]);
   const loads = useMemo(() => (data ? processLoads(rows, data.processes) : []), [rows, data]);
+  // What a scan is matched against: the station's own queue, or everything on the overview.
+  const queueRows = useMemo(
+    () =>
+      view === "overview" ? rows : rows.filter((r) => r.procs.some((p) => p.processId === view)),
+    [rows, view],
+  );
 
   // Handle instance query parameter from part detail page
   useEffect(() => {
@@ -137,7 +145,7 @@ export function BoardPage() {
           </Link>
         )}
 
-        <div>
+        <div className="flex items-start justify-between gap-4">
           {kiosk.active ? (
             <h1 className="font-display text-4xl text-ink">
               {view === "overview" ? "Shop Floor" : processName(view)}
@@ -159,6 +167,16 @@ export function BoardPage() {
                 </option>
               ))}
             </select>
+          )}
+
+          {kiosk.active && (
+            <button
+              type="button"
+              onClick={() => setScanOpen(true)}
+              className="shrink-0 px-5 py-3 rounded-xl bg-crimson hover:bg-crimson-dark text-paper text-lg font-semibold transition-colors"
+            >
+              Scan
+            </button>
           )}
         </div>
 
@@ -186,6 +204,18 @@ export function BoardPage() {
           />
         )}
       </div>
+
+      {scanOpen && (
+        <ScanDialog
+          queue={queueRows}
+          all={rows}
+          onFound={(row) => {
+            setScanOpen(false);
+            setWorkingPartInstanceId(row.instance.id);
+          }}
+          onClose={() => setScanOpen(false)}
+        />
+      )}
 
       {workingPartInstanceId &&
         data &&
