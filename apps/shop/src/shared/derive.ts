@@ -63,6 +63,55 @@ export function partLabel(row: InstanceRow): string {
   return `${row.definition.onshapePartNumber} · Rev ${row.definition.revision}`;
 }
 
+/**
+ * The value stamped as a Code 128 barcode on a released drawing. Must stay in step with
+ * `drawingBarcodeValue` in workers/shop/src/lib/barcode.ts, which is what prints the sheet.
+ */
+export function drawingBarcode(definition: PartDefinition): string {
+  return `${definition.onshapePartNumber}-${definition.revision}`;
+}
+
+/** A scanned barcode compared loosely: scanners may differ in case or add whitespace. */
+function normalizeScan(value: string): string {
+  return value.trim().toUpperCase();
+}
+
+export type ScanMatch =
+  | { kind: "found"; row: InstanceRow }
+  | { kind: "not-in-queue"; row: InstanceRow }
+  | { kind: "unknown" };
+
+/**
+ * Resolves a scanned drawing barcode to the part instance to open.
+ *
+ * `queue` is what the kiosk is currently showing; `all` is every live instance. A part that
+ * exists but sits in another queue is reported separately from one we have never heard of,
+ * because those two need very different responses from whoever is holding the paper.
+ *
+ * A drawing identifies a part and revision, not a single instance, so several instances can
+ * match. Prefer the one already in progress, then the first waiting to be started.
+ */
+export function matchScannedDrawing(
+  scanned: string,
+  queue: InstanceRow[],
+  all: InstanceRow[],
+): ScanMatch {
+  const target = normalizeScan(scanned);
+  const matches = (rows: InstanceRow[]) =>
+    rows.filter((r) => normalizeScan(drawingBarcode(r.definition)) === target);
+
+  const pick = (rows: InstanceRow[]) =>
+    rows.find((r) => r.state === "doing") ?? rows.find((r) => r.state === "todo") ?? rows[0];
+
+  const inQueue = pick(matches(queue));
+  if (inQueue) return { kind: "found", row: inQueue };
+
+  const anywhere = pick(matches(all));
+  if (anywhere) return { kind: "not-in-queue", row: anywhere };
+
+  return { kind: "unknown" };
+}
+
 // ── Shop floor load + mood ────────────────────────────────────────────────────
 
 export type ProcessLoad = {

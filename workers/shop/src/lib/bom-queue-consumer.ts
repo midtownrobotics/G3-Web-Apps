@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "../db/schema";
 import type { AppEnv } from "../types";
-import { exportDrawingAsPDF } from "./onshape-export";
+import { exportDrawingAsPDF, storeDrawingInR2 } from "./onshape-export";
 import { fetchAndParseBOM } from "./onshape-webhook";
 
 const DEFAULT_SLACK_CHANNEL_ID = "C09QYMTSGKT";
@@ -155,12 +155,7 @@ async function processSingleBOMJob(
                   env,
                 );
 
-                const r2Key = `drawings/${part.partNumber}/${part.revision}/drawing.pdf`;
-                await env.DRAWINGS.put(r2Key, pdfBuffer, {
-                  httpMetadata: {
-                    contentType: "application/pdf",
-                  },
-                });
+                await storeDrawingInR2(part.partNumber, part.revision as string, pdfBuffer, env);
                 drawingsExported++;
               } catch (err) {
                 console.error(
