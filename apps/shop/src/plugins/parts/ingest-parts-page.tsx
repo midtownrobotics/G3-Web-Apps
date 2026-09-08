@@ -588,18 +588,38 @@ export function IngestPartsPage() {
                       const partData = localPartData[part.partNumber];
                       if (!partData?.subsystemId) continue;
 
-                      await api["part-definitions"].$post({
+                      const quantity = partData.quantity ?? part.quantity ?? 1;
+
+                      // Create part definition
+                      const defRes = await api["part-definitions"].$post({
                         json: {
                           onshapePartNumber: part.partNumber,
                           revision: partData.revision ?? part.revision ?? undefined,
                           subsystemId: partData.subsystemId,
                           name: partData.name ?? part.name ?? undefined,
-                          quantity: partData.quantity ?? part.quantity ?? 1,
                           notes: part.description || undefined,
                           partDrawingUrl: "",
                           processIds: partData.processIds || [],
                         },
                       });
+
+                      if (!defRes.ok) {
+                        throw new Error(`Failed to create part ${part.partNumber}`);
+                      }
+
+                      const definition = (await defRes.json()) as { id: number };
+
+                      // Create part instances
+                      const instRes = await api["part-instances"].$post({
+                        json: {
+                          partDefinitionId: definition.id,
+                          quantity,
+                        },
+                      });
+
+                      if (!instRes.ok) {
+                        throw new Error(`Failed to create instances for ${part.partNumber}`);
+                      }
                     }
                     await loadPendingParts();
                     setLocalPartData({});
