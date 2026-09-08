@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { createShopDb } from "../db";
 import * as schema from "../db/schema";
-import { exportDrawingAsPDF } from "../lib/onshape-export";
+import { exportDrawingAsPDF, storeDrawingInR2 } from "../lib/onshape-export";
 import { registerOnShapeWebhook, unregisterOnShapeWebhooks } from "../lib/onshape-webhook";
 import { requireAdmin, requireAuth } from "../middleware/auth";
 import type { AppEnv } from "../types";
@@ -124,13 +124,8 @@ export const adminPartsRouter = new Hono<AppEnv>()
         c.env,
       );
 
-      // Store in R2 with revision in path
-      const r2Key = `drawings/${partNumber}/${revision}/drawing.pdf`;
-      await c.env.DRAWINGS.put(r2Key, pdfBuffer, {
-        httpMetadata: {
-          contentType: "application/pdf",
-        },
-      });
+      // Store in R2 with revision in path (stamps the part-number barcode on the way in)
+      await storeDrawingInR2(partNumber, revision, pdfBuffer, c.env);
 
       return c.json({
         success: true,
