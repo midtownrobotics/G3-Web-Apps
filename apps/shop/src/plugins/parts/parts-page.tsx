@@ -8,9 +8,9 @@ import {
 } from "../../shared/derive";
 import { processPath } from "../../shared/nav";
 import { ErrorBanner, PageLoading } from "../../shared/ui";
+import { useAuthUser } from "../../shared/use-auth";
 import type { ShopData } from "../../shared/use-shop-data";
 import { useShopData } from "../../shared/use-shop-data";
-import { useAuthUser } from "../../shared/use-auth";
 import { useTouchDevice } from "../../shared/use-touch";
 import { PartCard } from "./part-card";
 
@@ -94,6 +94,7 @@ export function PartsPage() {
         <div className="flex items-center justify-between gap-3">
           <h1 className="font-display text-4xl text-ink">Parts</h1>
           <button
+            type="button"
             onClick={handleAddPartClick}
             className={`bg-crimson hover:bg-crimson-dark text-paper text-sm font-semibold rounded-lg transition-colors ${
               touch ? "px-5 py-3" : "px-4 py-2"
@@ -524,7 +525,6 @@ function PartRow({
   touch: boolean;
   onOpen: () => void;
 }) {
-
   // Progress indicator: colors based on current process and completion
   const progressSteps = row.procs.map((proc) => {
     if (proc.status === "done") return "done";
@@ -589,10 +589,13 @@ function PartRow({
         )}
       </span>
 
-      <span className="w-20 shrink-0 flex gap-1.5 items-center justify-center" title={row.procs.length > 0 ? "Manufacturing progress" : ""}>
+      <span
+        className="w-20 shrink-0 flex gap-1.5 items-center justify-center"
+        title={row.procs.length > 0 ? "Manufacturing progress" : ""}
+      >
         {progressSteps.map((step, i) => (
           <span
-            key={i}
+            key={`${row.procs[i]?.id}-${step}`}
             className={`w-2.5 h-2.5 rounded-full shrink-0 ${
               step === "done"
                 ? "bg-emerald-500"
@@ -603,7 +606,6 @@ function PartRow({
           />
         ))}
       </span>
-
     </div>
   );
 }
