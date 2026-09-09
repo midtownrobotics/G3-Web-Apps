@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../../shared/api";
 import { getErrorMessage } from "../../shared/api-error";
 import type { PartDefinition, PartInstance } from "../../shared/types";
 import { ErrorBanner, PageLoading } from "../../shared/ui";
+import { useAuthUser } from "../../shared/use-auth";
 import { useShopData } from "../../shared/use-shop-data";
 import { useTouchDevice } from "../../shared/use-touch";
 
@@ -24,6 +25,14 @@ export function AddPartPage() {
   const location = useLocation();
   const { data, loading } = useShopData();
   const touch = useTouchDevice();
+  const user = useAuthUser();
+
+  // Redirect non-admins back to parts page
+  useEffect(() => {
+    if (user && !user.isAdmin) {
+      navigate("/parts");
+    }
+  }, [user, navigate]);
 
   const transfer = (location.state as { transferFrom?: TransferFrom } | null)?.transferFrom ?? null;
 
@@ -46,7 +55,7 @@ export function AddPartPage() {
   const [banner, setBanner] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  if (loading) return <PageLoading />;
+  if (loading || !user) return <PageLoading />;
 
   function setProcessAt(index: number, processId: number) {
     setProcessIds((prev) => {
