@@ -604,7 +604,10 @@ export function IngestPartsPage() {
                       });
 
                       if (!defRes.ok) {
-                        throw new Error(`Failed to create part ${part.partNumber}`);
+                        const errData = (await defRes.json()) as { error?: string };
+                        throw new Error(
+                          `Failed to create part ${part.partNumber}: ${errData.error || defRes.statusText}`,
+                        );
                       }
 
                       const definition = (await defRes.json()) as { id: number };
@@ -618,7 +621,10 @@ export function IngestPartsPage() {
                       });
 
                       if (!instRes.ok) {
-                        throw new Error(`Failed to create instances for ${part.partNumber}`);
+                        const errData = (await instRes.json()) as { error?: string };
+                        throw new Error(
+                          `Failed to create instances for ${part.partNumber}: ${errData.error || instRes.statusText}`,
+                        );
                       }
                     }
                     await loadPendingParts();
