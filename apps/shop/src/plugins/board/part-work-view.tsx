@@ -1,8 +1,115 @@
-import { useState } from "react";
+import * as pdfjs from "pdfjs-dist";
+import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import { useEffect, useRef, useState } from "react";
+
 import { api } from "../../shared/api";
 import { getErrorMessage } from "../../shared/api-error";
 import type { InstanceRow } from "../../shared/derive";
 import type { ShopData } from "../../shared/use-shop-data";
+
+pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+
+type PDFState =
+  | { kind: "loading" }
+  | { kind: "rendering" }
+  | { kind: "ready" }
+  | { kind: "none" }
+  | { kind: "error" };
+
+function PDFViewer({ url }: { url: string }) {
+  const [state, setState] = useState<PDFState>({ kind: "loading" });
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let cancelled = false;
+    let doc: pdfjs.PDFDocumentProxy | null = null;
+    let task: pdfjs.RenderTask | null = null;
+    const timeout = setTimeout(() => {
+      cancelled = true;
+      setState({ kind: "error" });
+    }, 30000);
+
+    Promise.resolve()
+      .then(async () => {
+        if (controller.signal.aborted || cancelled || !url) {
+          return;
+        }
+
+        setState({ kind: "rendering" });
+
+        try {
+          doc = await pdfjs.getDocument({ url }).promise;
+          if (cancelled) return;
+
+          const page = await doc.getPage(1);
+          if (cancelled) return;
+
+          const canvas = canvasRef.current;
+          if (!canvas) {
+            return;
+          }
+
+          const dpr = window.devicePixelRatio || 1;
+          const width = canvasRef.current?.parentElement?.clientWidth || 600;
+          const scale = width / page.getViewport({ scale: 1 }).width;
+          const viewport = page.getViewport({ scale: scale * dpr });
+
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          canvas.style.width = `${width}px`;
+          canvas.style.height = `${viewport.height / dpr}px`;
+
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            setState({ kind: "error" });
+            return;
+          }
+
+          task = page.render({
+            canvasContext: ctx,
+            viewport,
+            canvas,
+          });
+
+          await task.promise.catch(() => {});
+          setState({ kind: "ready" });
+          clearTimeout(timeout);
+        } catch (err) {
+          if (err instanceof Error && err.name === "AbortError") return;
+          setState({ kind: "error" });
+        }
+      })
+      .catch(() => {
+        setState({ kind: "error" });
+      });
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+      task?.cancel();
+      clearTimeout(timeout);
+    };
+  }, [url]);
+
+  if (state.kind === "ready" || state.kind === "rendering") {
+    return <canvas ref={canvasRef} className="max-w-full max-h-full object-contain" />;
+  }
+
+  if (state.kind === "error") {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-white">
+        <p className="text-steel text-center">Drawing unavailable</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full h-full flex items-center justify-center bg-white">
+      <p className="text-steel text-center">Loading drawing…</p>
+    </div>
+  );
+}
 
 export function PartWorkView({
   row,
@@ -73,14 +180,10 @@ export function PartWorkView({
 
       {/* Main content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Drawing iframe - 3/4 width */}
-        <div className="flex-1 border-r border-steel/30">
+        {/* Drawing PDF - 3/4 width */}
+        <div className="flex-1 border-r border-steel/30 bg-white">
           {row.definition.partDrawingUrl ? (
-            <iframe
-              src={row.definition.partDrawingUrl}
-              className="w-full h-full border-none"
-              title="Part drawing"
-            />
+            <PDFViewer url={row.definition.partDrawingUrl} />
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-mist">
               <p className="text-steel text-center">No drawing available</p>

@@ -1,15 +1,21 @@
-import { useEffect, useState } from "react";
+import * as pdfjs from "pdfjs-dist";
+import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import { useEffect, useRef, useState } from "react";
+
 import { drawingUrl, fetchDrawingObjectUrl } from "../../shared/getters";
+
+pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
 type State =
   | { kind: "loading" }
-  | { kind: "ready"; objectUrl: string }
+  | { kind: "rendering" }
+  | { kind: "ready" }
   | { kind: "none" }
   | { kind: "error" };
 
 /**
- * Shows the released drawing for a part revision, falling back to a placeholder when R2
- * has no drawing for it. Clicking opens the full PDF in a new tab.
+ * Shows the released drawing for a part revision using PDF.js.
+ * Renders only the first page on a canvas with no UI elements.
  */
 export function DrawingPreview({
   partNumber,
@@ -19,19 +25,90 @@ export function DrawingPreview({
   revision: string;
 }) {
   const [state, setState] = useState<State>({ kind: "loading" });
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     const controller = new AbortController();
+    let cancelled = false;
+    let doc: pdfjs.PDFDocumentProxy | null = null;
+    let task: pdfjs.RenderTask | null = null;
     let objectUrl: string | null = null;
+    const timeout = setTimeout(() => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      setState({ kind: "error" });
+    }, 30000); // 30 second timeout
 
     fetchDrawingObjectUrl(partNumber, revision, controller.signal)
-      .then((url) => {
-        if (controller.signal.aborted) {
-          if (url) URL.revokeObjectURL(url);
+      .then(async (url) => {
+        objectUrl = url;
+        if (controller.signal.aborted || cancelled || !objectUrl) {
+          if (objectUrl) URL.revokeObjectURL(objectUrl);
+          setState(objectUrl ? { kind: "rendering" } : { kind: "none" });
           return;
         }
-        objectUrl = url;
-        setState(url ? { kind: "ready", objectUrl: url } : { kind: "none" });
+
+        // Set to rendering state first so canvas gets mounted
+        setState({ kind: "rendering" });
+
+        try {
+          console.log("Starting PDF load for", objectUrl);
+          doc = await pdfjs.getDocument({ url: objectUrl }).promise;
+          console.log("PDF loaded, getting page 1");
+          if (cancelled) return;
+
+          const page = await doc.getPage(1);
+          console.log("Page 1 retrieved, rendering to canvas");
+          if (cancelled) return;
+
+          const canvas = canvasRef.current;
+          if (!canvas) {
+            console.error("Canvas ref not available, waiting for next render");
+            // State is already rendering, canvas will be mounted soon
+            // Just wait and don't clear the timeout yet
+            return;
+          }
+
+          const dpr = window.devicePixelRatio || 1;
+          const width = 600;
+          const scale = width / page.getViewport({ scale: 1 }).width;
+          const viewport = page.getViewport({ scale: scale * dpr });
+
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          canvas.style.width = `${width}px`;
+          canvas.style.height = `${viewport.height / dpr}px`;
+
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            console.error("Could not get canvas context");
+            setState({ kind: "error" });
+            return;
+          }
+
+          console.log("Rendering page to canvas");
+          task = page.render({
+            canvasContext: ctx,
+            viewport,
+            canvas,
+          });
+
+          await task.promise.catch((err) => {
+            console.error("Render task error:", err);
+          });
+          console.log("Render complete");
+          setState({ kind: "ready" });
+          clearTimeout(timeout);
+        } catch (err) {
+          if (err instanceof Error && err.name === "AbortError") return;
+          console.error("PDF rendering error:", err);
+          if (err instanceof Error) {
+            console.error("Error details:", err.message, err.stack);
+          }
+          setState({ kind: "error" });
+        } finally {
+          if (objectUrl) URL.revokeObjectURL(objectUrl);
+        }
       })
       .catch((err) => {
         if (err?.name === "AbortError") return;
@@ -39,20 +116,23 @@ export function DrawingPreview({
       });
 
     return () => {
+      cancelled = true;
       controller.abort();
+      task?.cancel();
+      clearTimeout(timeout);
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [partNumber, revision]);
 
-  if (state.kind === "ready") {
+  if (state.kind === "ready" || state.kind === "rendering") {
     return (
-      <div className="relative h-44 rounded-xl border border-steel/30 bg-paper overflow-hidden">
-        {/* Chrome/Edge honour these viewer hints; other viewers just ignore them. */}
-        <iframe
-          src={`${state.objectUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
-          title={`Drawing for ${partNumber} Rev ${revision}`}
-          className="w-full h-full border-none pointer-events-none bg-paper"
-        />
+      <div className="relative h-44 rounded-xl border border-steel/30 overflow-hidden flex items-center justify-center">
+        <canvas ref={canvasRef} className="max-w-full max-h-full object-contain" />
+        {state.kind === "rendering" && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+            <span className="text-xs text-paper">Rendering…</span>
+          </div>
+        )}
         <a
           href={drawingUrl(partNumber, revision)}
           target="_blank"
