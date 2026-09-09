@@ -3,7 +3,7 @@ import { Hono } from "hono";
 import { validator } from "hono/validator";
 import { createShopDb } from "../db";
 import { partDefinitionProcessBlueprints, partDefinitions } from "../db/schema";
-import { requireAdmin, requireAuth } from "../middleware/auth";
+import { requireAuth } from "../middleware/auth";
 import type { AppEnv } from "../types";
 
 const updatePartValidator = validator(
@@ -74,7 +74,7 @@ export const partDefinitionsRouter = new Hono<AppEnv>()
     const rows = await db.select().from(partDefinitions).all();
     return c.json(rows);
   })
-  .post("/", requireAdmin, async (c) => {
+  .post("/", requireAuth, async (c) => {
     const body = await c.req.json<{
       onshapePartNumber: string;
       revision: string;
