@@ -134,12 +134,14 @@ function ProcessSelector({
   selectedProcessIds,
   onAddProcess,
   onRemoveProcess,
+  onReplaceProcess,
   onOpenFull,
 }: {
   processes: Process[];
   selectedProcessIds: number[];
   onAddProcess: (procId: number) => void;
   onRemoveProcess: (idx: number) => void;
+  onReplaceProcess: (idx: number, procId: number) => void;
   onOpenFull: () => void;
 }) {
   const maxInline = 3;
@@ -161,8 +163,7 @@ function ProcessSelector({
                   onRemoveProcess(slot);
                 } else if (newId && newId !== procId) {
                   if (procId) {
-                    onRemoveProcess(slot);
-                    setTimeout(() => onAddProcess(newId), 0);
+                    onReplaceProcess(slot, newId);
                   } else {
                     onAddProcess(newId);
                   }
@@ -473,7 +474,47 @@ export function IngestPartsPage() {
                         {(localPartData[part.partNumber]?.name ?? part.name) || "—"}
                       </td>
                       <td className="px-4 py-3 text-steel text-xs">
-                        {localPartData[part.partNumber]?.quantity ?? part.quantity ?? 1}
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={
+                            part.partNumber in localPartData
+                              ? (localPartData[part.partNumber]?.quantity ?? "")
+                              : (part.quantity ?? "")
+                          }
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === "" || /^\d+$/.test(val)) {
+                              setLocalPartData({
+                                ...localPartData,
+                                [part.partNumber]: {
+                                  ...localPartData[part.partNumber],
+                                  subsystemId: localPartData[part.partNumber]?.subsystemId || 0,
+                                  processIds: localPartData[part.partNumber]?.processIds || [],
+                                  revision: localPartData[part.partNumber]?.revision,
+                                  name: localPartData[part.partNumber]?.name,
+                                  quantity: val === "" ? undefined : Number(val),
+                                },
+                              });
+                            }
+                          }}
+                          onBlur={(e) => {
+                            if (e.target.value === "") {
+                              setLocalPartData({
+                                ...localPartData,
+                                [part.partNumber]: {
+                                  ...localPartData[part.partNumber],
+                                  subsystemId: localPartData[part.partNumber]?.subsystemId || 0,
+                                  processIds: localPartData[part.partNumber]?.processIds || [],
+                                  revision: localPartData[part.partNumber]?.revision,
+                                  name: localPartData[part.partNumber]?.name,
+                                  quantity: 0,
+                                },
+                              });
+                            }
+                          }}
+                          className="w-16 bg-paper border border-steel/40 rounded px-2 py-1 text-xs text-ink focus:outline-none focus:border-crimson"
+                        />
                       </td>
                       <td className="px-4 py-3 text-steel text-xs">
                         <select
@@ -516,6 +557,23 @@ export function IngestPartsPage() {
                                     ...(localPartData[part.partNumber]?.processIds || []),
                                     procId,
                                   ],
+                                  revision: localPartData[part.partNumber]?.revision,
+                                  name: localPartData[part.partNumber]?.name,
+                                  quantity: localPartData[part.partNumber]?.quantity,
+                                },
+                              });
+                            }}
+                            onReplaceProcess={(slotIdx, procId) => {
+                              const newProcessIds = [
+                                ...(localPartData[part.partNumber]?.processIds || []),
+                              ];
+                              newProcessIds[slotIdx] = procId;
+                              setLocalPartData({
+                                ...localPartData,
+                                [part.partNumber]: {
+                                  ...localPartData[part.partNumber],
+                                  subsystemId: localPartData[part.partNumber]?.subsystemId || 0,
+                                  processIds: newProcessIds,
                                   revision: localPartData[part.partNumber]?.revision,
                                   name: localPartData[part.partNumber]?.name,
                                   quantity: localPartData[part.partNumber]?.quantity,
@@ -778,6 +836,9 @@ function PartIngestCard({
     isPriority: false,
     processIds: localPartData?.processIds ?? [],
   });
+  const [quantityInput, setQuantityInput] = useState<string>(
+    String(localPartData?.quantity ?? part.quantity ?? 1),
+  );
 
   const [drawingFetching, setDrawingFetching] = useState(false);
   const [drawingError, setDrawingError] = useState<string | null>(null);
@@ -1112,22 +1173,43 @@ function PartIngestCard({
         <div className="space-y-1">
           <FieldLabel label="Quantity" required />
           <input
-            type="number"
-            min={1}
-            value={form.quantity}
+            type="text"
+            inputMode="numeric"
+            value={quantityInput}
             onChange={(e) => {
-              const quantity = Math.max(1, Math.floor(Number(e.target.value)));
-              setForm({
-                ...form,
-                quantity,
-              });
-              onUpdateLocalPartData({
-                subsystemId: form.subsystemId,
-                processIds: form.processIds,
-                revision: form.revision,
-                name: form.name,
-                quantity,
-              });
+              const val = e.target.value;
+              setQuantityInput(val);
+              if (val !== "" && /^\d+$/.test(val)) {
+                const quantity = Number(val);
+                setForm({
+                  ...form,
+                  quantity,
+                });
+                onUpdateLocalPartData({
+                  subsystemId: form.subsystemId,
+                  processIds: form.processIds,
+                  revision: form.revision,
+                  name: form.name,
+                  quantity,
+                });
+              }
+            }}
+            onBlur={(e) => {
+              if (e.target.value === "") {
+                const quantity = 1;
+                setQuantityInput(String(quantity));
+                setForm({
+                  ...form,
+                  quantity,
+                });
+                onUpdateLocalPartData({
+                  subsystemId: form.subsystemId,
+                  processIds: form.processIds,
+                  revision: form.revision,
+                  name: form.name,
+                  quantity,
+                });
+              }
             }}
             className="w-full bg-paper border border-steel/40 rounded-lg px-3 py-2 text-sm text-ink focus:outline-none focus:border-crimson"
           />
