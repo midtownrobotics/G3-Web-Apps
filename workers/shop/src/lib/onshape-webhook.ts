@@ -326,6 +326,10 @@ export async function processReleaseEvent(
       timestamp,
       createdAt: now,
     })
+    .onConflictDoUpdate({
+      target: schema.onshapeReleases.releaseId,
+      set: { timestamp },
+    })
     .returning({ id: schema.onshapeReleases.id });
 
   const releaseRowId = release[0]?.id;

@@ -56,25 +56,44 @@ export const partInstancesRouter = new Hono<AppEnv>()
     const db = createShopDb(c.env.SHOP_DB);
     const now = Date.now();
 
-    const result = await db
-      .select({ maxInstance: max(partInstances.instanceNumber) })
-      .from(partInstances)
-      .where(eq(partInstances.partDefinitionId, partDefinitionId))
-      .get();
+    let rows: (typeof partInstances.$inferSelect)[] | null = null;
+    let retries = 0;
+    const maxRetries = 5;
 
-    const nextNumber = (result?.maxInstance ?? 0) + 1;
+    while (!rows && retries < maxRetries) {
+      try {
+        const result = await db
+          .select({ maxInstance: max(partInstances.instanceNumber) })
+          .from(partInstances)
+          .where(eq(partInstances.partDefinitionId, partDefinitionId))
+          .get();
 
-    const rows = await db
-      .insert(partInstances)
-      .values(
-        Array.from({ length: quantity }, (_, i) => ({
-          partDefinitionId,
-          instanceNumber: nextNumber + i,
-          createdAt: now,
-        })),
-      )
-      .returning()
-      .all();
+        const nextNumber = (result?.maxInstance ?? 0) + 1;
+
+        rows = await db
+          .insert(partInstances)
+          .values(
+            Array.from({ length: quantity }, (_, i) => ({
+              partDefinitionId,
+              instanceNumber: nextNumber + i,
+              createdAt: now,
+            })),
+          )
+          .returning()
+          .all();
+      } catch (err) {
+        retries++;
+        if (retries >= maxRetries) {
+          throw err;
+        }
+        // Exponential backoff: 10ms, 20ms, 40ms, 80ms, 160ms
+        await new Promise((resolve) => setTimeout(resolve, 10 * 2 ** (retries - 1)));
+      }
+    }
+
+    if (!rows) {
+      return c.json({ error: "Failed to create part instances after retries" }, 500);
+    }
 
     // Copy the part definition's process blueprint onto each new instance.
     // The first process is ready to start (todo); the rest are blocked (waiting).
