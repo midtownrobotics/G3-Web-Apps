@@ -44,7 +44,7 @@ base.use(
 );
 
 const app = base
-  .get("/health", (c) => c.json({ status: "ok", service: "shop" }))
+  .get("/health", (c) => c.json({ status: "ok", service: "shop", version: "v1.0.0" }))
   .get("/me", requireAuth, (c) =>
     c.json({
       userId: c.get("userId"),

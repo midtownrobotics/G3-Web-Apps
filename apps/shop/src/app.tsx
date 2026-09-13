@@ -2,6 +2,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { plugins } from "./plugins.config";
 import { NavBar } from "./shared/nav-bar";
 import { ProtectedRoute } from "./shared/protected-route";
+import { VersionFooter } from "./shared/version-footer";
 
 export function App() {
   const allRoutes = plugins.flatMap((p) => p.routes);
@@ -16,6 +17,7 @@ export function App() {
             <Route key={r.path} path={r.path} element={r.element} />
           ))}
         </Routes>
+        <VersionFooter />
       </ProtectedRoute>
     </BrowserRouter>
   );
