@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, ne, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { validator } from "hono/validator";
 import { createShopDb } from "../db";
@@ -107,12 +107,18 @@ export const partDefinitionsRouter = new Hono<AppEnv>()
     const now = Date.now();
 
     // If obsoleteExisting is true, mark all existing parts with same number as obsolete
+    // BUT exclude the new revision we're about to create
     if (obsoleteExisting) {
       try {
         await db
           .update(partDefinitions)
           .set({ isObsolete: 1 })
-          .where(eq(partDefinitions.onshapePartNumber, onshapePartNumber));
+          .where(
+            and(
+              eq(partDefinitions.onshapePartNumber, onshapePartNumber),
+              revision ? ne(partDefinitions.revision, revision) : sql`1=1`,
+            ),
+          );
       } catch (err) {
         console.error("[Part Definitions] Error marking obsolete parts", err);
         return c.json(

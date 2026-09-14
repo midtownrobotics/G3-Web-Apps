@@ -197,6 +197,9 @@ export const githubAuthRouter = new Hono<AppEnv>()
 
     if (!tokenRes.ok) {
       console.error("[github oauth] token exchange failed", tokenRes.status, tokenBodyText);
+      if (tokenRes.status === 429) {
+        return err("GitHub is temporarily busy. Please wait a few minutes and try again.");
+      }
       return err("Failed to complete sign-in with GitHub. Please try again.");
     }
 

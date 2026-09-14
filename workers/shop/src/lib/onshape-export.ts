@@ -2,6 +2,7 @@ import { desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "../db/schema";
 import type { AppEnv } from "../types";
+import { drawingBarcodeValue, stampBarcode } from "./barcode";
 
 export async function drawingExistsInR2(
   partNumber: string,
@@ -37,7 +38,21 @@ export async function storeDrawingInR2(
   env: AppEnv["Bindings"],
 ): Promise<string> {
   const r2Key = `drawings/${partNumber}/${revision}/drawing.pdf`;
-  await env.DRAWINGS.put(r2Key, pdfBuffer, {
+
+  // Stamp the part-number barcode before the drawing is stored, so every copy served or
+  // printed from R2 carries it. A stamping failure must not cost us the drawing itself.
+  let body: ArrayBuffer | Uint8Array = pdfBuffer;
+  try {
+    body = await stampBarcode(pdfBuffer, drawingBarcodeValue(partNumber, revision));
+  } catch (err) {
+    console.error("[OnShape Export] Barcode stamp failed, storing unstamped drawing", {
+      partNumber,
+      revision,
+      error: err instanceof Error ? err.message : err,
+    });
+  }
+
+  await env.DRAWINGS.put(r2Key, body, {
     httpMetadata: {
       contentType: "application/pdf",
     },
@@ -46,7 +61,8 @@ export async function storeDrawingInR2(
     partNumber,
     revision,
     r2Key,
-    size: pdfBuffer.byteLength,
+    size: body.byteLength,
+    stamped: body !== pdfBuffer,
   });
   return r2Key;
 }

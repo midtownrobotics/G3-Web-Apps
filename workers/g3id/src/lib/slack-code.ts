@@ -146,7 +146,7 @@ export async function handleSlackCode(opts: {
     return {
       success: true,
       message:
-        "✅ Signed in successfully. Your G3ID login page should update shortly. Note that this can take up to a minute on slower networks.",
+        "✅ Signed in successfully. Return to yur browser. Your G3ID login page should update shortly.",
     };
   }
 

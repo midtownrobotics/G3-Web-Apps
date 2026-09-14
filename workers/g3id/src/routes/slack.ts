@@ -37,15 +37,15 @@ export const slackRouter = new Hono<AppEnv>()
       text?: string;
     };
 
-    // Ignore non-messages, bot messages, and anything without a 6-digit code
+    // Ignore non-messages, bot messages, and anything without a 4-digit code
     if (event.type !== "message" || event.subtype || event.bot_id) return c.text("", 200);
 
     const slackUserId = event.user ?? "";
     const text = event.text?.trim() ?? "";
     const workspaceId = (body.team_id as string) ?? "";
 
-    // Extract 6-digit code from anywhere in the text
-    const codeMatch = text.match(/\d{6}/);
+    // Extract 4-digit code from anywhere in the text
+    const codeMatch = text.match(/\d{4}/);
     const code = codeMatch?.[0] ?? "";
 
     if (!slackUserId || !code) return c.text("", 200);
@@ -88,12 +88,12 @@ export const slackRouter = new Hono<AppEnv>()
     const slackUserId = params.get("user_id") ?? "";
     const workspaceId = params.get("team_id") ?? "";
 
-    // Extract 6-digit code from anywhere in the text
-    const codeMatch = text.match(/\d{6}/);
+    // Extract 4-digit code from anywhere in the text
+    const codeMatch = text.match(/\d{4}/);
     const code = codeMatch?.[0] ?? "";
 
     if (!code) {
-      return c.json({ response_type: "ephemeral", text: "Usage: `/signin 123456`" });
+      return c.json({ response_type: "ephemeral", text: "Usage: `/signin 1234`" });
     }
 
     c.executionCtx.waitUntil(
@@ -114,12 +114,12 @@ export const slackRouter = new Hono<AppEnv>()
     const slackUserId = params.get("user_id") ?? "";
     const workspaceId = params.get("team_id") ?? "";
 
-    // Extract 6-digit code from anywhere in the text
-    const codeMatch = text.match(/\d{6}/);
+    // Extract 4-digit code from anywhere in the text
+    const codeMatch = text.match(/\d{4}/);
     const code = codeMatch?.[0] ?? "";
 
     if (!code) {
-      return c.json({ response_type: "ephemeral", text: "Usage: `/link 123456`" });
+      return c.json({ response_type: "ephemeral", text: "Usage: `/link 1234`" });
     }
 
     c.executionCtx.waitUntil(

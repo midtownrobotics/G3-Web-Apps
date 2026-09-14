@@ -21,6 +21,7 @@ import { useTouchDevice } from "../../shared/use-touch";
 import { useUserNames } from "../../shared/use-user-names";
 import { PartCard } from "../parts/part-card";
 import { PartWorkView } from "./part-work-view";
+import { ScanDialog } from "./scan-dialog";
 
 const MOOD_TONES: Record<ShopMood["tone"], string> = {
   calm: "bg-emerald-50 border-emerald-300 text-emerald-800",
@@ -54,9 +55,16 @@ export function BoardPage() {
   const [selectedInstanceId, setSelectedInstanceId] = useState<number | null>(null);
   const [workingPartInstanceId, setWorkingPartInstanceId] = useState<number | null>(null);
   const [presence, setPresence] = useState<KioskPresence[]>([]);
+  const [scanOpen, setScanOpen] = useState(false);
 
   const rows = useMemo(() => (data ? buildInstanceRows(data) : []), [data]);
   const loads = useMemo(() => (data ? processLoads(rows, data.processes) : []), [rows, data]);
+  // What a scan is matched against: the station's own queue, or everything on the overview.
+  const queueRows = useMemo(
+    () =>
+      view === "overview" ? rows : rows.filter((r) => r.procs.some((p) => p.processId === view)),
+    [rows, view],
+  );
 
   // Handle instance query parameter from part detail page
   useEffect(() => {
@@ -126,7 +134,7 @@ export function BoardPage() {
   return (
     <main className="min-h-screen bg-mist">
       <div className="max-w-5xl mx-auto px-6 py-8 space-y-5">
-        {view !== "overview" && (
+        {view !== "overview" && !kiosk.active && (
           <Link
             to="/board"
             className={`inline-flex items-center gap-1.5 text-sm text-steel hover:text-ink transition-colors ${
@@ -137,30 +145,39 @@ export function BoardPage() {
           </Link>
         )}
 
-        <div className="flex flex-wrap items-center gap-3">
-          {view === "overview" ? (
-            <h1 className="font-display text-4xl text-ink">Shop Floor</h1>
+        <div className="flex items-start justify-between gap-4">
+          {kiosk.active ? (
+            <h1 className="font-display text-4xl text-ink">
+              {view === "overview" ? "Shop Floor" : processName(view)}
+            </h1>
           ) : (
-            <h1 className="font-display text-4xl text-ink">{processName(view)}</h1>
+            <select
+              value={view === "overview" ? "overview" : String(view)}
+              onChange={(e) =>
+                navigate(
+                  e.target.value === "overview" ? "/board" : processPath(Number(e.target.value)),
+                )
+              }
+              className="font-display text-4xl text-ink bg-paper border border-steel/40 focus:outline-none focus:ring-2 focus:ring-crimson rounded-lg px-1"
+            >
+              <option value="overview">Shop Floor</option>
+              {data?.processes.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
           )}
-          <select
-            value={view === "overview" ? "overview" : String(view)}
-            onChange={(e) =>
-              navigate(
-                e.target.value === "overview" ? "/board" : processPath(Number(e.target.value)),
-              )
-            }
-            className={`bg-paper border border-steel/40 rounded-lg px-3 text-sm font-semibold text-ink focus:outline-none focus:border-crimson ${
-              touch ? "py-3" : "py-2"
-            }`}
-          >
-            <option value="overview">Overview</option>
-            {data?.processes.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+
+          {kiosk.active && (
+            <button
+              type="button"
+              onClick={() => setScanOpen(true)}
+              className="shrink-0 px-5 py-3 rounded-xl bg-crimson hover:bg-crimson-dark text-paper text-lg font-semibold transition-colors"
+            >
+              Scan
+            </button>
+          )}
         </div>
 
         {error && <ErrorBanner message={error} />}
@@ -174,6 +191,7 @@ export function BoardPage() {
             touch={touch}
             navigate={navigate}
             presence={presence}
+            kiosk={kiosk}
           />
         ) : (
           <ProcessView
@@ -186,6 +204,18 @@ export function BoardPage() {
           />
         )}
       </div>
+
+      {scanOpen && (
+        <ScanDialog
+          queue={queueRows}
+          all={rows}
+          onFound={(row) => {
+            setScanOpen(false);
+            setWorkingPartInstanceId(row.instance.id);
+          }}
+          onClose={() => setScanOpen(false)}
+        />
+      )}
 
       {workingPartInstanceId &&
         data &&
@@ -221,6 +251,15 @@ export function BoardPage() {
 
 // ── Overview ──────────────────────────────────────────────────────────────────
 
+function getCookedness(totalQueue: number): string {
+  if (totalQueue < 5) return "Mooing Cow 🐮";
+  if (totalQueue < 10) return "Chopping Block 🔪";
+  if (totalQueue < 20) return "Raw 🥩";
+  if (totalQueue < 25) return "Rare 🍖";
+  if (totalQueue < 35) return "Cooked 🍳";
+  return "Ash 🔥";
+}
+
 function OverviewView({
   rows,
   loads,
@@ -228,6 +267,7 @@ function OverviewView({
   touch,
   navigate,
   presence,
+  kiosk,
 }: {
   rows: InstanceRow[];
   loads: ReturnType<typeof processLoads>;
@@ -235,10 +275,13 @@ function OverviewView({
   touch: boolean;
   navigate: (path: string) => void;
   presence: KioskPresence[];
+  kiosk: ReturnType<typeof useKiosk>;
 }) {
   const mood = shopMood(loads);
   const inProgress = rows.filter((r) => r.state === "doing");
   const notStarted = sortPriorityFirst(rows.filter((r) => r.state === "todo"));
+  const totalQueue = rows.length;
+  const cookedness = getCookedness(totalQueue);
 
   const resolveName = useUserNames(presence.map((p) => p.userId));
   // Kiosks are matched to machines by name, same rule as the kiosk auto-open.
@@ -251,7 +294,7 @@ function OverviewView({
     <div className="space-y-6">
       {/* Shop status */}
       <div className={`rounded-xl border px-5 py-4 ${MOOD_TONES[mood.tone]}`}>
-        <p className="font-display text-3xl">{mood.label}</p>
+        <p className="font-display text-3xl">{cookedness}</p>
         <p className="text-sm mt-0.5">{mood.blurb}</p>
       </div>
 
@@ -260,37 +303,44 @@ function OverviewView({
         <p className="text-steel text-sm">No processes defined yet — add some on the Admin page.</p>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-          {loads.map((load) => (
-            <Link
-              key={load.process.id}
-              to={processPath(load.process.id)}
-              title={`${load.doing} in progress, ${load.todo} to do — click to open`}
-              className={`rounded-xl border text-left transition-transform hover:-translate-y-0.5 ${LOAD_STYLES[load.level]} ${
-                touch ? "p-5" : "p-4"
-              }`}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-semibold text-ink truncate">{load.process.name}</span>
-                <span
-                  title={load.doing > 0 ? "Running" : "Idle"}
-                  className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                    load.doing > 0 ? "bg-emerald-500 animate-pulse" : "bg-steel/40"
-                  }`}
-                />
-              </div>
-              <p className="text-xs text-steel-dark mt-2">
-                {load.doing} running · {load.todo} to do
-              </p>
-              {peopleAt(load.process.name).length > 0 && (
-                <p
-                  className="text-xs text-emerald-700 mt-1.5 truncate"
-                  title={`At this machine: ${peopleAt(load.process.name).join(", ")}`}
-                >
-                  👤 {peopleAt(load.process.name).join(", ")}
+          {loads
+            .filter((load) => {
+              if (!kiosk.active) return true;
+              return (
+                load.process.name.trim().toLowerCase() === kiosk.machineName?.trim().toLowerCase()
+              );
+            })
+            .map((load) => (
+              <Link
+                key={load.process.id}
+                to={processPath(load.process.id)}
+                title={`${load.doing} in progress, ${load.todo} to do — click to open`}
+                className={`rounded-xl border text-left transition-transform hover:-translate-y-0.5 ${LOAD_STYLES[load.level]} ${
+                  touch ? "p-5" : "p-4"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-semibold text-ink truncate">{load.process.name}</span>
+                  <span
+                    title={load.doing > 0 ? "Running" : "Idle"}
+                    className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                      load.doing > 0 ? "bg-emerald-500 animate-pulse" : "bg-steel/40"
+                    }`}
+                  />
+                </div>
+                <p className="text-xs text-steel-dark mt-2">
+                  {load.doing} running · {load.todo} to do
                 </p>
-              )}
-            </Link>
-          ))}
+                {peopleAt(load.process.name).length > 0 && (
+                  <p
+                    className="text-xs text-emerald-700 mt-1.5 truncate"
+                    title={`At this machine: ${peopleAt(load.process.name).join(", ")}`}
+                  >
+                    👤 {peopleAt(load.process.name).join(", ")}
+                  </p>
+                )}
+              </Link>
+            ))}
         </div>
       )}
 

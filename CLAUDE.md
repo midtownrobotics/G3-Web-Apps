@@ -122,6 +122,16 @@ PIN-based access for untrusted computers:
 2. Update `workers/g3id/src/db/schema.ts` Drizzle definitions
 3. Test locally: `wrangler d1 migrations apply <database-name> --local`
 
+**Create dev accounts with email/password (as admin):**
+```
+GET http://localhost:8787/auth/dev/create-user?email=test@example.com&password=password123&name=TestUser
+```
+- Requires admin authentication (logged in as admin)
+- Development environment only
+- Query params: `email` (required), `password` (required, 8+ chars), `name` (optional, defaults to email prefix)
+- Creates an active user immediately (no approval needed)
+- New user can log into any app with their email/password
+
 ## Testing & Validation
 
 **Before committing:**

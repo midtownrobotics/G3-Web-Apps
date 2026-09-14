@@ -10,13 +10,11 @@ export function TeamLookupInput({
   onChange,
   required = true,
   placeholder = "Team number or name",
-  inputMode = "search",
 }: {
   value: string;
   onChange: (value: string) => void;
   required?: boolean;
   placeholder?: string;
-  inputMode?: "numeric" | "search";
 }) {
   const [query, setQuery] = useState(value);
   const [teams, setTeams] = useState<TeamSuggestion[]>([]);
@@ -82,8 +80,6 @@ export function TeamLookupInput({
         onInput={clearInputError}
         onInvalid={showTeamNumberError}
         placeholder={placeholder}
-        inputMode={inputMode}
-        enterKeyHint="next"
         autoComplete="off"
       />
       <datalist id={listId}>

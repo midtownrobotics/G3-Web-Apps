@@ -10,7 +10,7 @@ import { requireAuth } from "../../middleware/auth";
 import type { AppEnv } from "../../types";
 
 function generateCode(): string {
-  return (crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).toString().padStart(6, "0");
+  return (crypto.getRandomValues(new Uint32Array(1))[0] % 10000).toString().padStart(4, "0");
 }
 
 function generateToken(): string {

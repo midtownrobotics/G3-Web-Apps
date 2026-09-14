@@ -41,7 +41,7 @@ type TeamComment = {
   created_at: number;
 };
 
-export function Analysis({ initialReportId }: { initialReportId?: string | null }) {
+export function Analysis() {
   const [team, setTeam] = useState("");
   const [searched, setSearched] = useState("");
   const [reports, setReports] = useState<Report[]>([]);
@@ -91,15 +91,6 @@ export function Analysis({ initialReportId }: { initialReportId?: string | null 
   useEffect(() => {
     loadData("", "").catch(() => undefined);
   }, []);
-  useEffect(() => {
-    if (!loaded || !initialReportId) return;
-    window.setTimeout(() => {
-      document.getElementById(`report-${initialReportId}`)?.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-      });
-    }, 0);
-  }, [initialReportId, loaded]);
 
   async function permanentlyDeleteReport(report: Report) {
     if (
@@ -316,7 +307,6 @@ export function Analysis({ initialReportId }: { initialReportId?: string | null 
                   </h2>
                 )}
                 <article
-                  id={`report-${report.id}`}
                   className={`${report.starredFieldIds.length ? "starred-report" : ""} ${report.archivedAt ? "archived-report" : ""}`}
                 >
                   <header>
