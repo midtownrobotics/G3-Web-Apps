@@ -3937,6 +3937,10 @@ textarea:focus {
     transform: translateX(-100%);
   }
 
+  aside.open {
+    transform: translateX(0);
+  }
+
   .all-apps-link {
     margin: auto 0 0;
     padding: 20px 24px;
@@ -4017,6 +4021,7 @@ aside {
   font-size: 20px;
 }
 
+@media (max-width: 760px) {
   .all-apps-link {
     margin: auto 0 0;
     padding: 20px 24px;
@@ -6425,7 +6430,6 @@ html[data-theme="dark"] textarea {
   html[data-theme="dark"] .scouting-entry {
     padding: 10px;
   }
-}
 
   .form-designer-toolbar {
     grid-template-columns: 1fr;

@@ -502,3 +502,80 @@ Service bindings, Durable Object bindings, and Tail consumers connect to other W
 [wrangler:info] GET /scouting/event-context 200 OK (30ms)
 [wrangler:info] PUT /scouting/presence 200 OK (36ms)
 [wrangler:info] GET /scouting/teams/search 200 OK (10ms)
+[wrangler:info] GET /scouting/event-context 200 OK (23ms)
+[wrangler:info] GET /scouting/announcements/active 200 OK (9ms)
+[wrangler:info] GET /scouting/event-context 200 OK (20ms)
+[wrangler:info] GET /scouting/event-context 200 OK (22ms)
+[wrangler:info] GET /scouting/event-context 200 OK (41ms)
+[wrangler:info] GET /scouting/event-context 200 OK (262ms)
+[wrangler:info] GET /scouting/announcements/active 200 OK (14ms)
+[wrangler:info] GET /scouting/event-context 200 OK (21ms)
+[wrangler:info] GET /scouting/event-context 200 OK (28ms)
+[wrangler:info] GET /scouting/announcements/active 200 OK (8ms)
+[wrangler:info] PUT /scouting/presence 200 OK (9ms)
+[wrangler:info] GET /scouting/event-context 200 OK (32ms)
+[wrangler:info] GET /scouting/event-context 200 OK (27ms)
+[wrangler:info] GET /scouting/announcements/active 200 OK (7ms)
+[wrangler:info] GET /scouting/event-context 200 OK (25ms)
+[wrangler:info] GET /scouting/event-context 200 OK (25ms)
+[wrangler:info] GET /scouting/event-context 200 OK (47ms)
+[wrangler:info] GET /scouting/event-context 200 OK (23ms)
+[wrangler:info] GET /scouting/announcements/active 200 OK (10ms)
+[wrangler:info] GET /scouting/event-context 200 OK (237ms)
+[wrangler:info] GET /scouting/event-context 200 OK (22ms)
+[wrangler:info] GET /scouting/announcements/active 200 OK (6ms)
+[wrangler:info] PUT /scouting/presence 200 OK (8ms)
+[wrangler:info] GET /scouting/event-context 200 OK (26ms)
+[wrangler:info] GET /scouting/event-context 200 OK (27ms)
+[wrangler:info] GET /scouting/announcements/active 200 OK (6ms)
+[wrangler:info] GET /scouting/event-context 200 OK (23ms)
+[wrangler:info] GET /scouting/event-context 200 OK (24ms)
+[wrangler:info] GET /scouting/event-context 200 OK (39ms)
+[wrangler:info] GET /scouting/event-context 200 OK (23ms)
+[wrangler:info] GET /scouting/announcements/active 200 OK (6ms)
+[wrangler:info] GET /scouting/event-context 200 OK (150ms)
+[wrangler:info] GET /scouting/event-context 200 OK (24ms)
+[wrangler:info] GET /scouting/announcements/active 200 OK (8ms)
+[wrangler:info] PUT /scouting/presence 200 OK (7ms)
+[wrangler:info] GET /scouting/event-context 200 OK (30ms)
+[wrangler:info] GET /scouting/event-context 200 OK (23ms)
+[wrangler:info] GET /scouting/announcements/active 200 OK (12ms)
+[wrangler:info] GET /scouting/event-context 200 OK (30ms)
+[wrangler:info] GET /scouting/event-context 200 OK (27ms)
+[wrangler:info] GET /scouting/announcements/active 200 OK (7ms)
+[wrangler:info] GET /scouting/event-context 200 OK (24ms)
+[wrangler:info] GET /scouting/event-context 200 OK (240ms)
+[wrangler:info] GET /scouting/announcements/active 200 OK (7ms)
+[wrangler:info] PUT /scouting/presence 200 OK (8ms)
+[wrangler:info] GET /scouting/event-context 200 OK (29ms)
+[wrangler:info] GET /scouting/event-context 200 OK (23ms)
+[wrangler:info] GET /scouting/event-context 200 OK (23ms)
+[wrangler:info] GET /scouting/announcements/active 200 OK (6ms)
+[wrangler:info] GET /scouting/me 200 OK (563ms)
+[wrangler:info] PUT /scouting/presence 200 OK (128ms)
+[wrangler:info] GET /scouting/scouting-forms 200 OK (121ms)
+[wrangler:info] GET /scouting/announcements/active 200 OK (193ms)
+[wrangler:info] GET /scouting/event-context 200 OK (539ms)
+[wrangler:info] GET /scouting/teams/search 200 OK (287ms)
+[wrangler:info] PUT /scouting/presence 200 OK (13ms)
+[wrangler:info] PUT /scouting/presence 200 OK (13ms)
+Using secrets defined in .dev.vars
+Your Worker has access to the following bindings:
+Binding                                              Resource                  Mode
+env.SCOUTING_DB (g3-scouting-local)                  D1 Database               local
+env.FIELD_MAPS (g3-scouting)                         R2 Bucket                 local
+env.G3ID (g3id)                                      Worker                    local [not connected]
+env.PIT (pit)                                        Worker                    local [not connected]
+env.FRONTEND_URL ("http://localhost:5182")           Environment Variable      local
+env.LOCAL_AUTH_BYPASS ("true")                       Environment Variable      local
+env.TBA_AUTH_KEY ("(hidden)")                        Environment Variable      local
+env.NEXUS_API_KEY ("(hidden)")                       Environment Variable      local
+
+⎔ Reloading local server...
+⎔ Local server updated and ready
+⎔ Reloading local server...
+⎔ Local server updated and ready
+[wrangler:info] GET /scouting/me 200 OK (37ms)
+[wrangler:info] GET /scouting/announcements/active 200 OK (10ms)
+[wrangler:info] GET /scouting/scouting-forms 200 OK (11ms)
+[wrangler:info] GET /scouting/event-context 200 OK (25ms)
