@@ -247,9 +247,31 @@ export function PartWorkView({
             {currentProcess && row.state !== "complete" && (
               <button
                 type="button"
-                onClick={() => {
-                  setRevertStatus(row.state === "doing" ? "todo" : "doing");
-                  setShowRevertModal(true);
+                onClick={async () => {
+                  if (row.state === "doing") {
+                    setBusy(true);
+                    const res = await api["part-instance-processes"][":partInstanceId"].processes[
+                      ":processId"
+                    ].$patch({
+                      param: {
+                        partInstanceId: String(row.instance.id),
+                        processId: String(currentProcess.processId),
+                      },
+                      json: { status: "todo" },
+                    });
+                    if (!res.ok) {
+                      setBanner(await getErrorMessage(res as unknown as Response));
+                      setBusy(false);
+                      return;
+                    }
+                    setBanner(null);
+                    await onChanged?.();
+                    setBusy(false);
+                    onClose();
+                  } else {
+                    setRevertStatus("doing");
+                    setShowRevertModal(true);
+                  }
                 }}
                 disabled={busy}
                 className="w-full px-6 py-4 text-lg font-semibold text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-100 rounded-lg transition-colors disabled:opacity-50"
