@@ -46,6 +46,8 @@ export function PartCard({
 }) {
   const navigate = useNavigate();
   const [banner, setBanner] = useState<string | null>(null);
+  const [addInstanceFeedback, setAddInstanceFeedback] = useState<"success" | "error" | null>(null);
+  const [addInstanceError, setAddInstanceError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [editingDrawing, setEditingDrawing] = useState(false);
   const [drawingDraft, setDrawingDraft] = useState(row.definition.partDrawingUrl ?? "");
@@ -117,10 +119,14 @@ export function PartCard({
       json: { partDefinitionId: row.definition.id, quantity: 1 },
     });
     if (!res.ok) {
-      setBanner(await getErrorMessage(res as unknown as Response));
+      const error = await getErrorMessage(res as unknown as Response);
+      setAddInstanceError(error);
+      setAddInstanceFeedback("error");
+      setTimeout(() => setAddInstanceFeedback(null), 5000);
     } else {
-      setBanner(null);
+      setAddInstanceFeedback("success");
       await onChanged();
+      setTimeout(() => setAddInstanceFeedback(null), 3000);
     }
     setBusy(false);
   }
@@ -374,6 +380,20 @@ export function PartCard({
             )}
           </Section>
 
+          {addInstanceFeedback && (
+            <p
+              className={`text-sm rounded-lg px-3 py-2 border text-center ${
+                addInstanceFeedback === "success"
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  : "bg-crimson-tint text-crimson-dark border-crimson/30"
+              }`}
+            >
+              {addInstanceFeedback === "success"
+                ? "✓ Part instance added successfully"
+                : addInstanceError}
+            </p>
+          )}
+
           <div className={`grid grid-cols-1 gap-2 ${isObsolete ? "" : "sm:grid-cols-3"}`}>
             <button
               type="button"
@@ -381,7 +401,7 @@ export function PartCard({
               disabled={busy || isObsolete}
               className="w-full py-2.5 rounded-lg border border-emerald-400/50 text-emerald-700 hover:bg-emerald-50 text-sm font-semibold transition-colors disabled:opacity-50"
             >
-              + Add More
+              + Add One
             </button>
             <button
               type="button"
