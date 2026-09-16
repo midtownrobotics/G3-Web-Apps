@@ -154,18 +154,19 @@ export function PartCard({
     setBusy(false);
   }
 
-  /** Open the Add Part page pre-filled from this part for a process transfer. */
+  /** Open the Edit & Obsolete page to create a new version of this part. */
   function transferProcesses() {
     navigate("/parts/new", {
       state: {
         transferFrom: {
-          sourceInstanceId: row.instance.id,
+          sourcePartDefinitionId: row.definition.id,
           onshapePartNumber: row.definition.onshapePartNumber,
-          revision: advanceRevision(row.definition.revision),
+          revision: row.definition.revision,
           subsystemId: row.definition.subsystemId,
           name: row.definition.name,
           notes: row.definition.notes ?? "",
           isPriority: !!row.instance.isPriority,
+          quantity: totalInstances,
           // Pipeline in order, flagged with whether each step was already done.
           processes: row.procs.map((p) => ({
             processId: p.processId,
@@ -421,7 +422,7 @@ export function PartCard({
               disabled={busy}
               className="w-full py-2.5 rounded-lg border border-steel/50 text-steel-dark hover:bg-steel-tint text-sm font-semibold transition-colors disabled:opacity-50"
             >
-              Transfer Processes
+              Edit & Obsolete
             </button>
             {/* An already-obsolete part can't be made obsolete again — only transferred. */}
             {!isObsolete && (

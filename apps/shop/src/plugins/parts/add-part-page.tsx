@@ -8,15 +8,16 @@ import { useAuthUser } from "../../shared/use-auth";
 import { useShopData } from "../../shared/use-shop-data";
 import { useTouchDevice } from "../../shared/use-touch";
 
-/** State handed over from a part's "Transfer Processes" action. */
+/** State handed over from a part's "Edit & Obsolete" action. */
 type TransferFrom = {
-  sourceInstanceId: number;
+  sourcePartDefinitionId: number;
   onshapePartNumber: string;
   revision: string;
   subsystemId: number;
   name: string;
   notes: string;
   isPriority: boolean;
+  quantity: number;
   processes: { processId: number; done: boolean }[];
 };
 
@@ -41,9 +42,8 @@ export function AddPartPage() {
     revision: transfer?.revision ?? "",
     subsystemId: transfer?.subsystemId ?? 0,
     name: transfer?.name ?? "",
-    quantity: 1,
+    quantity: transfer?.quantity ?? 1,
     notes: transfer?.notes ?? "",
-    partDrawingUrl: "", // intentionally cleared on transfer
     isPriority: transfer?.isPriority ?? false,
   });
   // Normal mode: pipeline built from scratch.
@@ -66,18 +66,12 @@ export function AddPartPage() {
     });
   }
 
-  // Final ordered pipeline + count of leading steps already complete (transfer only).
-  function resolvePipeline(): { processIds: number[]; completedPrefix: number } {
-    if (!transfer) return { processIds, completedPrefix: 0 };
+  // Final ordered pipeline (transfer mode: use kept processes but reset all to todo).
+  function resolvePipeline(): { processIds: number[] } {
+    if (!transfer) return { processIds };
     const keptSteps = transfer.processes.filter((_, i) => kept[i]);
-    let completedPrefix = 0;
-    for (const step of keptSteps) {
-      if (step.done) completedPrefix += 1;
-      else break;
-    }
     return {
       processIds: [...keptSteps.map((s) => s.processId), ...extraProcessIds],
-      completedPrefix,
     };
   }
 
@@ -99,7 +93,22 @@ export function AddPartPage() {
     setSubmitting(true);
 
     try {
-      const { processIds: pipeline, completedPrefix } = resolvePipeline();
+      // Obsolete all instances of the source part before creating new ones
+      if (transfer) {
+        const allInstances =
+          data?.instances.filter((i) => i.partDefinitionId === transfer.sourcePartDefinitionId) ??
+          [];
+        await Promise.all(
+          allInstances.map((inst) =>
+            api["part-instances"][":id"].$patch({
+              param: { id: String(inst.id) },
+              json: { isStale: true },
+            }),
+          ),
+        );
+      }
+
+      const { processIds: pipeline } = resolvePipeline();
 
       const defRes = await api["part-definitions"].$post({
         json: {
@@ -108,7 +117,6 @@ export function AddPartPage() {
           subsystemId: form.subsystemId,
           name: form.name.trim(),
           notes: form.notes.trim() || undefined,
-          partDrawingUrl: form.partDrawingUrl.trim() || undefined,
           processIds: pipeline,
         },
       });
@@ -138,32 +146,6 @@ export function AddPartPage() {
         );
       }
 
-      // Transfer: mark the already-complete leading processes done so each new
-      // instance starts past them. Done in order so the pipeline promotes itself.
-      if (transfer && completedPrefix > 0) {
-        const prefixProcessIds = pipeline.slice(0, completedPrefix);
-        for (const inst of instances) {
-          for (const processId of prefixProcessIds) {
-            await api["part-instance-processes"][":partInstanceId"].processes[
-              ":processId"
-            ].done.$post({
-              param: {
-                partInstanceId: String(inst.id),
-                processId: String(processId),
-              },
-            });
-          }
-        }
-      }
-
-      // Transfer: retire the original instance.
-      if (transfer) {
-        await api["part-instances"][":id"].$patch({
-          param: { id: String(transfer.sourceInstanceId) },
-          json: { isStale: true },
-        });
-      }
-
       navigate("/parts");
     } finally {
       setSubmitting(false);
@@ -183,7 +165,7 @@ export function AddPartPage() {
             ← Back to Parts
           </Link>
           <h1 className="font-display text-4xl text-ink mt-2">
-            {transfer ? "Transfer Processes" : "Add Part"}
+            {transfer ? "Edit & Obsolete" : "Add Part"}
           </h1>
           {transfer && (
             <p className="text-sm text-steel-dark mt-1">
@@ -220,9 +202,6 @@ export function AddPartPage() {
                   value={form.revision}
                   onChange={(v) => setForm({ ...form, revision: v })}
                   placeholder="A"
-                  hint={
-                    transfer ? "Advanced from the original part — adjust if needed." : undefined
-                  }
                 />
                 <div className="space-y-1">
                   <FieldLabel label="Subsystem" required />
@@ -268,15 +247,6 @@ export function AddPartPage() {
                   onChange={(v) => setForm({ ...form, notes: v })}
                   placeholder="Optional"
                 />
-                <div className="sm:col-span-2">
-                  <Field
-                    label="Part Drawing URL"
-                    value={form.partDrawingUrl}
-                    onChange={(v) => setForm({ ...form, partDrawingUrl: v })}
-                    placeholder="https://…"
-                    hint="Not required if the part is purely CNC or 3D printed."
-                  />
-                </div>
               </div>
 
               <label className="flex items-center gap-2 cursor-pointer select-none text-sm text-ink">
