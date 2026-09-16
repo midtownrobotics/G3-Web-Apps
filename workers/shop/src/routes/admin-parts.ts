@@ -415,4 +415,39 @@ export const adminPartsRouter = new Hono<AppEnv>()
         500,
       );
     }
+  })
+  .post("/dev/test-drawing/:partNumber/:revision", async (c) => {
+    try {
+      const partNumber = c.req.param("partNumber");
+      const revision = c.req.param("revision");
+      const formData = await c.req.formData();
+      const file = formData.get("file") as unknown;
+
+      if (!file || typeof file !== "object" || !("arrayBuffer" in file)) {
+        return c.json({ error: "Missing file" }, 400);
+      }
+
+      const fileObj = file as File;
+      if (!fileObj.type.includes("pdf")) {
+        return c.json({ error: "Only PDF files are supported" }, 400);
+      }
+
+      const r2Key = `drawings/${partNumber}/${revision}/drawing.pdf`;
+      const arrayBuffer = await fileObj.arrayBuffer();
+      await c.env.DRAWINGS.put(r2Key, arrayBuffer, {
+        httpMetadata: { contentType: "application/pdf" },
+      });
+
+      return c.json({
+        success: true,
+        r2Key,
+        size: arrayBuffer.byteLength,
+      });
+    } catch (err) {
+      console.error("[Dev Test Drawing Error]", err);
+      return c.json(
+        { error: err instanceof Error ? err.message : "Failed to upload test drawing" },
+        500,
+      );
+    }
   });
