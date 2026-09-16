@@ -503,6 +503,21 @@ function ProcessView({
                 >
                   Start Part
                 </button>
+                <span className="relative group shrink-0">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onAdvance(row, "done");
+                    }}
+                    className={`text-xs bg-emerald-600 hover:bg-emerald-700 text-paper rounded-lg font-semibold transition-colors ${btnSize}`}
+                  >
+                    Mark as Complete
+                  </button>
+                  <span className="pointer-events-none absolute bottom-full right-0 mb-1.5 hidden group-hover:block whitespace-nowrap bg-ink text-paper text-xs rounded-md px-2.5 py-1.5 shadow-lg">
+                    Do a quality check before marking this complete!
+                  </span>
+                </span>
               </PartLine>
             ))}
           </div>
