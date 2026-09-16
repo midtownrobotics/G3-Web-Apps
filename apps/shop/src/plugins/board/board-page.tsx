@@ -251,6 +251,15 @@ export function BoardPage() {
 
 // ── Overview ──────────────────────────────────────────────────────────────────
 
+function getCookedness(totalQueue: number): string {
+  if (totalQueue < 5) return "Mooing Cow 🐮";
+  if (totalQueue < 10) return "Chopping Block 🔪";
+  if (totalQueue < 20) return "Raw 🥩";
+  if (totalQueue < 25) return "Rare 🍖";
+  if (totalQueue < 35) return "Cooked 🍳";
+  return "Ash 🔥";
+}
+
 function OverviewView({
   rows,
   loads,
@@ -271,6 +280,8 @@ function OverviewView({
   const mood = shopMood(loads);
   const inProgress = rows.filter((r) => r.state === "doing");
   const notStarted = sortPriorityFirst(rows.filter((r) => r.state === "todo"));
+  const totalQueue = rows.length;
+  const cookedness = getCookedness(totalQueue);
 
   const resolveName = useUserNames(presence.map((p) => p.userId));
   // Kiosks are matched to machines by name, same rule as the kiosk auto-open.
@@ -283,7 +294,7 @@ function OverviewView({
     <div className="space-y-6">
       {/* Shop status */}
       <div className={`rounded-xl border px-5 py-4 ${MOOD_TONES[mood.tone]}`}>
-        <p className="font-display text-3xl">{mood.label}</p>
+        <p className="font-display text-3xl">{cookedness}</p>
         <p className="text-sm mt-0.5">{mood.blurb}</p>
       </div>
 
