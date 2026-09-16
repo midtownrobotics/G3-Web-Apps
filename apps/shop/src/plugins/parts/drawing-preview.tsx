@@ -20,9 +20,13 @@ type State =
 export function DrawingPreview({
   partNumber,
   revision,
+  hideOverlay = false,
+  fullHeight = false,
 }: {
   partNumber: string;
   revision: string;
+  hideOverlay?: boolean;
+  fullHeight?: boolean;
 }) {
   const [state, setState] = useState<State>({ kind: "loading" });
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -125,30 +129,38 @@ export function DrawingPreview({
   }, [partNumber, revision]);
 
   if (state.kind === "ready" || state.kind === "rendering") {
+    const containerClass = fullHeight
+      ? "relative flex-1 overflow-hidden flex items-center justify-center"
+      : "relative h-44 rounded-xl border border-steel/30 overflow-hidden flex items-center justify-center";
     return (
-      <div className="relative h-44 rounded-xl border border-steel/30 overflow-hidden flex items-center justify-center">
+      <div className={containerClass}>
         <canvas ref={canvasRef} className="max-w-full max-h-full object-contain" />
         {state.kind === "rendering" && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/20">
             <span className="text-xs text-paper">Rendering…</span>
           </div>
         )}
-        <a
-          href={drawingUrl(partNumber, revision)}
-          target="_blank"
-          rel="noreferrer"
-          className="absolute inset-0 flex items-end justify-end p-2 bg-transparent hover:bg-ink/5 transition-colors"
-        >
-          <span className="text-[11px] font-semibold text-paper bg-ink/70 rounded-md px-2 py-1">
-            Open drawing ↗
-          </span>
-        </a>
+        {!hideOverlay && (
+          <a
+            href={drawingUrl(partNumber, revision)}
+            target="_blank"
+            rel="noreferrer"
+            className="absolute inset-0 flex items-end justify-end p-2 bg-transparent hover:bg-ink/5 transition-colors"
+          >
+            <span className="text-[11px] font-semibold text-paper bg-ink/70 rounded-md px-2 py-1">
+              Open drawing ↗
+            </span>
+          </a>
+        )}
       </div>
     );
   }
 
+  const emptyClass = fullHeight
+    ? "flex-1 border border-dashed border-steel/40 bg-mist flex flex-col items-center justify-center gap-1 text-steel"
+    : "h-44 rounded-xl border border-dashed border-steel/40 bg-mist flex flex-col items-center justify-center gap-1 text-steel";
   return (
-    <div className="h-44 rounded-xl border border-dashed border-steel/40 bg-mist flex flex-col items-center justify-center gap-1 text-steel">
+    <div className={emptyClass}>
       <svg
         width="32"
         height="32"
