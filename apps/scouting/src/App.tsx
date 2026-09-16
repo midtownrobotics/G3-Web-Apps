@@ -1935,6 +1935,7 @@ void RobotLibrary;
 
 export function App() {
   const [page, setPage] = useState<Page>("forms");
+  const [analysisReportId, setAnalysisReportId] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -2075,12 +2076,20 @@ export function App() {
             canManageServiceCrew={user.isAdmin || user.isHelper}
           />
         )}
-        {page === "admin" && user.isAdmin && <ScoutingAdminPage isG3IdAdmin={user.isG3IdAdmin} />}
+        {page === "admin" && user.isAdmin && (
+          <ScoutingAdminPage
+            isG3IdAdmin={user.isG3IdAdmin}
+            onOpenSubmission={(submissionId) => {
+              setAnalysisReportId(submissionId);
+              setPage("analysis");
+            }}
+          />
+        )}
         {page === "other" && <OtherTools go={setPage} />}
         {page === "tiers" && <TierLists />}
         {page === "maps" && <FieldMaps user={user} />}
         {page === "autos" && <AutoLibrary />}
-        {page === "analysis" && user.isAdmin && <Analysis />}
+        {page === "analysis" && user.isAdmin && <Analysis initialReportId={analysisReportId} />}
         {page === "service" && (user.isAdmin || user.isHelper) && <Operations />}
       </main>
     </div>
