@@ -49,8 +49,6 @@ export function PartCard({
   const [addInstanceFeedback, setAddInstanceFeedback] = useState<"success" | "error" | null>(null);
   const [addInstanceError, setAddInstanceError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [editingDrawing, setEditingDrawing] = useState(false);
-  const [drawingDraft, setDrawingDraft] = useState(row.definition.partDrawingUrl ?? "");
   const [showSendBackModal, setShowSendBackModal] = useState(false);
   const [sendBackProcess, setSendBackProcess] = useState<number | null>(null);
   const [sendBackStatus, setSendBackStatus] = useState<"todo" | "doing" | "done">("todo");
@@ -77,23 +75,6 @@ export function PartCard({
       setBanner(null);
       await onChanged();
     }
-    setBusy(false);
-  }
-
-  async function saveDrawing(url: string | null) {
-    setBusy(true);
-    const res = await api["part-definitions"][":id"].$patch({
-      param: { id: String(row.definition.id) },
-      json: { partDrawingUrl: url },
-    });
-    if (!res.ok) {
-      setBanner(await getErrorMessage(res as unknown as Response));
-      setBusy(false);
-      return;
-    }
-    setBanner(null);
-    setEditingDrawing(false);
-    await onChanged();
     setBusy(false);
   }
 
@@ -235,80 +216,6 @@ export function PartCard({
               />
               <Meta label="Subsystem" value={subsystemName} />
               <Meta label="Notes" value={row.definition.notes || "—"} />
-              <dt className="text-steel">Drawing</dt>
-              <dd className="text-ink">
-                {isObsolete ? (
-                  row.definition.partDrawingUrl ? (
-                    <a
-                      href={row.definition.partDrawingUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-crimson hover:text-crimson-dark underline"
-                    >
-                      View drawing ↗
-                    </a>
-                  ) : (
-                    "—"
-                  )
-                ) : editingDrawing ? (
-                  <div className="space-y-2">
-                    <input
-                      type="text"
-                      value={drawingDraft}
-                      onChange={(e) => setDrawingDraft(e.target.value)}
-                      placeholder="https://…"
-                      className="w-full bg-paper border border-steel/40 rounded-lg px-2.5 py-1.5 text-sm text-ink placeholder-steel focus:outline-none focus:border-crimson"
-                    />
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => saveDrawing(drawingDraft.trim() || null)}
-                        className="text-xs px-3 py-1.5 bg-crimson hover:bg-crimson-dark text-paper rounded-lg font-semibold transition-colors disabled:opacity-50"
-                      >
-                        Save
-                      </button>
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => {
-                          setEditingDrawing(false);
-                          setDrawingDraft(row.definition.partDrawingUrl ?? "");
-                        }}
-                        className="text-xs px-3 py-1.5 bg-steel-tint hover:bg-steel/30 text-steel-dark rounded-lg font-medium transition-colors"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : row.definition.partDrawingUrl ? (
-                  <span className="inline-flex items-center gap-3">
-                    <a
-                      href={row.definition.partDrawingUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-crimson hover:text-crimson-dark underline"
-                    >
-                      View drawing ↗
-                    </a>
-                    <button
-                      type="button"
-                      onClick={() => setEditingDrawing(true)}
-                      className="text-xs text-steel hover:text-ink underline"
-                    >
-                      Edit
-                    </button>
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setEditingDrawing(true)}
-                    className="text-crimson hover:text-crimson-dark underline"
-                  >
-                    + Link a drawing
-                  </button>
-                )}
-              </dd>
               <Meta
                 label="Created"
                 value={new Date(row.definition.createdAt).toLocaleDateString()}
