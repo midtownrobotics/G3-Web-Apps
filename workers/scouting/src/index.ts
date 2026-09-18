@@ -39,7 +39,6 @@ type TbaMatch = {
 };
 type TbaTeam = { key: string; team_number: number; nickname: string | null; name: string };
 const app = new Hono<AppEnv>();
-let pitSettingsSyncAt = 0;
 
 app.onError((error, c) => {
   console.error("[scouting]", error);
@@ -156,64 +155,6 @@ async function getTbaAuthKey(c: Context<AppEnv>) {
     "SELECT tba_auth_key FROM strategy_event_config WHERE id = 1",
   ).first<{ tba_auth_key: string | null }>();
   return config?.tba_auth_key || c.env.TBA_AUTH_KEY || "";
-}
-
-type PitSettings = {
-  eventKey: string;
-  nexusEventKey: string;
-  tbaAuthKey: string;
-  nexusApiKey: string;
-};
-
-async function syncPitSettings(c: Context<AppEnv>) {
-  if (!c.get("userIsAdmin")) return null;
-  if (Date.now() - pitSettingsSyncAt < 300_000) return null;
-  const response = await c.env.PIT.fetch(
-    new Request("http://pit/admin/settings", {
-      headers: { cookie: c.req.header("Cookie") ?? "" },
-    }),
-  );
-  if (!response.ok) return null;
-  const settings = (await response.json()) as PitSettings;
-  const current = await c.env.SCOUTING_DB.prepare(
-    "SELECT event_key, tba_auth_key, nexus_event_key, nexus_api_key FROM strategy_event_config WHERE id = 1",
-  ).first<{
-    event_key: string;
-    tba_auth_key: string | null;
-    nexus_event_key: string | null;
-    nexus_api_key: string | null;
-  }>();
-  const eventKey = current?.event_key || settings.eventKey;
-  const changed =
-    !current ||
-    current.event_key !== eventKey ||
-    current.tba_auth_key !== settings.tbaAuthKey ||
-    current.nexus_event_key !== settings.nexusEventKey ||
-    current.nexus_api_key !== settings.nexusApiKey;
-  if (changed)
-    await c.env.SCOUTING_DB.prepare(
-      `INSERT INTO strategy_event_config
-       (id, event_key, current_match_number, tba_auth_key, nexus_event_key, nexus_api_key, updated_by, updated_at)
-     VALUES (1, ?, NULL, ?, ?, ?, ?, ?)
-     ON CONFLICT(id) DO UPDATE SET
-       event_key = CASE WHEN strategy_event_config.event_key = '' THEN excluded.event_key ELSE strategy_event_config.event_key END,
-       tba_auth_key = excluded.tba_auth_key,
-       nexus_event_key = excluded.nexus_event_key,
-       nexus_api_key = excluded.nexus_api_key,
-       updated_by = excluded.updated_by,
-       updated_at = excluded.updated_at`,
-    )
-      .bind(
-        eventKey,
-        settings.tbaAuthKey,
-        settings.nexusEventKey,
-        settings.nexusApiKey,
-        c.get("userId"),
-        Date.now(),
-      )
-      .run();
-  pitSettingsSyncAt = Date.now();
-  return settings;
 }
 
 async function getTbaMatches(c: Context<AppEnv>, eventKey: string) {
@@ -335,7 +276,6 @@ async function resolveEventLink(c: Context<AppEnv>) {
 app.get("/event-context", requireAuth, async (c) => {
   const admin = await isStrategyAdmin(c);
   const now = Date.now();
-  if (admin) await syncPitSettings(c).catch(() => null);
   const config = await c.env.SCOUTING_DB.prepare(
     "SELECT event_key, current_match_number, tba_auth_key, nexus_event_key, nexus_api_key FROM strategy_event_config WHERE id = 1",
   ).first<{
@@ -369,6 +309,13 @@ app.get("/event-context", requireAuth, async (c) => {
         match.alliances.blue.score < 0,
     ) ??
     matches.at(-1);
+  const tbaCurrent =
+    matches.find(
+      (match) =>
+        match.actual_time === null &&
+        match.alliances.red.score < 0 &&
+        match.alliances.blue.score < 0,
+    ) ?? matches.at(-1);
   const teamSchedule = matches.filter((match) =>
     [...match.alliances.red.team_keys, ...match.alliances.blue.team_keys].includes("frc1648"),
   );
@@ -382,19 +329,66 @@ app.get("/event-context", requireAuth, async (c) => {
         .bind(now - 90_000)
         .all<Record<string, unknown>>()
     : null;
+  const currentMatchNumber = current?.match_number ?? config?.current_match_number ?? null;
+  const eventMatchSubmissions = eventKey
+    ? await c.env.SCOUTING_DB.prepare(
+        `SELECT s.id, s.submitted_by, s.submitted_by_name, s.team_name, s.created_at,
+                  s.match_number, s.match_key
+           FROM scouting_form_submissions s
+           JOIN scouting_forms f ON f.id = s.form_id
+           WHERE f.form_kind = 'scouting' AND s.event_key = ?
+             AND s.archived_at IS NULL
+           ORDER BY s.match_number, s.created_at`,
+      )
+        .bind(eventKey)
+        .all<Record<string, unknown>>()
+    : null;
+  const currentMatchSubmissions = (eventMatchSubmissions?.results ?? []).filter(
+    (row) => Number(row.match_number) === currentMatchNumber,
+  );
+  const submittedUserIds = new Set(currentMatchSubmissions.map((row) => String(row.submitted_by)));
+  const submittedTeams = new Set(currentMatchSubmissions.map((row) => String(row.team_name)));
+  const onlineScouts = current
+    ? await c.env.SCOUTING_DB.prepare(
+        `SELECT user_id, display_name, last_seen_at
+         FROM strategy_presence
+         WHERE current_page = 'forms' AND last_seen_at >= ?
+         ORDER BY user_id`,
+      )
+        .bind(now - 75_000)
+        .all<Record<string, unknown>>()
+    : null;
+  const activeScoutIds = (onlineScouts?.results ?? [])
+    .map((row) => String(row.user_id))
+    .filter((userId) => !submittedUserIds.has(userId));
+  if (!submittedUserIds.has(c.get("userId")) && !activeScoutIds.includes(c.get("userId"))) {
+    activeScoutIds.push(c.get("userId"));
+    activeScoutIds.sort();
+  }
+  const availableTeams = current
+    ? publicMatch(current).teams.filter((team) => !submittedTeams.has(team))
+    : [];
+  const assignmentIndex = activeScoutIds.indexOf(c.get("userId"));
+  const assignedTeam = assignmentIndex >= 0 ? (availableTeams[assignmentIndex] ?? null) : null;
   return c.json({
     eventKey: admin ? eventKey : "",
-    currentMatchNumber: admin ? (config?.current_match_number ?? null) : null,
+    currentMatchNumber: admin ? currentMatchNumber : null,
     currentMatch: current ? publicMatch(current) : null,
+    tbaCurrentMatch: tbaCurrent ? publicMatch(tbaCurrent) : null,
+    assignedTeam,
+    hasSubmittedCurrentMatch: submittedUserIds.has(c.get("userId")),
+    onlineScoutCount: activeScoutIds.length,
+    matchSubmissions: admin ? (eventMatchSubmissions?.results ?? []) : [],
     nextTeamMatch: nextTeamMatch ? publicMatch(nextTeamMatch) : null,
     teamSchedule: admin ? teamSchedule.map(publicMatch) : [],
+    eventSchedule: admin ? matches.map(publicMatch) : [],
     onlineAdmins: onlineAdmins?.results ?? [],
     scheduleError: admin ? scheduleError : "",
     hasTbaAuthKey: admin ? Boolean(config?.tba_auth_key || c.env.TBA_AUTH_KEY) : false,
-    tbaAuthKey: "",
+    tbaAuthKey: c.get("userIsAdmin") ? config?.tba_auth_key || c.env.TBA_AUTH_KEY || "" : "",
     nexusEventKey: admin ? config?.nexus_event_key || eventKey : "",
-    hasNexusApiKey: admin ? Boolean(config?.nexus_api_key) : false,
-    nexusApiKey: "",
+    hasNexusApiKey: admin ? Boolean(config?.nexus_api_key || c.env.NEXUS_API_KEY) : false,
+    nexusApiKey: c.get("userIsAdmin") ? config?.nexus_api_key || c.env.NEXUS_API_KEY || "" : "",
   });
 });
 
@@ -640,16 +634,33 @@ app.delete("/scouting-forms/:id", requireAuth, async (c) => {
 
 app.post("/scouting-forms/:id/submissions", requireAuth, async (c) => {
   const formDefinition = await c.env.SCOUTING_DB.prepare(
-    "SELECT fields_json FROM scouting_forms WHERE id = ?",
+    "SELECT fields_json, form_kind FROM scouting_forms WHERE id = ? AND is_active = 1",
   )
     .bind(c.req.param("id"))
-    .first<{ fields_json: string }>();
+    .first<{ fields_json: string; form_kind: string }>();
   if (!formDefinition) return c.json({ error: "Scouting form not found or inactive." }, 404);
   const form = await c.req.formData();
   const teamName = teamNumber(form.get("teamName"));
   if (!teamName) return c.json({ error: "A valid team number is required." }, 400);
   const answers = parseJson<Record<string, unknown>>(form.get("answers"), {});
   const fields = parseJson<ScoutingField[]>(formDefinition.fields_json, []);
+  const eventLink = await resolveEventLink(c);
+  if (formDefinition.form_kind === "scouting") {
+    if (!eventLink.eventKey || !eventLink.matchNumber)
+      return c.json({ error: "No current match is configured." }, 409);
+    const existing = await c.env.SCOUTING_DB.prepare(
+      `SELECT s.id
+       FROM scouting_form_submissions s
+       JOIN scouting_forms f ON f.id = s.form_id
+       WHERE f.form_kind = 'scouting' AND s.submitted_by = ?
+         AND s.event_key = ? AND s.match_number = ?
+       LIMIT 1`,
+    )
+      .bind(c.get("userId"), eventLink.eventKey, eventLink.matchNumber)
+      .first();
+    if (existing)
+      return c.json({ error: "You already submitted a scouting form for this match." }, 409);
+  }
   const cleanAnswers: Record<string, string | number | boolean | string[]> = {};
   for (const field of fields) {
     const value = answers[field.id];
@@ -700,7 +711,6 @@ app.post("/scouting-forms/:id/submissions", requireAuth, async (c) => {
     drawingFields[field.id] = { key, contentType: fieldDrawing.type };
   }
   const submittedAt = Date.now();
-  const eventLink = await resolveEventLink(c);
   await c.env.SCOUTING_DB.prepare(
     "INSERT INTO scouting_form_submissions (id, form_id, fields_json, answers_json, drawing_r2_key, drawing_content_type, submitted_by, submitted_by_name, created_at, team_name, drawing_fields_json, event_key, match_key, match_number) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
   )

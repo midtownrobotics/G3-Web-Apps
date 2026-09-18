@@ -7,6 +7,7 @@ import {
   Maximize2,
   Megaphone,
   Minimize2,
+  Minus,
   Pencil,
   Plus,
   Save,
@@ -40,7 +41,6 @@ export type FieldType =
 export type ScoutingField = {
   id: string;
   label: string;
-  caption?: string;
   type: FieldType;
   required: boolean;
   options: string[];
@@ -200,10 +200,12 @@ function FieldInput({
 
 function EntryForm({
   form,
-  currentMatch,
+  context,
+  refreshContext,
 }: {
   form: ScoutingForm;
-  currentMatch: EventMatch | null;
+  context: EventContext | null;
+  refreshContext: () => Promise<void>;
 }) {
   const [teamName, setTeamName] = useState("");
   const [answers, setAnswers] = useState<Record<string, unknown>>({});
@@ -211,6 +213,14 @@ function EntryForm({
   const [messageType, setMessageType] = useState<"success" | "error">("success");
   const [saving, setSaving] = useState(false);
   const canvases = useRef<Record<string, HTMLCanvasElement | null>>({});
+  const currentMatch = context?.currentMatch ?? null;
+  // The match key intentionally resets a manually edited team even when the new assignment is identical.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: match transitions must refill the assigned team.
+  useEffect(() => {
+    if (form.kind === "scouting" && context?.assignedTeam) {
+      setTeamName(context.assignedTeam);
+    }
+  }, [context?.assignedTeam, context?.currentMatch?.key, form.kind]);
   async function submit(event: SyntheticEvent) {
     event.preventDefault();
     setSaving(true);
@@ -229,10 +239,10 @@ function EntryForm({
         }
       }
       await api(`/scouting-forms/${form.id}/submissions`, { method: "POST", body: payload });
-      setTeamName("");
       setAnswers({});
       setMessageType("success");
       setMessage("Report submitted.");
+      await refreshContext();
     } catch (error) {
       setMessageType("error");
       setMessage(error instanceof Error ? error.message : "Could not submit report.");
@@ -267,7 +277,7 @@ function EntryForm({
         <span>
           Team number <b>*</b>
         </span>
-        <TeamLookupInput value={teamName} onChange={setTeamName} />
+        <TeamLookupInput value={teamName} onChange={setTeamName} inputMode="numeric" />
       </label>
       <div className="scouting-questions">
         {form.fields.map((field) => {
@@ -291,7 +301,6 @@ function EntryForm({
                 {field.label}
                 {field.required && <b> *</b>}
               </label>
-              {field.caption && <p className="question-caption">{field.caption}</p>}
               <FieldInput
                 field={field}
                 value={answers[field.id]}
@@ -302,8 +311,23 @@ function EntryForm({
           );
         })}
       </div>
-      <button type="submit" className="primary-button" disabled={saving}>
-        <Check size={17} /> {saving ? "Submitting…" : "Submit report"}
+      <button
+        type="submit"
+        className="primary-button"
+        disabled={
+          saving ||
+          (form.kind === "scouting" &&
+            (context?.hasSubmittedCurrentMatch || !context?.assignedTeam))
+        }
+      >
+        <Check size={17} />{" "}
+        {saving
+          ? "Submitting…"
+          : form.kind === "scouting" && context?.hasSubmittedCurrentMatch
+            ? "Already submitted"
+            : form.kind === "scouting" && !context?.assignedTeam
+              ? "Waiting for team"
+              : "Submit report"}
       </button>
       {message && (
         <div className={`status-toast ${messageType}`} role="status" aria-live="polite">
@@ -425,12 +449,6 @@ function Editor({
               onChange={(event) => patch(field.id, { label: event.target.value })}
               placeholder="Question"
             />
-            <input
-              className="question-caption-input"
-              value={field.caption ?? ""}
-              onChange={(event) => patch(field.id, { caption: event.target.value })}
-              placeholder="Optional caption"
-            />
             <select
               value={field.type}
               onChange={(event) => patch(field.id, { type: event.target.value as FieldType })}
@@ -511,7 +529,6 @@ function Editor({
               {
                 id: crypto.randomUUID(),
                 label: "New question",
-                caption: "",
                 type: "shortText",
                 required: false,
                 options: [],
@@ -782,8 +799,22 @@ type EventContext = {
   eventKey: string;
   currentMatchNumber: number | null;
   currentMatch: EventMatch | null;
+  tbaCurrentMatch: EventMatch | null;
+  assignedTeam: string | null;
+  hasSubmittedCurrentMatch: boolean;
+  onlineScoutCount: number;
+  matchSubmissions: {
+    id: string;
+    submitted_by: string;
+    submitted_by_name: string;
+    team_name: string;
+    created_at: number;
+    match_number: number;
+    match_key: string | null;
+  }[];
   nextTeamMatch: EventMatch | null;
   teamSchedule: EventMatch[];
+  eventSchedule: EventMatch[];
   onlineAdmins: { user_id: string; display_name: string; last_seen_at: number }[];
   scheduleError: string;
   hasTbaAuthKey: boolean;
@@ -793,22 +824,35 @@ type EventContext = {
   nexusApiKey: string;
 };
 
-function EventStatus({ isAdmin, isG3IdAdmin }: { isAdmin: boolean; isG3IdAdmin: boolean }) {
+function EventStatus({
+  isAdmin,
+  isG3IdAdmin,
+  onOpenSubmission,
+}: {
+  isAdmin: boolean;
+  isG3IdAdmin: boolean;
+  onOpenSubmission: (submissionId: string) => void;
+}) {
   const [context, setContext] = useState<EventContext | null>(null);
   const [eventKey, setEventKey] = useState("");
   const [matchNumber, setMatchNumber] = useState("");
   const [tbaAuthKey, setTbaAuthKey] = useState("");
   const [nexusEventKey, setNexusEventKey] = useState("");
   const [nexusApiKey, setNexusApiKey] = useState("");
+  const [showTbaAuthKey, setShowTbaAuthKey] = useState(false);
+  const [showNexusApiKey, setShowNexusApiKey] = useState(false);
   const [saving, setSaving] = useState(false);
   const editingRef = useRef(false);
+  const tbaAuthKeyRef = useRef<HTMLInputElement>(null);
   const load = useCallback(async () => {
     const result = await api<EventContext>("/event-context");
     setContext(result);
     if (!editingRef.current) {
       setEventKey(result.eventKey);
       setMatchNumber(result.currentMatchNumber?.toString() ?? "");
+      setTbaAuthKey((current) => result.tbaAuthKey || tbaAuthKeyRef.current?.value || current);
       setNexusEventKey(result.nexusEventKey || result.eventKey);
+      setNexusApiKey(result.nexusApiKey);
     }
   }, []);
   useEffect(() => {
@@ -816,14 +860,36 @@ function EventStatus({ isAdmin, isG3IdAdmin }: { isAdmin: boolean; isG3IdAdmin: 
     const interval = window.setInterval(() => load().catch(() => undefined), 30_000);
     return () => window.clearInterval(interval);
   }, [load]);
+  async function updateEvent(currentMatchNumber: string) {
+    const filledTbaAuthKey = tbaAuthKeyRef.current?.value || tbaAuthKey;
+    setTbaAuthKey(filledTbaAuthKey);
+    setSaving(true);
+    await api("/event-context", {
+      method: "PUT",
+      body: JSON.stringify({
+        eventKey,
+        currentMatchNumber,
+        tbaAuthKey: filledTbaAuthKey,
+        nexusEventKey,
+        nexusApiKey,
+      }),
+    }).finally(() => setSaving(false));
+    editingRef.current = false;
+    await load();
+  }
   const next = context?.nextTeamMatch;
+  const currentMatchSubmissions =
+    context?.matchSubmissions.filter((submission) =>
+      submission.match_key && context.currentMatch?.key
+        ? submission.match_key === context.currentMatch.key
+        : submission.match_number === context.currentMatch?.matchNumber,
+    ) ?? [];
   return (
     <div className="event-context">
       {isAdmin && (
         <section className="event-admin-panel">
           <header>
-            <h2>Event &amp; TBA Configuration</h2>
-            <p>Team 1648 match timing and schedule data for the active event.</p>
+            <h2>Event Configuration</h2>
           </header>
           <form
             onFocus={() => {
@@ -832,31 +898,47 @@ function EventStatus({ isAdmin, isG3IdAdmin }: { isAdmin: boolean; isG3IdAdmin: 
             onSubmit={async (event) => {
               event.preventDefault();
               if (!window.confirm("Update the active TBA event and current match?")) return;
-              setSaving(true);
-              await api("/event-context", {
-                method: "PUT",
-                body: JSON.stringify({
-                  eventKey,
-                  currentMatchNumber: matchNumber,
-                  tbaAuthKey,
-                  nexusEventKey,
-                  nexusApiKey,
-                }),
-              }).finally(() => setSaving(false));
-              editingRef.current = false;
-              await load();
+              await updateEvent(matchNumber);
             }}
           >
             <label>
               <strong>Change Match #</strong>
-              <input
-                type="number"
-                min="1"
-                value={matchNumber}
-                onChange={(event) => setMatchNumber(event.target.value)}
-                placeholder="Use TBA current match"
-              />
-              <span>Leave blank to use the current match reported by TBA.</span>
+              <div className="match-counter">
+                <button
+                  type="button"
+                  onClick={() => setMatchNumber(String(Math.max(1, Number(matchNumber || 1) - 1)))}
+                  aria-label="Previous match"
+                >
+                  <Minus size={18} />
+                </button>
+                <input
+                  type="number"
+                  min="1"
+                  value={matchNumber}
+                  onChange={(event) => setMatchNumber(event.target.value)}
+                  placeholder="Match"
+                />
+                <button
+                  type="button"
+                  onClick={() => setMatchNumber(String(Math.max(1, Number(matchNumber || 0) + 1)))}
+                  aria-label="Next match"
+                >
+                  <Plus size={18} />
+                </button>
+              </div>
+              <button
+                type="button"
+                className="secondary-button use-tba-match"
+                disabled={saving || !context?.tbaCurrentMatch}
+                onClick={async () => {
+                  const nextMatch = context?.tbaCurrentMatch?.matchNumber;
+                  if (!nextMatch) return;
+                  setMatchNumber(String(nextMatch));
+                  await updateEvent(String(nextMatch));
+                }}
+              >
+                Set to current TBA match
+              </button>
             </label>
             <label>
               <strong>TBA Event Key</strong>
@@ -865,32 +947,60 @@ function EventStatus({ isAdmin, isG3IdAdmin }: { isAdmin: boolean; isG3IdAdmin: 
                 onChange={(event) => setEventKey(event.target.value)}
                 placeholder="e.g. 2026gacmp"
               />
-              <span>The competition attached to each submitted scouting form.</span>
             </label>
             {isG3IdAdmin && (
               <label>
                 <strong>TBA Auth Key</strong>
+                <div className="secret-field">
+                  <input
+                    id="tba-key"
+                    ref={tbaAuthKeyRef}
+                    type={showTbaAuthKey ? "text" : "password"}
+                    value={tbaAuthKey}
+                    onChange={(event) => setTbaAuthKey(event.target.value)}
+                    placeholder={context?.hasTbaAuthKey ? "Configured" : "Required"}
+                  />
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => setShowTbaAuthKey((shown) => !shown)}
+                    aria-label={showTbaAuthKey ? "Hide TBA auth key" : "Show TBA auth key"}
+                  >
+                    {showTbaAuthKey ? "Hide" : "Show"}
+                  </button>
+                </div>
+              </label>
+            )}
+            {isG3IdAdmin && (
+              <label>
+                <strong>Nexus Event Key</strong>
                 <input
-                  type="password"
-                  value={tbaAuthKey}
-                  onChange={(event) => setTbaAuthKey(event.target.value)}
-                  placeholder={context?.hasTbaAuthKey ? "Configured" : "Required"}
-                  autoComplete="off"
+                  value={nexusEventKey}
+                  onChange={(event) => setNexusEventKey(event.target.value)}
+                  placeholder="e.g. 2026gacmp"
                 />
-                <span>Synced from Pit. Updating it here keeps the Scouting copy current.</span>
               </label>
             )}
             {isG3IdAdmin && (
               <label>
                 <strong>Nexus API Key</strong>
-                <input
-                  type="password"
-                  value={nexusApiKey}
-                  onChange={(event) => setNexusApiKey(event.target.value)}
-                  placeholder={context?.hasNexusApiKey ? "Configured" : "Optional"}
-                  autoComplete="off"
-                />
-                <span>Nexus event: {nexusEventKey || eventKey || "Not configured"}</span>
+                <div className="secret-field">
+                  <input
+                    id="nexus-key"
+                    type={showNexusApiKey ? "text" : "password"}
+                    value={nexusApiKey}
+                    onChange={(event) => setNexusApiKey(event.target.value)}
+                    placeholder={context?.hasNexusApiKey ? "Configured" : "Optional"}
+                  />
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => setShowNexusApiKey((shown) => !shown)}
+                    aria-label={showNexusApiKey ? "Hide Nexus API key" : "Show Nexus API key"}
+                  >
+                    {showNexusApiKey ? "Hide" : "Show"}
+                  </button>
+                </div>
               </label>
             )}
             <button className="primary-button" type="submit" disabled={saving}>
@@ -898,6 +1008,30 @@ function EventStatus({ isAdmin, isG3IdAdmin }: { isAdmin: boolean; isG3IdAdmin: 
             </button>
           </form>
           {context?.currentMatch && <p>Current: {context.currentMatch.label}</p>}
+          <section className="match-submission-status">
+            <h3>
+              {context?.currentMatch
+                ? `${context.currentMatch.label} submissions`
+                : "Current match submissions"}
+            </h3>
+            <div className="match-submission-scroll">
+              {currentMatchSubmissions.length ? (
+                currentMatchSubmissions.map((submission) => (
+                  <button
+                    type="button"
+                    className="submission-chip"
+                    key={submission.id}
+                    onClick={() => onOpenSubmission(submission.id)}
+                  >
+                    <strong>{submission.submitted_by_name}</strong>
+                    <span>Team {submission.team_name}</span>
+                  </button>
+                ))
+              ) : (
+                <span>No submissions yet</span>
+              )}
+            </div>
+          </section>
           {context?.scheduleError && <p className="event-error">{context.scheduleError}</p>}
           <div className="online-admins">
             <strong>
@@ -944,7 +1078,7 @@ export function ScoutingForms({
   const [selected, setSelected] = useState<ScoutingForm | null>(null);
   const [editing, setEditing] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [currentMatch, setCurrentMatch] = useState<EventMatch | null>(null);
+  const [context, setContext] = useState<EventContext | null>(null);
   const load = useCallback(async () => {
     const result = await api<{ forms: ScoutingForm[] }>("/scouting-forms");
     setForms(result.forms);
@@ -958,12 +1092,12 @@ export function ScoutingForms({
   useEffect(() => {
     const loadMatch = () =>
       api<EventContext>("/event-context")
-        .then((result) => setCurrentMatch(result.currentMatch))
+        .then(setContext)
         .catch(() => undefined);
     loadMatch();
     const interval = window.setInterval(() => {
       if (document.visibilityState === "visible") loadMatch();
-    }, 30_000);
+    }, 5_000);
     return () => window.clearInterval(interval);
   }, []);
   useEffect(() => {
@@ -983,8 +1117,9 @@ export function ScoutingForms({
       className={`page scouting-forms-page ${isFullscreen ? "scouting-forms-fullscreen" : ""}`}
     >
       <div className="page-heading">
-        <div>
+        <div className="scouting-heading-title">
           <h1>Scouting Forms</h1>
+          <span>Next G3 match: {context?.nextTeamMatch?.label ?? "Unavailable"}</span>
         </div>
         <button
           type="button"
@@ -1042,7 +1177,14 @@ export function ScoutingForms({
             }}
           />
         ) : (
-          <EntryForm key={selected.id} form={selected} currentMatch={currentMatch} />
+          <EntryForm
+            key={selected.id}
+            form={selected}
+            context={context}
+            refreshContext={async () => {
+              setContext(await api<EventContext>("/event-context"));
+            }}
+          />
         ))}
       {selected?.kind === "pit" &&
         (canManageServiceCrew ? <Operations embedded /> : <ServiceIssueReport />)}
@@ -1050,7 +1192,13 @@ export function ScoutingForms({
   );
 }
 
-export function ScoutingAdminPage({ isG3IdAdmin }: { isG3IdAdmin: boolean }) {
+export function ScoutingAdminPage({
+  isG3IdAdmin,
+  onOpenSubmission,
+}: {
+  isG3IdAdmin: boolean;
+  onOpenSubmission: (submissionId: string) => void;
+}) {
   return (
     <section className="page scouting-admin-page">
       <div className="page-heading">
@@ -1058,7 +1206,7 @@ export function ScoutingAdminPage({ isG3IdAdmin }: { isG3IdAdmin: boolean }) {
           <h1>Admin</h1>
         </div>
       </div>
-      <EventStatus isAdmin isG3IdAdmin={isG3IdAdmin} />
+      <EventStatus isAdmin isG3IdAdmin={isG3IdAdmin} onOpenSubmission={onOpenSubmission} />
       <AdminManager isG3IdAdmin={isG3IdAdmin} />
       <LiveStrategy />
       <AnnouncementManager />
