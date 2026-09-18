@@ -97,16 +97,16 @@ export const partInstancesRouter = new Hono<AppEnv>()
 
     // Copy the part definition's process blueprint onto each new instance.
     // The first process is ready to start (todo); the rest are blocked (waiting).
-    const blueprints = await db
-      .select()
-      .from(partDefinitionProcessBlueprints)
-      .where(eq(partDefinitionProcessBlueprints.partDefinitionId, partDefinitionId))
-      .orderBy(asc(partDefinitionProcessBlueprints.index))
-      .all();
+    try {
+      const blueprints = await db
+        .select()
+        .from(partDefinitionProcessBlueprints)
+        .where(eq(partDefinitionProcessBlueprints.partDefinitionId, partDefinitionId))
+        .orderBy(asc(partDefinitionProcessBlueprints.index))
+        .all();
 
-    if (blueprints.length > 0) {
-      await db.insert(partInstanceProcesses).values(
-        rows.flatMap((instance) =>
+      if (blueprints.length > 0) {
+        const processRecords = rows.flatMap((instance) =>
           blueprints.map((bp, i) => ({
             partInstanceId: instance.id,
             processId: bp.processId,
@@ -114,7 +114,24 @@ export const partInstancesRouter = new Hono<AppEnv>()
             status: (i === 0 ? "todo" : "waiting") as "todo" | "waiting",
             createdAt: now,
           })),
-        ),
+        );
+
+        // Insert in batches to avoid hitting database size limits
+        const batchSize = 100;
+        for (let i = 0; i < processRecords.length; i += batchSize) {
+          const batch = processRecords.slice(i, i + batchSize);
+          await db.insert(partInstanceProcesses).values(batch);
+        }
+      }
+    } catch (err) {
+      console.error("[Part Instances] Failed to assign processes to instances:", err);
+      return c.json(
+        {
+          error:
+            "Failed to assign processes to instances. Instances were created but have no processes.",
+          details: err instanceof Error ? err.message : "Unknown error",
+        },
+        500,
       );
     }
 
