@@ -683,7 +683,7 @@ export function PitMonitorPage() {
                     src={iframeUrl}
                     title="Custom monitor feed"
                     className="w-full"
-                    style={{ height: "300px" }}
+                    style={{ height: "500px" }}
                     frameBorder="0"
                     allowFullScreen
                   />
