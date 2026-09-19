@@ -1635,10 +1635,85 @@ textarea:focus {
   border-radius: 11px;
   background: var(--surface, white);
 }
+.auto-path-image-link {
+  display: block;
+  overflow: hidden;
+  width: 100%;
+  aspect-ratio: 17.541 / 9.0692;
+  padding: 0;
+  border: 0;
+  background: #17191d;
+  cursor: zoom-in;
+}
 .auto-path-grid img {
   display: block;
   width: 100%;
-  background: white;
+  height: 100%;
+  object-fit: contain;
+  filter: contrast(1.08) saturate(1.18);
+  transition: transform 160ms ease;
+}
+.auto-path-image-link:hover img,
+.auto-path-image-link:focus-visible img {
+  transform: scale(1.015);
+}
+.auto-path-image-link:focus-visible {
+  outline: 3px solid rgba(167, 20, 51, 0.45);
+  outline-offset: -3px;
+}
+body.analysis-path-open {
+  overflow: hidden;
+}
+.auto-path-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.82);
+  place-items: center;
+}
+.auto-path-dialog {
+  overflow: hidden;
+  width: min(1280px, 100%);
+  max-height: calc(100dvh - 48px);
+  border: 1px solid var(--border, #444);
+  border-radius: 10px;
+  background: #17191d;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
+}
+.auto-path-dialog header {
+  display: flex;
+  min-height: 58px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 12px 10px 18px;
+  color: white;
+  background: #111419;
+}
+.auto-path-dialog h2 {
+  margin: 0;
+  font-size: 16px;
+}
+.auto-path-dialog header button {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  color: white;
+  background: #292e36;
+  place-items: center;
+}
+.auto-path-dialog > img {
+  display: block;
+  width: 100%;
+  max-height: calc(100dvh - 130px);
+  object-fit: contain;
+  background: #17191d;
 }
 .auto-path-grid article div {
   display: grid;
@@ -1653,6 +1728,15 @@ textarea:focus {
 }
 
 @media (max-width: 760px) {
+  .auto-path-dialog-backdrop {
+    padding: 10px;
+  }
+  .auto-path-dialog {
+    max-height: calc(100dvh - 20px);
+  }
+  .auto-path-dialog > img {
+    max-height: calc(100dvh - 98px);
+  }
   .scouting-heading-title {
     align-items: flex-start;
     flex-direction: column;
@@ -6429,8 +6513,7 @@ html[data-theme="dark"] .counter-intervals button.active {
   background: #a71433;
 }
 
-html[data-theme="dark"] .scouting-drawing canvas,
-html[data-theme="dark"] .auto-path-grid img {
+html[data-theme="dark"] .scouting-drawing canvas {
   background: #f8f8f8;
 }
 

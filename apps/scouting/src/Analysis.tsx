@@ -56,6 +56,11 @@ export function Analysis({ initialReportId }: { initialReportId?: string | null 
   const [loadError, setLoadError] = useState("");
   const [reportSort, setReportSort] = useState<"match" | "newest" | "starred">("match");
   const [tab, setTab] = useState<"stats" | "matches" | "auto" | "compare">("stats");
+  const [selectedPath, setSelectedPath] = useState<{
+    url: string;
+    teamName: string;
+    label: string;
+  } | null>(null);
 
   async function loadData(teamFilter = team, teamBFilter = teamB) {
     setLoading(true);
@@ -113,6 +118,18 @@ export function Analysis({ initialReportId }: { initialReportId?: string | null 
       });
     }, 0);
   }, [initialReportId, loaded]);
+  useEffect(() => {
+    if (!selectedPath) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSelectedPath(null);
+    };
+    document.body.classList.add("analysis-path-open");
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.classList.remove("analysis-path-open");
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [selectedPath]);
 
   async function permanentlyDeleteReport(report: Report) {
     if (
@@ -548,7 +565,21 @@ export function Analysis({ initialReportId }: { initialReportId?: string | null 
           <div className="auto-path-grid">
             {autoFields.map(({ report, field, url }) => (
               <article key={`${report.id}-${field.id}`}>
-                <img src={`${API_URL}${url}`} alt={`${report.teamName} ${field.label}`} />
+                <button
+                  type="button"
+                  className="auto-path-image-link"
+                  aria-label={`Open full-size path for team ${report.teamName}`}
+                  title="Open full-size drawing"
+                  onClick={() =>
+                    setSelectedPath({
+                      url: `${API_URL}${url}`,
+                      teamName: report.teamName,
+                      label: field.label,
+                    })
+                  }
+                >
+                  <img src={`${API_URL}${url}`} alt={`${report.teamName} ${field.label}`} />
+                </button>
                 <div>
                   <MapIcon size={16} />
                   <strong>
@@ -621,6 +652,39 @@ export function Analysis({ initialReportId }: { initialReportId?: string | null 
           {searched && !comparisonLabels.length && (
             <div className="forms-empty">No comparable slider or counter data was found.</div>
           )}
+        </div>
+      )}
+      {selectedPath && (
+        <div
+          className="auto-path-dialog-backdrop"
+          role="presentation"
+          onClick={() => setSelectedPath(null)}
+        >
+          <div
+            className="auto-path-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="auto-path-dialog-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header>
+              <h2 id="auto-path-dialog-title">
+                Team {selectedPath.teamName} · {selectedPath.label}
+              </h2>
+              <button
+                type="button"
+                aria-label="Close path viewer"
+                title="Close"
+                onClick={() => setSelectedPath(null)}
+              >
+                <X size={22} />
+              </button>
+            </header>
+            <img
+              src={selectedPath.url}
+              alt={`Team ${selectedPath.teamName} ${selectedPath.label}`}
+            />
+          </div>
         </div>
       )}
     </section>
