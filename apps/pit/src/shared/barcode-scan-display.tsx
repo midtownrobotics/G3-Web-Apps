@@ -29,6 +29,14 @@ export function BarcodeScanDisplay() {
     }
   }, []);
 
+  // Auto-close feedback after 6 seconds
+  useEffect(() => {
+    if (feedback) {
+      const timeout = setTimeout(() => setFeedback(null), 6000);
+      return () => clearTimeout(timeout);
+    }
+  }, [feedback]);
+
   const getBatteryName = (id: number): string => {
     const battery = batteries.find((b) => b.id === id);
     return battery?.name || `BAT-${String(id).padStart(4, "0")}`;
@@ -62,7 +70,18 @@ export function BarcodeScanDisplay() {
         console.log("[BarcodeScan] ✓ Battery updated successfully");
         const batteryName = getBatteryName(batteryId);
         setFeedback({ type: "success", message: `${batteryName} → ${state}` });
-        setTimeout(() => setFeedback(null), 2000);
+
+        // If setting to "In Robot", set any other "In Robot" battery to "Idle"
+        if (state === "In Robot") {
+          const inRobotBattery = batteries.find((b) => b.state === "In Robot" && b.id !== batteryId);
+          if (inRobotBattery) {
+            console.log(`[BarcodeScan] Setting previous In Robot battery ${inRobotBattery.id} to Idle`);
+            await api.batteries[":id"].state.$patch({
+              param: { id: String(inRobotBattery.id) },
+              json: { state: "Idle" },
+            });
+          }
+        }
       }
     } catch (err) {
       console.error("[BarcodeScan] Exception:", err);
@@ -83,87 +102,89 @@ export function BarcodeScanDisplay() {
     return STATE_CODE_MAP[code] || code;
   };
 
-  // Show feedback bar after scan completes
+  // Show feedback modal after scan completes
   if (feedback && !scan.scanInProgress) {
     return (
-      <div
-        className={`border-b px-4 py-3 ${
-          feedback.type === "success"
-            ? "bg-green-100 border-green-300"
-            : "bg-red-100 border-red-300"
-        }`}
-      >
-        <div className="max-w-2xl mx-auto flex items-center gap-3">
-          <div
-            className={`text-xl ${feedback.type === "success" ? "text-green-600" : "text-red-600"}`}
-          >
-            {feedback.type === "success" ? "✓" : "✗"}
+      <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-50">
+        <div
+          className={`rounded-2xl shadow-2xl px-8 py-6 pointer-events-auto ${
+            feedback.type === "success"
+              ? "bg-green-100 border-2 border-green-300"
+              : "bg-red-100 border-2 border-red-300"
+          }`}
+        >
+          <div className="flex items-center gap-4">
+            <div
+              className={`text-4xl ${
+                feedback.type === "success" ? "text-green-600" : "text-red-600"
+              }`}
+            >
+              {feedback.type === "success" ? "✓" : "✗"}
+            </div>
+            <p
+              className={`text-lg font-bold ${
+                feedback.type === "success" ? "text-green-700" : "text-red-700"
+              }`}
+            >
+              {feedback.message}
+            </p>
           </div>
-          <p
-            className={`text-sm font-semibold ${
-              feedback.type === "success" ? "text-green-700" : "text-red-700"
-            }`}
-          >
-            {feedback.message}
-          </p>
         </div>
       </div>
     );
   }
 
-  // Show scanning bar
+  // Show scanning modal
   const stateScanned = !!scan.stateCode;
   const batteryScanned = !!scan.batteryCode;
   const waitingForState = batteryScanned && !stateScanned;
   const waitingForBattery = stateScanned && !batteryScanned;
 
   return (
-    <div className="bg-blue-100 border-b border-blue-300 px-4 py-3">
-      <div className="max-w-2xl mx-auto flex items-center gap-4">
-        <div className="flex-1">
-          <p className="text-sm text-blue-700 uppercase tracking-widest font-semibold mb-1">
-            Scanning
-          </p>
-          <div className="flex items-center gap-8">
-            {/* State */}
-            <div className="flex items-center gap-3">
-              <div
-                className={`w-3 h-3 rounded-full ${
-                  stateScanned ? "bg-green-500" : "bg-blue-500"
-                } ${waitingForState && "animate-pulse"}`}
-              />
-              <div>
-                <p className="text-xs text-blue-700 uppercase tracking-wide">State</p>
-                <p className="text-lg font-bold text-gray-900">
-                  {scan.stateCode
-                    ? getStateLabel(scan.stateCode)
-                    : waitingForState
-                      ? "Waiting…"
-                      : "—"}
-                </p>
-              </div>
+    <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-50">
+      <div className="bg-blue-100 border-2 border-blue-300 rounded-2xl shadow-2xl px-8 py-6 pointer-events-auto max-w-lg">
+        <p className="text-sm text-blue-700 uppercase tracking-widest font-semibold mb-4 text-center">
+          Scanning Battery
+        </p>
+        <div className="flex items-center justify-center gap-8">
+          {/* State */}
+          <div className="flex flex-col items-center gap-3">
+            <div
+              className={`w-4 h-4 rounded-full ${
+                stateScanned ? "bg-green-500" : "bg-blue-500"
+              } ${waitingForState && "animate-pulse"}`}
+            />
+            <div className="text-center">
+              <p className="text-xs text-blue-700 uppercase tracking-wide mb-1">State</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {scan.stateCode
+                  ? getStateLabel(scan.stateCode)
+                  : waitingForState
+                    ? "Waiting…"
+                    : "—"}
+              </p>
             </div>
+          </div>
 
-            {/* Arrow */}
-            <div className="text-blue-600 text-xl">↔</div>
+          {/* Arrow */}
+          <div className="text-blue-600 text-3xl">↔</div>
 
-            {/* Battery */}
-            <div className="flex items-center gap-3">
-              <div
-                className={`w-3 h-3 rounded-full ${
-                  batteryScanned ? "bg-green-500" : "bg-blue-500"
-                } ${waitingForBattery && "animate-pulse"}`}
-              />
-              <div>
-                <p className="text-xs text-blue-700 uppercase tracking-wide">Battery</p>
-                <p className="text-lg font-bold text-gray-900">
-                  {scan.batteryCode
-                    ? getBatteryName(Number.parseInt(scan.batteryCode.slice(4), 10))
-                    : waitingForBattery
-                      ? "Waiting…"
-                      : "—"}
-                </p>
-              </div>
+          {/* Battery */}
+          <div className="flex flex-col items-center gap-3">
+            <div
+              className={`w-4 h-4 rounded-full ${
+                batteryScanned ? "bg-green-500" : "bg-blue-500"
+              } ${waitingForBattery && "animate-pulse"}`}
+            />
+            <div className="text-center">
+              <p className="text-xs text-blue-700 uppercase tracking-wide mb-1">Battery</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {scan.batteryCode
+                  ? getBatteryName(Number.parseInt(scan.batteryCode.slice(4), 10))
+                  : waitingForBattery
+                    ? "Waiting…"
+                    : "—"}
+              </p>
             </div>
           </div>
         </div>
