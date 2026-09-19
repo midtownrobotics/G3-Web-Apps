@@ -11,12 +11,14 @@ export function TeamLookupInput({
   required = true,
   placeholder = "Team number or name",
   inputMode = "search",
+  readOnly = false,
 }: {
   value: string;
   onChange: (value: string) => void;
   required?: boolean;
   placeholder?: string;
   inputMode?: "numeric" | "search";
+  readOnly?: boolean;
 }) {
   const [query, setQuery] = useState(value);
   const [teams, setTeams] = useState<TeamSuggestion[]>([]);
@@ -25,8 +27,9 @@ export function TeamLookupInput({
   const listId = useId();
 
   useEffect(() => {
-    if (value !== query && /^\d+$/.test(value)) setQuery(value);
-  }, [value, query]);
+    if (value === query) return;
+    if (readOnly || /^\d+$/.test(value)) setQuery(value);
+  }, [value, query, readOnly]);
 
   useEffect(() => {
     const search = query.trim();
@@ -85,6 +88,7 @@ export function TeamLookupInput({
         inputMode={inputMode}
         enterKeyHint="next"
         autoComplete="off"
+        readOnly={readOnly}
       />
       <datalist id={listId}>
         {teams.map((team) => (

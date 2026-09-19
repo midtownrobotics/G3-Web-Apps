@@ -204,6 +204,64 @@ function publicMatch(match: TbaMatch) {
   };
 }
 
+async function getOrCreateScoutAssignment(
+  c: Context<AppEnv>,
+  eventKey: string,
+  matchNumber: number,
+  teams: string[],
+) {
+  const existing = await c.env.SCOUTING_DB.prepare(
+    "SELECT team_number FROM scouting_match_assignments WHERE event_key = ? AND match_number = ? AND user_id = ?",
+  )
+    .bind(eventKey, matchNumber, c.get("userId"))
+    .first<{ team_number: string }>();
+  if (existing && teams.includes(existing.team_number)) return existing.team_number;
+
+  const submitted = await c.env.SCOUTING_DB.prepare(
+    `SELECT s.team_name
+       FROM scouting_form_submissions s
+       JOIN scouting_forms f ON f.id = s.form_id
+      WHERE f.form_kind = 'scouting' AND s.submitted_by = ?
+        AND s.event_key = ? AND s.match_number = ? AND s.archived_at IS NULL
+      LIMIT 1`,
+  )
+    .bind(c.get("userId"), eventKey, matchNumber)
+    .first<{ team_name: string }>();
+  if (submitted) return submitted.team_name;
+
+  if (!teams.length) return null;
+  const assignedCounts = await c.env.SCOUTING_DB.prepare(
+    `SELECT team_number, COUNT(*) AS assignment_count
+       FROM scouting_match_assignments
+      WHERE event_key = ? AND match_number = ?
+      GROUP BY team_number`,
+  )
+    .bind(eventKey, matchNumber)
+    .all<{ team_number: string; assignment_count: number }>();
+  const counts = new Map(
+    assignedCounts.results.map((row) => [row.team_number, Number(row.assignment_count)]),
+  );
+  const team = teams.reduce((best, candidate) =>
+    (counts.get(candidate) ?? 0) < (counts.get(best) ?? 0) ? candidate : best,
+  );
+  await c.env.SCOUTING_DB.prepare(
+    `INSERT OR IGNORE INTO scouting_match_assignments
+       (event_key, match_number, user_id, team_number, assigned_at)
+     VALUES (?, ?, ?, ?, ?)`,
+  )
+    .bind(eventKey, matchNumber, c.get("userId"), team, Date.now())
+    .run();
+  return (
+    (
+      await c.env.SCOUTING_DB.prepare(
+        "SELECT team_number FROM scouting_match_assignments WHERE event_key = ? AND match_number = ? AND user_id = ?",
+      )
+        .bind(eventKey, matchNumber, c.get("userId"))
+        .first<{ team_number: string }>()
+    )?.team_number ?? null
+  );
+}
+
 async function getTbaAuthKey(c: Context<AppEnv>) {
   const config = await c.env.SCOUTING_DB.prepare(
     "SELECT tba_auth_key FROM strategy_event_config WHERE id = 1",
@@ -490,7 +548,6 @@ app.get("/event-context", requireAuth, async (c) => {
     (row) => Number(row.match_number) === currentMatchNumber,
   );
   const submittedUserIds = new Set(currentMatchSubmissions.map((row) => String(row.submitted_by)));
-  const submittedTeams = new Set(currentMatchSubmissions.map((row) => String(row.team_name)));
   const onlineScouts = current
     ? await c.env.SCOUTING_DB.prepare(
         `SELECT user_id, display_name, last_seen_at
@@ -508,11 +565,15 @@ app.get("/event-context", requireAuth, async (c) => {
     activeScoutIds.push(c.get("userId"));
     activeScoutIds.sort();
   }
-  const availableTeams = current
-    ? publicMatch(current).teams.filter((team) => !submittedTeams.has(team))
-    : [];
-  const assignmentIndex = activeScoutIds.indexOf(c.get("userId"));
-  const assignedTeam = assignmentIndex >= 0 ? (availableTeams[assignmentIndex] ?? null) : null;
+  const assignedTeam =
+    c.req.query("assign") === "true" && current && eventKey && currentMatchNumber
+      ? await getOrCreateScoutAssignment(
+          c,
+          eventKey,
+          currentMatchNumber,
+          publicMatch(current).teams,
+        )
+      : null;
   return c.json({
     eventKey: admin ? eventKey : "",
     currentMatchNumber: admin ? currentMatchNumber : null,
@@ -1366,8 +1427,7 @@ app.post("/scouting-forms/:id/submissions", requireAuth, async (c) => {
     .first<{ fields_json: string; form_kind: string }>();
   if (!formDefinition) return c.json({ error: "Scouting form not found or inactive." }, 404);
   const form = await c.req.formData();
-  const teamName = teamNumber(form.get("teamName"));
-  if (!teamName) return c.json({ error: "A valid team number is required." }, 400);
+  let teamName = teamNumber(form.get("teamName"));
   const answers = parseJson<Record<string, unknown>>(form.get("answers"), {});
   const fields = parseJson<ScoutingField[]>(formDefinition.fields_json, []);
   const eventLink = await resolveEventLink(c);
@@ -1386,7 +1446,16 @@ app.post("/scouting-forms/:id/submissions", requireAuth, async (c) => {
       .first();
     if (existing)
       return c.json({ error: "You already submitted a scouting form for this match." }, 409);
+    const assignment = await c.env.SCOUTING_DB.prepare(
+      "SELECT team_number FROM scouting_match_assignments WHERE event_key = ? AND match_number = ? AND user_id = ?",
+    )
+      .bind(eventLink.eventKey, eventLink.matchNumber, c.get("userId"))
+      .first<{ team_number: string }>();
+    if (!assignment)
+      return c.json({ error: "No team is assigned. Refresh the form and try again." }, 409);
+    teamName = assignment.team_number;
   }
+  if (!teamName) return c.json({ error: "A valid team number is required." }, 400);
   const cleanAnswers: Record<string, string | number | boolean | string[]> = {};
   for (const field of fields) {
     const value = answers[field.id];
