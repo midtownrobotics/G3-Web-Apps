@@ -105,7 +105,13 @@ const issueTextValidator = validator("json", (value, c) => {
   return { text: v.text.trim() };
 });
 
-const SETTING_KEYS = ["eventKey", "nexusEventKey", "tbaAuthKey", "nexusApiKey"] as const;
+const SETTING_KEYS = [
+  "eventKey",
+  "nexusEventKey",
+  "tbaAuthKey",
+  "nexusApiKey",
+  "iframeUrl",
+] as const;
 type SettingKey = (typeof SETTING_KEYS)[number];
 
 const settingsValidator = validator("json", (value, c): Partial<Record<SettingKey, string>> => {
@@ -575,33 +581,43 @@ const app = base
     const nexusKey = await getSetting(db, "nexusApiKey", c.env.NEXUS_API_KEY);
     const year = new Date().getFullYear();
 
-    const [nexusResult, tbaResult, tbaRankingsResult, sbResult] = await Promise.allSettled([
-      nexusEventKey && nexusKey
-        ? fetch(`https://frc.nexus/api/v1/event/${nexusEventKey}`, {
-            headers: { "Nexus-Api-Key": nexusKey },
-          }).then((r) => (r.ok ? r.json() : null))
-        : Promise.resolve(null),
-      eventKey && tbaKey
-        ? fetch(`https://www.thebluealliance.com/api/v3/team/frc${team}/event/${eventKey}/status`, {
-            headers: { "X-TBA-Auth-Key": tbaKey },
-          }).then((r) => (r.ok ? r.json() : null))
-        : Promise.resolve(null),
-      eventKey && tbaKey
-        ? fetch(`https://www.thebluealliance.com/api/v3/event/${eventKey}/rankings`, {
-            headers: { "X-TBA-Auth-Key": tbaKey },
-          }).then((r) => (r.ok ? r.json() : null))
-        : Promise.resolve(null),
-      team
-        ? fetch(`https://api.statbotics.io/v3/team_year/${team}/${year}`).then((r) =>
-            r.ok ? r.json() : null,
-          )
-        : Promise.resolve(null),
-    ]);
+    const [nexusResult, tbaResult, tbaRankingsResult, sbResult, tbaScheduleResult] =
+      await Promise.allSettled([
+        nexusEventKey && nexusKey
+          ? fetch(`https://frc.nexus/api/v1/event/${nexusEventKey}`, {
+              headers: { "Nexus-Api-Key": nexusKey },
+            }).then((r) => (r.ok ? r.json() : null))
+          : Promise.resolve(null),
+        eventKey && tbaKey
+          ? fetch(
+              `https://www.thebluealliance.com/api/v3/team/frc${team}/event/${eventKey}/status`,
+              {
+                headers: { "X-TBA-Auth-Key": tbaKey },
+              },
+            ).then((r) => (r.ok ? r.json() : null))
+          : Promise.resolve(null),
+        eventKey && tbaKey
+          ? fetch(`https://www.thebluealliance.com/api/v3/event/${eventKey}/rankings`, {
+              headers: { "X-TBA-Auth-Key": tbaKey },
+            }).then((r) => (r.ok ? r.json() : null))
+          : Promise.resolve(null),
+        team
+          ? fetch(`https://api.statbotics.io/v3/team_year/${team}/${year}`).then((r) =>
+              r.ok ? r.json() : null,
+            )
+          : Promise.resolve(null),
+        eventKey && tbaKey
+          ? fetch(`https://www.thebluealliance.com/api/v3/event/${eventKey}/matches`, {
+              headers: { "X-TBA-Auth-Key": tbaKey },
+            }).then((r) => (r.ok ? r.json() : null))
+          : Promise.resolve(null),
+      ]);
 
     const nexus = nexusResult.status === "fulfilled" ? nexusResult.value : null;
     const tba = tbaResult.status === "fulfilled" ? tbaResult.value : null;
     const tbaRankings = tbaRankingsResult.status === "fulfilled" ? tbaRankingsResult.value : null;
     const sb = sbResult.status === "fulfilled" ? sbResult.value : null;
+    const tbaSchedule = tbaScheduleResult.status === "fulfilled" ? tbaScheduleResult.value : null;
 
     // biome-ignore lint/suspicious/noExplicitAny: external API shapes
     const tbaAny = tba as any;
@@ -671,24 +687,75 @@ const app = base
       contextRankings = { top3, context };
     }
 
-    return c.json({ teamNumber: team, nexus, ranking, contextRankings });
+    // Fallback to Blue Alliance schedule if Nexus is unavailable
+    // biome-ignore lint/suspicious/noExplicitAny: external API shapes
+    let finalNexus = nexus as any;
+    // biome-ignore lint/suspicious/noExplicitAny: external API shapes
+    const isRealNexus = !!(nexus && (nexus as any).matches && (nexus as any).matches.length > 0);
+    if (!isRealNexus && tbaSchedule && Array.isArray(tbaSchedule)) {
+      // Build a Nexus-like schedule from Blue Alliance data
+      // biome-ignore lint/suspicious/noExplicitAny: external API shapes
+      const tbaMatches = tbaSchedule as any[];
+      finalNexus = {
+        matches: tbaMatches
+          .filter((m: any) => m.comp_level && m.match_number)
+          .map((m: any) => ({
+            label: `${m.comp_level.toUpperCase()}${m.match_number}`,
+            status: "Queuing soon" as const, // Blue Alliance doesn't provide status, default to queuing soon
+            blueTeams:
+              m.alliances?.blue?.team_keys?.map((tk: string) => tk.replace("frc", "")) ?? null,
+            redTeams:
+              m.alliances?.red?.team_keys?.map((tk: string) => tk.replace("frc", "")) ?? null,
+            times: {
+              estimatedStartTime: m.predicted_time
+                ? m.predicted_time * 1000
+                : m.time
+                  ? m.time * 1000
+                  : null,
+              estimatedQueueTime: m.predicted_time ? (m.predicted_time - 300) * 1000 : null, // Estimate queue 5min before
+            },
+          }))
+          .sort((a: any, b: any) => {
+            const timeA = a.times.estimatedStartTime ?? 0;
+            const timeB = b.times.estimatedStartTime ?? 0;
+            return timeA - timeB;
+          }),
+        isRealNexus: false,
+      };
+    }
+    if (finalNexus && isRealNexus) {
+      finalNexus.isRealNexus = true;
+    }
+
+    return c.json({ teamNumber: team, nexus: finalNexus, ranking, contextRankings });
+  })
+
+  // Pit monitor settings — read-only, public (display-only settings like iframe URL)
+  .get("/monitor/settings", requireAuth, async (c) => {
+    const db = createDb(c.env.PIT_DB);
+    const iframeUrl = await getSetting(db, "iframeUrl", "");
+    return c.json({
+      iframeUrl: iframeUrl || undefined,
+    });
   })
 
   // Admin — settings (admin only). Event key + external API keys live in the DB
   // so they're configurable at runtime; env vars are the fallback defaults.
   .get("/admin/settings", requireAdmin, async (c) => {
     const db = createDb(c.env.PIT_DB);
-    const [eventKey, nexusEventKey, tbaAuthKey, nexusApiKey] = await Promise.all([
+    const [eventKey, nexusEventKey, tbaAuthKey, nexusApiKey, iframeUrl] = await Promise.all([
       getSetting(db, "eventKey", c.env.EVENT_KEY),
       getSetting(db, "nexusEventKey", c.env.EVENT_KEY),
       getSetting(db, "tbaAuthKey", c.env.TBA_AUTH_KEY),
       getSetting(db, "nexusApiKey", c.env.NEXUS_API_KEY),
+      getSetting(db, "iframeUrl", ""),
     ]);
     return c.json({
       eventKey,
       nexusEventKey,
       tbaAuthKey,
       nexusApiKey,
+      iframeUrl,
       teamNumber: c.env.TEAM_NUMBER,
     });
   })
