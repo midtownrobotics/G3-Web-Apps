@@ -40,68 +40,72 @@ export function BarcodeScanDisplay() {
     }
   }, [feedback]);
 
-  const getBatteryName = (id: number): string => {
-    const battery = batteries.find((b) => b.id === id);
-    return battery?.name || `BAT-${String(id).padStart(4, "0")}`;
-  };
+  const getBatteryName = useCallback(
+    (id: number) =>
+      batteries.find((battery) => battery.id === id)?.name || `BAT-${String(id).padStart(4, "0")}`,
+    [batteries],
+  );
 
-  const handleComplete = useCallback(async (stateCode: string, batteryCode: string) => {
-    console.log(`[BarcodeScan] Complete: ${stateCode} -> ${batteryCode}`);
+  const handleComplete = useCallback(
+    async (stateCode: string, batteryCode: string) => {
+      console.log(`[BarcodeScan] Complete: ${stateCode} -> ${batteryCode}`);
 
-    // Extract battery ID from BAT-0000 format
-    const batteryId = Number.parseInt(batteryCode.slice(4), 10);
-    const state = STATE_CODE_MAP[stateCode];
+      // Extract battery ID from BAT-0000 format
+      const batteryId = Number.parseInt(batteryCode.slice(4), 10);
+      const state = STATE_CODE_MAP[stateCode];
 
-    if (!state) {
-      console.error(`Invalid state code: ${stateCode}`);
-      setFeedback({ type: "error", message: "Invalid state" });
-      setTimeout(() => setFeedback(null), 2000);
-      return;
-    }
-
-    try {
-      console.log(`[BarcodeScan] Updating battery ${batteryId} to state: ${state}`);
-      const res = await api.batteries[":id"].state.$patch({
-        param: { id: String(batteryId) },
-        json: { state },
-      });
-
-      if (!res.ok) {
-        const error = await res.text();
-        console.error("[BarcodeScan] API error:", error);
-        setFeedback({ type: "error", message: "Failed to update battery" });
+      if (!state) {
+        console.error(`Invalid state code: ${stateCode}`);
+        setFeedback({ type: "error", message: "Invalid state" });
         setTimeout(() => setFeedback(null), 2000);
-      } else {
-        console.log("[BarcodeScan] ✓ Battery updated successfully");
-        const batteryName = getBatteryName(batteryId);
-        setFeedback({ type: "success", message: `${batteryName} → ${state}` });
-        setTimeout(() => setFeedback(null), 2000);
+        return;
+      }
 
-        // If setting to "In Robot", set any other "In Robot" battery to "Idle"
-        if (state === "In Robot") {
-          const inRobotBattery = batteries.find(
-            (b) => b.state === "In Robot" && b.id !== batteryId,
-          );
-          if (inRobotBattery) {
-            console.log(
-              `[BarcodeScan] Setting previous In Robot battery ${inRobotBattery.id} to Idle`,
+      try {
+        console.log(`[BarcodeScan] Updating battery ${batteryId} to state: ${state}`);
+        const res = await api.batteries[":id"].state.$patch({
+          param: { id: String(batteryId) },
+          json: { state },
+        });
+
+        if (!res.ok) {
+          const error = await res.text();
+          console.error("[BarcodeScan] API error:", error);
+          setFeedback({ type: "error", message: "Failed to update battery" });
+          setTimeout(() => setFeedback(null), 2000);
+        } else {
+          console.log("[BarcodeScan] ✓ Battery updated successfully");
+          const batteryName = getBatteryName(batteryId);
+          setFeedback({ type: "success", message: `${batteryName} → ${state}` });
+          setTimeout(() => setFeedback(null), 2000);
+
+          // If setting to "In Robot", set any other "In Robot" battery to "Idle"
+          if (state === "In Robot") {
+            const inRobotBattery = batteries.find(
+              (b) => b.state === "In Robot" && b.id !== batteryId,
             );
-            await api.batteries[":id"].state.$patch({
-              param: { id: String(inRobotBattery.id) },
-              json: { state: "Idle" },
-            });
+            if (inRobotBattery) {
+              console.log(
+                `[BarcodeScan] Setting previous In Robot battery ${inRobotBattery.id} to Idle`,
+              );
+              await api.batteries[":id"].state.$patch({
+                param: { id: String(inRobotBattery.id) },
+                json: { state: "Idle" },
+              });
+            }
           }
         }
+      } catch (err) {
+        console.error("[BarcodeScan] Exception:", err);
+        setFeedback({
+          type: "error",
+          message: err instanceof Error ? err.message : "Error updating battery",
+        });
+        setTimeout(() => setFeedback(null), 2000);
       }
-    } catch (err) {
-      console.error("[BarcodeScan] Exception:", err);
-      setFeedback({
-        type: "error",
-        message: err instanceof Error ? err.message : "Error updating battery",
-      });
-      setTimeout(() => setFeedback(null), 2000);
-    }
-  }, [batteries]);
+    },
+    [batteries, getBatteryName],
+  );
 
   const scan = useBarcodeScan(handleComplete);
 
