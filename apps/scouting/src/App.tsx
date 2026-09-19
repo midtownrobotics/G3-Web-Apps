@@ -109,7 +109,7 @@ function AnnouncementBanner() {
     load();
     const interval = window.setInterval(() => {
       if (document.visibilityState === "visible") load();
-    }, 10_000);
+    }, 30_000);
     return () => window.clearInterval(interval);
   }, []);
   useEffect(() => {

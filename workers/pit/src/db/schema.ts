@@ -1,4 +1,4 @@
-import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 export const settings = sqliteTable("settings", {
   key: text("key").primaryKey(),
@@ -12,20 +12,24 @@ export const checklistLists = sqliteTable("checklist_lists", {
   createdAt: integer("created_at").notNull(),
 });
 
-export const checklistItems = sqliteTable("checklist_items", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  listId: integer("list_id")
-    .notNull()
-    .references(() => checklistLists.id),
-  index: integer("index").notNull(),
-  type: text("type", { enum: ["item", "topic"] })
-    .notNull()
-    .default("item"),
-  name: text("name").notNull(),
-  description: text("description"),
-  checked: integer("checked", { mode: "boolean" }).notNull().default(false),
-  createdAt: integer("created_at").notNull(),
-});
+export const checklistItems = sqliteTable(
+  "checklist_items",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    listId: integer("list_id")
+      .notNull()
+      .references(() => checklistLists.id),
+    index: integer("index").notNull(),
+    type: text("type", { enum: ["item", "topic"] })
+      .notNull()
+      .default("item"),
+    name: text("name").notNull(),
+    description: text("description"),
+    checked: integer("checked", { mode: "boolean" }).notNull().default(false),
+    createdAt: integer("created_at").notNull(),
+  },
+  (table) => [index("checklist_items_list_index_idx").on(table.listId, table.index)],
+);
 
 export const batteries = sqliteTable("batteries", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -39,11 +43,15 @@ export const batteries = sqliteTable("batteries", {
   createdAt: integer("created_at").notNull(),
 });
 
-export const checklistIssues = sqliteTable("checklist_issues", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  itemId: integer("item_id")
-    .notNull()
-    .references(() => checklistItems.id),
-  text: text("text").notNull(),
-  createdAt: integer("created_at").notNull(),
-});
+export const checklistIssues = sqliteTable(
+  "checklist_issues",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    itemId: integer("item_id")
+      .notNull()
+      .references(() => checklistItems.id),
+    text: text("text").notNull(),
+    createdAt: integer("created_at").notNull(),
+  },
+  (table) => [index("checklist_issues_item_created_idx").on(table.itemId, table.createdAt)],
+);

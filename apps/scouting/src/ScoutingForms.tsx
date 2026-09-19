@@ -746,7 +746,7 @@ function LiveStrategy() {
     load();
     const interval = window.setInterval(() => {
       if (document.visibilityState === "visible") load();
-    }, 15_000);
+    }, 30_000);
     return () => window.clearInterval(interval);
   }, []);
   return (
@@ -1688,7 +1688,7 @@ export function ScoutingForms({
     loadMatch();
     const interval = window.setInterval(() => {
       if (document.visibilityState === "visible") loadMatch();
-    }, 5_000);
+    }, 10_000);
     return () => window.clearInterval(interval);
   }, []);
   useEffect(() => {

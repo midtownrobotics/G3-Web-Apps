@@ -7,7 +7,7 @@ import { fetchItems } from "../../shared/getters/items";
 import { fetchList } from "../../shared/getters/lists";
 import type { ChecklistIssue, ChecklistItem, ChecklistList } from "../../shared/getters/types";
 
-const POLL_INTERVAL_MS = 1000;
+const POLL_INTERVAL_MS = 5000;
 
 export function ChecklistRunnerPage() {
   const { id } = useParams<{ id: string }>();
@@ -58,8 +58,22 @@ export function ChecklistRunnerPage() {
 
   useEffect(() => {
     if (!id || loading || notFound) return;
-    const interval = setInterval(loadData, POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
+    let requestInFlight = false;
+    const refresh = async () => {
+      if (document.visibilityState !== "visible" || requestInFlight) return;
+      requestInFlight = true;
+      try {
+        await loadData();
+      } finally {
+        requestInFlight = false;
+      }
+    };
+    const interval = setInterval(() => void refresh(), POLL_INTERVAL_MS);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", refresh);
+    };
   }, [id, loading, notFound, loadData]);
 
   async function toggle(item: ChecklistItem) {
