@@ -870,6 +870,7 @@ textarea:focus {
   margin-top: 5px;
   color: var(--text-muted, #6f7379);
   font-size: 12px;
+  font-weight: 650;
 }
 .analysis-search .team-lookup,
 .operation-form .team-lookup {
@@ -1122,6 +1123,7 @@ textarea:focus {
   width: fit-content;
   max-width: 100%;
   font-weight: 700;
+  line-height: 1;
 }
 .competition-filter select {
   min-width: 12rem;
@@ -4363,6 +4365,11 @@ textarea:focus {
     transform: translateX(0);
   }
 
+  .all-apps-link {
+    margin: auto 0 0;
+    padding: 20px 24px;
+  }
+
   .brand {
     padding: 20px;
     border-bottom: 1px solid rgba(121, 138, 146, 0.25);
@@ -4387,7 +4394,58 @@ textarea:focus {
     height: 5px;
     border-radius: 50%;
   }
+}
 
+/* G3ID visual alignment */
+:root {
+  --panel: #3a3a3a;
+  --panel-2: #454545;
+  --line: #5a5a5a;
+  --muted: #c0c0c0;
+  --coral: #a32035;
+  --blue: #c85a6b;
+  --mint: #e8a5af;
+  background: #1a1a1a;
+  font-family: "Ubuntu", sans-serif;
+}
+
+body {
+  background: #1a1a1a;
+}
+
+aside {
+  inset: 0 0 auto;
+  width: 100%;
+  height: 64px;
+  flex-direction: row;
+  align-items: center;
+  border-right: 0;
+  background: #3a3a3a;
+  backdrop-filter: none;
+}
+
+.brand {
+  min-width: 220px;
+  gap: 9px;
+  padding: 10px 24px;
+  border: 0;
+}
+
+.brand > div {
+  width: auto;
+  height: auto;
+  color: #c85a6b;
+  background: transparent;
+  box-shadow: none;
+  font-size: 22px;
+}
+
+.brand > span {
+  color: white;
+  font-size: 20px;
+}
+
+@media (max-width: 760px) {
   .all-apps-link {
     margin: auto 0 0;
     padding: 20px 24px;
