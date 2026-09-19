@@ -657,6 +657,25 @@ export function PitMonitorPage() {
         {/* Nexus status — full width, only if real Nexus data available */}
         {nexus?.isRealNexus && <NexusSection nexus={nexus} teamNumber={teamNumber} />}
 
+        {/* Custom monitor feed — full width, only if configured */}
+        {iframeUrl && (
+          <div className="space-y-2">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-gray-600">
+              Monitor Feed
+            </h2>
+            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+              <iframe
+                src={iframeUrl}
+                title="Custom monitor feed"
+                className="w-full"
+                style={{ height: "400px" }}
+                frameBorder="0"
+                allowFullScreen
+              />
+            </div>
+          </div>
+        )}
+
         {/* Main grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Left: ranking + upcoming matches */}
@@ -671,25 +690,8 @@ export function PitMonitorPage() {
             {hasNexus && nexus && <UpcomingMatchesSection nexus={nexus} teamNumber={teamNumber} />}
           </div>
 
-          {/* Right: custom iframe + batteries + checklist + issues */}
+          {/* Right: batteries + checklist + issues */}
           <div className="space-y-5">
-            {iframeUrl && (
-              <div className="space-y-2">
-                <h2 className="text-xs font-bold uppercase tracking-widest text-gray-600">
-                  Monitor Feed
-                </h2>
-                <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
-                  <iframe
-                    src={iframeUrl}
-                    title="Custom monitor feed"
-                    className="w-full"
-                    style={{ height: "300px" }}
-                    frameBorder="0"
-                    allowFullScreen
-                  />
-                </div>
-              </div>
-            )}
             <BatteriesSection batteries={batteries} />
             <ChecklistSection lists={lists} issues={issues} />
           </div>
