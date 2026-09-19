@@ -1,4 +1,4 @@
-import { Map as MapIcon, Scale, Search, Star, Trash2 } from "lucide-react";
+import { BarChart3, Map as MapIcon, Scale, Search, Star, Trash2, Users, X } from "lucide-react";
 import { type SyntheticEvent, useEffect, useState } from "react";
 import type { ScoutingField } from "./ScoutingForms";
 import { TeamLookupInput } from "./TeamLookupInput";
@@ -46,40 +46,53 @@ export function Analysis({ initialReportId }: { initialReportId?: string | null 
   const [searched, setSearched] = useState("");
   const [reports, setReports] = useState<Report[]>([]);
   const [teamB, setTeamB] = useState("");
+  const [searchedB, setSearchedB] = useState("");
   const [reportsB, setReportsB] = useState<Report[]>([]);
   const [teamMatches, setTeamMatches] = useState<TeamMatch[]>([]);
   const [teamComments, setTeamComments] = useState<TeamComment[]>([]);
   const [competition, setCompetition] = useState("all");
   const [loaded, setLoaded] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState("");
+  const [reportSort, setReportSort] = useState<"match" | "newest" | "starred">("match");
   const [tab, setTab] = useState<"stats" | "matches" | "auto" | "compare">("stats");
 
   async function loadData(teamFilter = team, teamBFilter = teamB) {
-    const result = await api<{
-      reports: Report[];
-      teamMatches: TeamMatch[];
-      teamComments: TeamComment[];
-    }>(
-      `/analysis?team=${encodeURIComponent(teamFilter)}${tab === "compare" ? `&teamB=${encodeURIComponent(teamBFilter)}` : ""}`,
-    );
-    setReports(
-      teamFilter
-        ? result.reports.filter(
-            (report) => report.teamName.toLowerCase() === teamFilter.toLowerCase(),
-          )
-        : result.reports,
-    );
-    setCompetition("all");
-    setSearched(teamFilter);
-    setTeamComments(result.teamComments);
-    setTeamMatches(result.teamMatches);
-    setLoaded(true);
-    setReportsB(
-      tab === "compare"
-        ? result.reports.filter(
-            (report) => report.teamName.toLowerCase() === teamBFilter.toLowerCase(),
-          )
-        : [],
-    );
+    setLoading(true);
+    setLoadError("");
+    try {
+      const result = await api<{
+        reports: Report[];
+        teamMatches: TeamMatch[];
+        teamComments: TeamComment[];
+      }>(
+        `/analysis?team=${encodeURIComponent(teamFilter)}${tab === "compare" ? `&teamB=${encodeURIComponent(teamBFilter)}` : ""}`,
+      );
+      setReports(
+        teamFilter
+          ? result.reports.filter(
+              (report) => report.teamName.toLowerCase() === teamFilter.toLowerCase(),
+            )
+          : result.reports,
+      );
+      setCompetition("all");
+      setSearched(teamFilter);
+      setSearchedB(tab === "compare" ? teamBFilter : "");
+      setTeamComments(result.teamComments);
+      setTeamMatches(result.teamMatches);
+      setReportsB(
+        tab === "compare"
+          ? result.reports.filter(
+              (report) => report.teamName.toLowerCase() === teamBFilter.toLowerCase(),
+            )
+          : [],
+      );
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Could not load analysis data.");
+    } finally {
+      setLoaded(true);
+      setLoading(false);
+    }
   }
 
   async function search(event: SyntheticEvent) {
@@ -162,6 +175,13 @@ export function Analysis({ initialReportId }: { initialReportId?: string | null 
   const visibleReports = reports
     .filter((report) => competition === "all" || (report.eventKey || "Unassigned") === competition)
     .sort((left, right) => {
+      if (reportSort === "newest") return right.createdAt - left.createdAt;
+      if (reportSort === "starred") {
+        const starOrder =
+          Number(right.starredFieldIds.length > 0) - Number(left.starredFieldIds.length > 0);
+        if (starOrder !== 0) return starOrder;
+        return right.createdAt - left.createdAt;
+      }
       const eventOrder = (left.eventKey || "Unassigned").localeCompare(
         right.eventKey || "Unassigned",
       );
@@ -180,6 +200,18 @@ export function Analysis({ initialReportId }: { initialReportId?: string | null 
         Number(right.starredFieldIds.length > 0) - Number(left.starredFieldIds.length > 0);
       return starOrder || right.createdAt - left.createdAt;
     });
+  const visibleActiveReports = visibleReports.filter((report) => !report.archivedAt);
+  const visibleSummary = numericSummary(visibleActiveReports);
+  const summaryMetrics = [...visibleSummary]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .slice(0, 6);
+  const coveredMatches = new Set(
+    visibleActiveReports.flatMap((report) => (report.matchNumber ? [report.matchNumber] : [])),
+  ).size;
+  const scoutCount = new Set(visibleActiveReports.map((report) => report.submittedByName)).size;
+  const highlightedReports = visibleActiveReports.filter(
+    (report) => report.starredFieldIds.length > 0,
+  ).length;
 
   const autoFields = activeReports
     .filter((report) => competition === "all" || (report.eventKey || "Unassigned") === competition)
@@ -210,6 +242,7 @@ export function Analysis({ initialReportId }: { initialReportId?: string | null 
       <div className="page-heading">
         <div>
           <h1>Analysis</h1>
+          <span>{searched ? `Team ${searched}` : `${reports.length} scouting reports`}</span>
         </div>
       </div>
       <form className="analysis-search" onSubmit={search}>
@@ -232,9 +265,30 @@ export function Analysis({ initialReportId }: { initialReportId?: string | null 
           </>
         )}
         <button type="submit" className="primary-button">
-          {tab === "compare" ? "Enter" : team ? "Filter" : "Show all"}
+          {loading ? "Loadingâ€¦" : tab === "compare" ? "Compare" : team ? "Find team" : "Show all"}
         </button>
+        {(team || searched || teamB || searchedB) && (
+          <button
+            type="button"
+            className="secondary-button analysis-clear"
+            onClick={() => {
+              setTeam("");
+              setTeamB("");
+              setSearchedB("");
+              void loadData("", "");
+            }}
+            aria-label="Clear team filters"
+            title="Clear team filters"
+          >
+            <X size={17} />
+          </button>
+        )}
       </form>
+      {loadError && (
+        <div className="analysis-error" role="alert">
+          {loadError}
+        </div>
+      )}
       <div className="analysis-tabs">
         <button
           type="button"
@@ -267,18 +321,67 @@ export function Analysis({ initialReportId }: { initialReportId?: string | null 
       </div>
       {tab === "stats" ? (
         <div className="analysis-results-stack">
-          {competitions.length > 0 && (
+          <div className="analysis-controls">
+            {competitions.length > 0 && (
+              <label className="competition-filter">
+                Competition
+                <select
+                  value={competition}
+                  onChange={(event) => setCompetition(event.target.value)}
+                >
+                  <option value="all">All competitions</option>
+                  {competitions.map((eventKey) => (
+                    <option value={eventKey} key={eventKey}>
+                      {eventKey}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <label className="competition-filter">
-              Competition
-              <select value={competition} onChange={(event) => setCompetition(event.target.value)}>
-                <option value="all">All competitions</option>
-                {competitions.map((eventKey) => (
-                  <option value={eventKey} key={eventKey}>
-                    {eventKey}
-                  </option>
-                ))}
+              Sort reports
+              <select
+                value={reportSort}
+                onChange={(event) =>
+                  setReportSort(event.target.value as "match" | "newest" | "starred")
+                }
+              >
+                <option value="match">Competition and match</option>
+                <option value="newest">Newest first</option>
+                <option value="starred">Highlights first</option>
               </select>
             </label>
+          </div>
+          {loaded && visibleActiveReports.length > 0 && (
+            <section className="analysis-overview" aria-label="Scouting summary">
+              <div>
+                <BarChart3 size={18} />
+                <strong>{visibleActiveReports.length}</strong>
+                <span>Reports</span>
+              </div>
+              <div>
+                <Scale size={18} />
+                <strong>{coveredMatches}</strong>
+                <span>Matches</span>
+              </div>
+              <div>
+                <Users size={18} />
+                <strong>{scoutCount}</strong>
+                <span>Scouts</span>
+              </div>
+              <div>
+                <Star size={18} />
+                <strong>{highlightedReports}</strong>
+                <span>Highlights</span>
+              </div>
+              {summaryMetrics.map(([label, average]) => (
+                <div className="analysis-average" key={label}>
+                  <strong>{average.toFixed(1)}</strong>
+                  <span>{label}</span>
+                  <small>Average</small>
+                </div>
+              ))}
+            </section>
           )}
           {loaded && !reports.length && !teamComments.length && (
             <div className="forms-empty">
@@ -360,13 +463,35 @@ export function Analysis({ initialReportId }: { initialReportId?: string | null 
                     {report.fields
                       .filter((field) => field.type !== "fieldMap")
                       .map((field) => (
-                        <div key={field.id}>
+                        <div
+                          className={
+                            report.starredFieldIds.includes(field.id) ? "starred-answer" : ""
+                          }
+                          key={field.id}
+                        >
                           <dt>{field.label}</dt>
                           <dd>
                             {Array.isArray(report.answers[field.id])
                               ? (report.answers[field.id] as unknown[]).join(", ")
                               : String(report.answers[field.id] ?? "—")}
                           </dd>
+                          <button
+                            type="button"
+                            className={`star-button ${report.starredFieldIds.includes(field.id) ? "active" : ""}`}
+                            onClick={() => toggleStar(report, field.id)}
+                            aria-label={
+                              report.starredFieldIds.includes(field.id)
+                                ? `Remove highlight from ${field.label}`
+                                : `Highlight ${field.label}`
+                            }
+                            title={
+                              report.starredFieldIds.includes(field.id)
+                                ? "Remove highlight"
+                                : "Highlight answer"
+                            }
+                          >
+                            <Star size={15} fill="currentColor" />
+                          </button>
                         </div>
                       ))}
                   </dl>
@@ -406,40 +531,55 @@ export function Analysis({ initialReportId }: { initialReportId?: string | null 
           )}
         </div>
       ) : tab === "auto" ? (
-        <div className="auto-path-grid">
-          {autoFields.map(({ report, field, url }) => (
-            <article key={`${report.id}-${field.id}`}>
-              <img src={`${API_URL}${url}`} alt={`${report.teamName} ${field.label}`} />
-              <div>
-                <MapIcon size={16} />
-                <strong>
-                  Team {report.teamName} · {field.label}
-                </strong>
-                <span>
-                  {report.eventKey || "Unassigned"} · {report.formName} ·{" "}
-                  {new Date(report.createdAt).toLocaleDateString()}
-                </span>
-              </div>
-              <button
-                type="button"
-                className="delete-report-button"
-                onClick={() => permanentlyDeleteReport(report)}
-                aria-label={`Permanently delete report for ${report.teamName}`}
-                title="Remove bad data"
-              >
-                <Trash2 size={17} />
-              </button>
-            </article>
-          ))}
-          {loaded && !autoFields.length && (
-            <div className="forms-empty">
-              No autonomous paths reported{searched ? ` for ${searched}` : ""}.
-            </div>
+        <div className="analysis-results-stack">
+          {competitions.length > 0 && (
+            <label className="competition-filter">
+              Competition
+              <select value={competition} onChange={(event) => setCompetition(event.target.value)}>
+                <option value="all">All competitions</option>
+                {competitions.map((eventKey) => (
+                  <option value={eventKey} key={eventKey}>
+                    {eventKey}
+                  </option>
+                ))}
+              </select>
+            </label>
           )}
+          <div className="auto-path-grid">
+            {autoFields.map(({ report, field, url }) => (
+              <article key={`${report.id}-${field.id}`}>
+                <img src={`${API_URL}${url}`} alt={`${report.teamName} ${field.label}`} />
+                <div>
+                  <MapIcon size={16} />
+                  <strong>
+                    Team {report.teamName} · {field.label}
+                  </strong>
+                  <span>
+                    {report.eventKey || "Unassigned"} · {report.formName} ·{" "}
+                    {new Date(report.createdAt).toLocaleDateString()}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="delete-report-button"
+                  onClick={() => permanentlyDeleteReport(report)}
+                  aria-label={`Permanently delete report for ${report.teamName}`}
+                  title="Remove bad data"
+                >
+                  <Trash2 size={17} />
+                </button>
+              </article>
+            ))}
+            {loaded && !autoFields.length && (
+              <div className="forms-empty">
+                No autonomous paths reported{searched ? ` for ${searched}` : ""}.
+              </div>
+            )}
+          </div>
         </div>
       ) : (
         <div className="team-comparison">
-          {searched && teamB && (
+          {searched && searchedB && (
             <div className="comparison-scoreboard">
               <div>
                 <span>Team A</span>
@@ -449,7 +589,7 @@ export function Analysis({ initialReportId }: { initialReportId?: string | null 
               <Scale size={28} />
               <div>
                 <span>Team B</span>
-                <strong>{teamB}</strong>
+                <strong>{searchedB}</strong>
                 <small>{activeReportsB.length} reports</small>
               </div>
             </div>
