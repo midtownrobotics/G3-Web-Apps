@@ -1858,6 +1858,306 @@ textarea:focus {
   width: 100%;
   margin: 0 0 22px;
 }
+
+.manual-mode-switch,
+.manual-schedule-panel {
+  border: 1px solid var(--color-secondary-200);
+  border-radius: 1rem;
+  background: var(--color-secondary-50);
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.manual-mode-switch {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.manual-mode-switch p,
+.manual-schedule-panel p {
+  margin: 0;
+}
+
+.manual-schedule-panel > header,
+.manual-schedule-panel > header > div {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+}
+
+.manual-schedule-panel > header {
+  justify-content: space-between;
+  margin-bottom: .75rem;
+}
+.manual-schedule-panel > header > div {
+  align-items: baseline;
+}
+.manual-schedule-panel > header strong {
+  font-size: 1.15rem;
+}
+.manual-scan-help {
+  margin-top: .5rem !important;
+  color: var(--color-secondary-600);
+  font-size: .9rem;
+}
+.manual-import {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  margin: 1rem 0;
+  flex-wrap: wrap;
+}
+.manual-camera-button {
+  cursor: pointer;
+}
+.manual-camera-button input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.manual-match-editor {
+  margin: 1rem 0;
+}
+.manual-editor-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: .65rem;
+}
+.manual-editor-heading > div {
+  display: grid;
+  gap: .15rem;
+}
+.manual-editor-heading small {
+  color: var(--color-secondary-600);
+}
+.manual-table-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--color-secondary-200);
+  border-radius: .75rem;
+  background: var(--surface, #fff);
+}
+.manual-match-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+}
+.manual-match-table th {
+  padding: .5rem .35rem;
+  font-size: .78rem;
+  text-align: left;
+  white-space: nowrap;
+}
+.manual-match-table th:nth-child(n + 2):nth-child(-n + 4) {
+  color: #b42318;
+}
+.manual-match-table th:nth-child(n + 5):nth-child(-n + 7) {
+  color: #175cd3;
+}
+.manual-match-table td {
+  padding: .25rem;
+  border-top: 1px solid var(--color-secondary-100);
+}
+.manual-match-table input {
+  width: 100%;
+  min-width: 4.5rem;
+  padding: .5rem;
+}
+.manual-match-table input.missing-team-cell {
+  border-color: #d92d20;
+  background: color-mix(in srgb, #d92d20 10%, var(--surface, #fff));
+}
+.manual-empty-row {
+  padding: 1.5rem !important;
+  text-align: center;
+  color: var(--color-secondary-600);
+}
+.manual-advanced-editor {
+  margin: 0 0 1rem;
+}
+.manual-advanced-editor > summary {
+  cursor: pointer;
+  color: var(--color-secondary-600);
+}
+.manual-advanced-editor .manual-editor-grid {
+  margin-top: .75rem;
+}
+.manual-editor-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.manual-editor-grid label {
+  display: grid;
+  gap: .35rem;
+}
+.manual-editor-grid textarea {
+  min-width: 0;
+  resize: vertical;
+  font-family: ui-monospace, monospace;
+}
+
+html[data-theme="dark"] .manual-mode-switch,
+html[data-theme="dark"] .manual-schedule-panel {
+  border-color: var(--border);
+  color: var(--text);
+  background: var(--surface);
+}
+
+html[data-theme="dark"] .manual-table-scroll {
+  border-color: var(--border);
+  background: var(--surface-raised);
+}
+
+html[data-theme="dark"] .manual-match-table td {
+  border-color: var(--border);
+}
+
+html[data-theme="dark"] .manual-match-table input,
+html[data-theme="dark"] .manual-editor-grid textarea {
+  border-color: var(--border);
+  color: var(--text);
+  background: var(--surface);
+}
+
+@media (max-width: 720px) {
+  .manual-mode-switch,
+  .manual-schedule-panel > header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .manual-editor-grid {
+    grid-template-columns: 1fr;
+  }
+  .manual-schedule-panel {
+    padding: .8rem;
+  }
+  .manual-schedule-panel > header button,
+  .manual-mode-switch button,
+  .manual-editor-heading button {
+    width: 100%;
+    justify-content: center;
+  }
+  .manual-import {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .manual-import > input,
+  .manual-import > button,
+  .manual-import > label {
+    width: 100%;
+    max-width: 100%;
+  }
+  .manual-editor-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .manual-table-scroll {
+    overflow: visible;
+    border: 0;
+    background: transparent;
+  }
+  .manual-match-table,
+  .manual-match-table tbody,
+  .manual-match-table tr,
+  .manual-match-table td {
+    display: block;
+    width: 100%;
+  }
+  .manual-match-table {
+    min-width: 0;
+  }
+  .manual-match-table thead {
+    display: none;
+  }
+  .manual-match-table tbody {
+    display: grid;
+    gap: .75rem;
+  }
+  .manual-match-table tr {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .5rem;
+    padding: .75rem;
+    border: 1px solid var(--color-secondary-200);
+    border-radius: .75rem;
+    background: var(--surface, #fff);
+  }
+  .manual-match-table td {
+    padding: 0;
+    border: 0;
+  }
+  .manual-match-table td:first-child {
+    grid-column: 1 / -1;
+    padding-right: 2.75rem;
+  }
+  .manual-match-table td:last-child {
+    position: absolute;
+    top: .75rem;
+    right: .75rem;
+    width: auto;
+  }
+  .manual-match-table td::before {
+    display: block;
+    margin-bottom: .2rem;
+    color: var(--color-secondary-600);
+    font-size: .7rem;
+    font-weight: 700;
+  }
+  .manual-match-table td:nth-child(1)::before {
+    content: "MATCH";
+  }
+  .manual-match-table td:nth-child(2)::before {
+    content: "RED 1";
+    color: #b42318;
+  }
+  .manual-match-table td:nth-child(3)::before {
+    content: "RED 2";
+    color: #b42318;
+  }
+  .manual-match-table td:nth-child(4)::before {
+    content: "RED 3";
+    color: #b42318;
+  }
+  .manual-match-table td:nth-child(5)::before {
+    content: "BLUE 1";
+    color: #175cd3;
+  }
+  .manual-match-table td:nth-child(6)::before {
+    content: "BLUE 2";
+    color: #175cd3;
+  }
+  .manual-match-table td:nth-child(7)::before {
+    content: "BLUE 3";
+    color: #175cd3;
+  }
+  .manual-match-table td:last-child::before {
+    content: none;
+  }
+  .manual-match-table input {
+    min-width: 0;
+    min-height: 44px;
+    font-size: 16px;
+  }
+  .manual-import > input {
+    min-height: 44px;
+    padding: .55rem;
+    overflow: hidden;
+  }
+  .manual-schedule-panel [role="status"] {
+    overflow-wrap: anywhere;
+  }
+  html[data-theme="dark"] .manual-match-table tr {
+    border-color: var(--border);
+    background: var(--surface-raised);
+  }
+}
 .scouting-admin-page .event-context {
   margin-bottom: 16px;
 }

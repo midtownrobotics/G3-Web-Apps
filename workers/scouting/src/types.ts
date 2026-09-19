@@ -8,6 +8,7 @@ export type AppEnv = {
     SLACK_BOT_TOKEN?: string;
     TBA_AUTH_KEY?: string;
     NEXUS_API_KEY?: string;
+    AI: Ai;
   };
   Variables: {
     userId: string;

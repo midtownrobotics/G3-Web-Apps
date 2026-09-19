@@ -822,7 +822,523 @@ type EventContext = {
   nexusEventKey: string;
   hasNexusApiKey: boolean;
   nexusApiKey: string;
+  scheduleMode: "tba" | "manual";
+  manualEvent: { event_name: string; ends_at: number; delete_after: number } | null;
+  manualTeamNames: Record<string, string>;
 };
+
+async function prepareScheduleFiles(files: File[]) {
+  const prepared: File[] = [];
+  for (const file of files) {
+    if (!file.type.startsWith("image/")) {
+      prepared.push(file);
+      continue;
+    }
+    const image = await createImageBitmap(file);
+    const originalAspectRatio = image.height / image.width;
+    const cameraPhoto =
+      file.type === "image/jpeg" && originalAspectRatio > 0.65 && originalAspectRatio < 1.8;
+    let baseX = 0;
+    let baseY = 0;
+    let baseWidth = image.width;
+    let baseHeight = image.height;
+    if (cameraPhoto) {
+      const previewScale = Math.min(1, 320 / Math.max(image.width, image.height));
+      const preview = document.createElement("canvas");
+      preview.width = Math.max(1, Math.round(image.width * previewScale));
+      preview.height = Math.max(1, Math.round(image.height * previewScale));
+      const previewContext = preview.getContext("2d");
+      if (!previewContext) throw new Error("This browser could not inspect the photo.");
+      previewContext.drawImage(image, 0, 0, preview.width, preview.height);
+      const pixels = previewContext.getImageData(0, 0, preview.width, preview.height).data;
+      let minX = preview.width;
+      let minY = preview.height;
+      let maxX = 0;
+      let maxY = 0;
+      let darkPixels = 0;
+      for (let y = 0; y < preview.height; y += 1) {
+        for (let x = 0; x < preview.width; x += 1) {
+          const offset = (y * preview.width + x) * 4;
+          const brightness =
+            pixels[offset] * 0.299 + pixels[offset + 1] * 0.587 + pixels[offset + 2] * 0.114;
+          if (brightness >= 165) continue;
+          darkPixels += 1;
+          minX = Math.min(minX, x);
+          minY = Math.min(minY, y);
+          maxX = Math.max(maxX, x);
+          maxY = Math.max(maxY, y);
+        }
+      }
+      if (darkPixels > 100) {
+        const padding = Math.round(Math.max(preview.width, preview.height) * 0.035);
+        minX = Math.max(0, minX - padding);
+        minY = Math.max(0, minY - padding);
+        maxX = Math.min(preview.width - 1, maxX + padding);
+        maxY = Math.min(preview.height - 1, maxY + padding);
+        baseX = Math.round(minX / previewScale);
+        baseY = Math.round(minY / previewScale);
+        baseWidth = Math.min(image.width - baseX, Math.round((maxX - minX + 1) / previewScale));
+        baseHeight = Math.min(image.height - baseY, Math.round((maxY - minY + 1) / previewScale));
+      }
+    }
+    const aspectRatio = baseHeight / baseWidth;
+    const splitVertically = !cameraPhoto && baseHeight > 2200 && aspectRatio > 2;
+    const splitHorizontally = !cameraPhoto && baseWidth > 2400 && 1 / aspectRatio > 2.2;
+    const divideVertically = splitVertically;
+    const divideHorizontally = splitHorizontally;
+    const sections = splitVertically || splitHorizontally ? 3 : 1;
+    for (let index = 0; index < sections; index += 1) {
+      const overlap = 0.05;
+      const sectionFraction = 1 / sections;
+      const sourceX = divideHorizontally
+        ? baseX + Math.round(baseWidth * Math.max(0, index * sectionFraction - overlap))
+        : baseX;
+      const sourceY = divideVertically
+        ? baseY + Math.round(baseHeight * Math.max(0, index * sectionFraction - overlap))
+        : baseY;
+      const sourceWidth = divideHorizontally
+        ? Math.min(
+            baseX + baseWidth - sourceX,
+            Math.round(baseWidth * (sectionFraction + overlap * 2)),
+          )
+        : baseWidth;
+      const sourceHeight = divideVertically
+        ? Math.min(
+            baseY + baseHeight - sourceY,
+            Math.round(baseHeight * (sectionFraction + overlap * 2)),
+          )
+        : baseHeight;
+      const scale = Math.min(1, (cameraPhoto ? 1900 : 1600) / Math.max(sourceWidth, sourceHeight));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(sourceWidth * scale));
+      canvas.height = Math.max(1, Math.round(sourceHeight * scale));
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("This browser could not prepare the image.");
+      if (cameraPhoto) context.filter = "grayscale(65%) contrast(123%) brightness(104%)";
+      context.drawImage(
+        image,
+        sourceX,
+        sourceY,
+        sourceWidth,
+        sourceHeight,
+        0,
+        0,
+        canvas.width,
+        canvas.height,
+      );
+      const blob = await new Promise<Blob>((resolve, reject) =>
+        canvas.toBlob(
+          (result) => (result ? resolve(result) : reject(new Error("Could not prepare image."))),
+          "image/jpeg",
+          0.9,
+        ),
+      );
+      prepared.push(
+        new File(
+          [blob],
+          `${file.name.replace(/\.[^.]+$/, "")}-${cameraPhoto ? "photo" : "section"}-${index + 1}.jpg`,
+          { type: "image/jpeg" },
+        ),
+      );
+    }
+    image.close();
+  }
+  if (prepared.length > 4)
+    throw new Error(
+      "These images produce more than four scan sections. Upload fewer pages at once.",
+    );
+  return prepared;
+}
+
+function ManualModeManager() {
+  const [context, setContext] = useState<EventContext | null>(null);
+  const [scheduleText, setScheduleText] = useState("");
+  const [teamText, setTeamText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const load = useCallback(async () => {
+    const next = await api<EventContext>("/event-context");
+    setContext(next);
+    if (next.scheduleMode === "manual") {
+      const loadedSchedule = next.eventSchedule
+        .map((match) =>
+          [
+            match.matchNumber,
+            match.scheduledAt ? new Date(match.scheduledAt).toISOString() : "",
+            ...match.teams,
+          ].join(","),
+        )
+        .join("\n");
+      setScheduleText((current) => current || loadedSchedule);
+    }
+    if (next.scheduleMode === "manual") {
+      const loadedTeams = Object.entries(next.manualTeamNames || {})
+        .map(([number, name]) => `${number},${name}`)
+        .join("\n");
+      setTeamText((current) => current || loadedTeams);
+    }
+  }, []);
+  useEffect(() => {
+    load().catch(() => undefined);
+  }, [load]);
+
+  function parseEditor() {
+    const teams = Object.fromEntries(
+      teamText
+        .split(/\r?\n/)
+        .filter(Boolean)
+        .map((line) => {
+          const [number, ...name] = line.split(",");
+          return [number.trim(), name.join(",").trim()];
+        }),
+    );
+    const matches = scheduleText
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .map((line) => {
+        const [matchNumber, scheduledAt, ...teamNumbers] = line
+          .split(",")
+          .map((part) => part.trim());
+        return {
+          matchNumber: Number(matchNumber),
+          scheduledAt: scheduledAt || null,
+          teams: teamNumbers,
+        };
+      });
+    return { matches, teams };
+  }
+
+  const editorRows = scheduleText
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .map((line) => {
+      const cells = line.split(",").map((part) => part.trim());
+      return Array.from({ length: 8 }, (_, index) => cells[index] || "");
+    });
+
+  function setEditorRows(rows: string[][]) {
+    setScheduleText(rows.map((row) => row.join(",")).join("\n"));
+  }
+
+  function updateEditorCell(rowIndex: number, cellIndex: number, value: string) {
+    const rows = editorRows.map((row) => [...row]);
+    rows[rowIndex][cellIndex] = value;
+    setEditorRows(rows);
+  }
+
+  async function saveSchedule() {
+    const schedule = parseEditor();
+    const incomplete = schedule.matches
+      .filter(
+        (match) =>
+          !Number.isInteger(match.matchNumber) ||
+          match.matchNumber < 1 ||
+          match.teams.length !== 6 ||
+          match.teams.some((team) => !team),
+      )
+      .map((match) => match.matchNumber || "new");
+    if (incomplete.length) {
+      setMessage(
+        `Fill every team cell for match${incomplete.length === 1 ? "" : "es"} ${incomplete.join(", ")} before saving.`,
+      );
+      return;
+    }
+    setBusy(true);
+    setMessage("");
+    try {
+      await api("/manual-schedule", { method: "PUT", body: JSON.stringify(schedule) });
+      setMessage("Manual schedule saved. It is now active everywhere scouting uses match data.");
+      await load();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not save schedule.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (context?.scheduleMode !== "manual")
+    return (
+      <section className="manual-mode-switch">
+        <button
+          type="button"
+          className="primary-button"
+          onClick={async () => {
+            if (
+              !window.confirm(
+                "Switch off TBA and use a temporary, manually managed event schedule?",
+              )
+            )
+              return;
+            const name = window.prompt("Competition name");
+            if (!name) return;
+            const date = window.prompt(
+              "Competition end date (YYYY-MM-DD)",
+              new Date().toISOString().slice(0, 10),
+            );
+            if (!date) return;
+            const end = new Date(`${date}T23:59:59`).getTime();
+            setBusy(true);
+            try {
+              await api("/manual-mode", {
+                method: "POST",
+                body: JSON.stringify({ eventName: name, endsAt: end }),
+              });
+              await load();
+              window.dispatchEvent(new Event("scouting-schedule-mode-changed"));
+            } finally {
+              setBusy(false);
+            }
+          }}
+          disabled={busy}
+        >
+          Switch to all-manual mode
+        </button>
+        <p>Use a temporary event database when TBA is unavailable.</p>
+      </section>
+    );
+
+  return (
+    <section className="manual-schedule-panel">
+      <header>
+        <div>
+          <strong>All-manual mode</strong>
+          <span>{context.manualEvent?.event_name}</span>
+        </div>
+        <button
+          type="button"
+          className="primary-button"
+          onClick={async () => {
+            if (
+              !window.confirm(
+                "Switch back to TBA mode and delete this event's temporary manual teams and schedule? Scouting submissions are retained.",
+              )
+            )
+              return;
+            await api("/manual-mode", { method: "DELETE" });
+            setScheduleText("");
+            setTeamText("");
+            await load();
+            window.dispatchEvent(new Event("scouting-schedule-mode-changed"));
+          }}
+        >
+          Switch back to TBA mode
+        </button>
+      </header>
+      <p>
+        This temporary schedule will be automatically deleted three days after the competition ends.
+      </p>
+      <p className="manual-scan-help">
+        Upload schedule pages or photos. Long and side-by-side screenshots are automatically split
+        into overlapping sections for better recognition. The scan never goes live until you review
+        and save it.
+      </p>
+      <div className="manual-import">
+        <input
+          ref={fileRef}
+          type="file"
+          multiple
+          accept="image/*,.pdf,.csv,.xlsx,.xls,.docx,.ods,.numbers"
+        />
+        <label className="secondary-button manual-camera-button">
+          Take a photo
+          <input ref={cameraRef} type="file" accept="image/*" capture="environment" />
+        </label>
+        <button
+          type="button"
+          className="secondary-button"
+          disabled={busy}
+          onClick={async () => {
+            const selectedFiles = [
+              ...Array.from(fileRef.current?.files || []),
+              ...Array.from(cameraRef.current?.files || []),
+            ];
+            if (!selectedFiles.length) {
+              setMessage("Choose or take one or more schedule photos first.");
+              return;
+            }
+            setBusy(true);
+            const controller = new AbortController();
+            const timeoutId = window.setTimeout(() => controller.abort(), 70_000);
+            setMessage("Reading schedule…");
+            try {
+              const files = await prepareScheduleFiles(selectedFiles);
+              setMessage(
+                files.length > selectedFiles.length
+                  ? `Scanning ${files.length} optimized sections…`
+                  : "Reading schedule…",
+              );
+              const data = new FormData();
+              for (const file of files) data.append("files", file);
+              const result = await api<{
+                matches: { matchNumber: number; scheduledAt: string | null; teams: string[] }[];
+                teams: Record<string, string>;
+                warnings: string[];
+                pageCount: number;
+                cachedPageCount: number;
+              }>("/manual-schedule/extract", {
+                method: "POST",
+                body: data,
+                signal: controller.signal,
+              });
+              setScheduleText(
+                result.matches
+                  .map((match) =>
+                    [match.matchNumber, match.scheduledAt || "", ...match.teams].join(","),
+                  )
+                  .join("\n"),
+              );
+              setTeamText(
+                Object.entries(result.teams)
+                  .map(([number, name]) => `${number},${name}`)
+                  .join("\n"),
+              );
+              setMessage(
+                result.warnings.length
+                  ? `Found ${result.matches.length} matches. Some pages need attention: ${result.warnings.join(" ")}`
+                  : `Found ${result.matches.length} matches across ${result.pageCount} page${result.pageCount === 1 ? "" : "s"}${result.cachedPageCount ? ` (${result.cachedPageCount} reused without another AI request)` : ""}. Review them, then save.`,
+              );
+            } catch (error) {
+              setMessage(
+                error instanceof DOMException && error.name === "AbortError"
+                  ? "The scan took too long and was stopped. Try filling the camera frame with the paper and retake the photo."
+                  : error instanceof Error
+                    ? error.message
+                    : "Could not read the schedule.",
+              );
+            } finally {
+              window.clearTimeout(timeoutId);
+              setBusy(false);
+            }
+          }}
+        >
+          Scan selected pages
+        </button>
+      </div>
+      <div className="manual-match-editor">
+        <div className="manual-editor-heading">
+          <div>
+            <strong>Review matches</strong>
+            <small>Correct missing cells, then save.</small>
+          </div>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() =>
+              setEditorRows([
+                ...editorRows,
+                [
+                  String((Number(editorRows.at(-1)?.[0]) || editorRows.length) + 1),
+                  "",
+                  "",
+                  "",
+                  "",
+                  "",
+                  "",
+                  "",
+                ],
+              ])
+            }
+          >
+            <Plus size={16} /> Add match
+          </button>
+        </div>
+        <div className="manual-table-scroll">
+          <table className="manual-match-table">
+            <thead>
+              <tr>
+                <th>Match</th>
+                <th>Red 1</th>
+                <th>Red 2</th>
+                <th>Red 3</th>
+                <th>Blue 1</th>
+                <th>Blue 2</th>
+                <th>Blue 3</th>
+                <th>
+                  <span className="sr-only">Delete</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {editorRows.map((row, rowIndex) => (
+                <tr key={`${rowIndex}-${row[0]}`}>
+                  {row.map((value, cellIndex) =>
+                    cellIndex === 1 ? null : (
+                      // biome-ignore lint/suspicious/noArrayIndexKey: these eight fixed schedule columns never reorder
+                      <td key={cellIndex}>
+                        <input
+                          type="number"
+                          min={1}
+                          max={12000}
+                          value={value}
+                          required
+                          className={value ? undefined : "missing-team-cell"}
+                          aria-label={`Row ${rowIndex + 1}, column ${cellIndex + 1}`}
+                          onChange={(event) =>
+                            updateEditorCell(rowIndex, cellIndex, event.target.value)
+                          }
+                        />
+                      </td>
+                    ),
+                  )}
+                  <td>
+                    <button
+                      type="button"
+                      className="icon-button"
+                      aria-label={`Delete match ${row[0] || rowIndex + 1}`}
+                      onClick={() =>
+                        setEditorRows(editorRows.filter((_, index) => index !== rowIndex))
+                      }
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {!editorRows.length && (
+                <tr>
+                  <td colSpan={8} className="manual-empty-row">
+                    Scan a schedule or add the first match.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <details className="manual-advanced-editor">
+        <summary>Advanced CSV and team names</summary>
+        <div className="manual-editor-grid">
+          <label>
+            <strong>Matches</strong>
+            <small>One per line: match, time, red 1–3, blue 1–3</small>
+            <textarea
+              rows={12}
+              value={scheduleText}
+              onChange={(e) => setScheduleText(e.target.value)}
+              placeholder="1,2026-03-14T09:00:00,1648,1771,4910,2974,6829,8736"
+            />
+          </label>
+          <label>
+            <strong>Team names</strong>
+            <small>Optional: team number, team name</small>
+            <textarea
+              rows={12}
+              value={teamText}
+              onChange={(e) => setTeamText(e.target.value)}
+              placeholder="1648,G3 Robotics"
+            />
+          </label>
+        </div>
+      </details>
+      <button type="button" className="primary-button" disabled={busy} onClick={saveSchedule}>
+        <Save size={17} /> Save manual schedule
+      </button>
+      {message && <p role="status">{message}</p>}
+    </section>
+  );
+}
 
 function EventStatus({
   isAdmin,
@@ -858,7 +1374,12 @@ function EventStatus({
   useEffect(() => {
     load().catch(() => undefined);
     const interval = window.setInterval(() => load().catch(() => undefined), 30_000);
-    return () => window.clearInterval(interval);
+    const refreshMode = () => load().catch(() => undefined);
+    window.addEventListener("scouting-schedule-mode-changed", refreshMode);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("scouting-schedule-mode-changed", refreshMode);
+    };
   }, [load]);
   async function updateEvent(currentMatchNumber: string) {
     const filledTbaAuthKey = tbaAuthKeyRef.current?.value || tbaAuthKey;
@@ -897,7 +1418,14 @@ function EventStatus({
             }}
             onSubmit={async (event) => {
               event.preventDefault();
-              if (!window.confirm("Update the active TBA event and current match?")) return;
+              if (
+                !window.confirm(
+                  context?.scheduleMode === "manual"
+                    ? "Update the current manual match?"
+                    : "Update the active TBA event and current match?",
+                )
+              )
+                return;
               await updateEvent(matchNumber);
             }}
           >
@@ -926,29 +1454,33 @@ function EventStatus({
                   <Plus size={18} />
                 </button>
               </div>
-              <button
-                type="button"
-                className="secondary-button use-tba-match"
-                disabled={saving || !context?.tbaCurrentMatch}
-                onClick={async () => {
-                  const nextMatch = context?.tbaCurrentMatch?.matchNumber;
-                  if (!nextMatch) return;
-                  setMatchNumber(String(nextMatch));
-                  await updateEvent(String(nextMatch));
-                }}
-              >
-                Set to current TBA match
-              </button>
+              {context?.scheduleMode !== "manual" && (
+                <button
+                  type="button"
+                  className="secondary-button use-tba-match"
+                  disabled={saving || !context?.tbaCurrentMatch}
+                  onClick={async () => {
+                    const nextMatch = context?.tbaCurrentMatch?.matchNumber;
+                    if (!nextMatch) return;
+                    setMatchNumber(String(nextMatch));
+                    await updateEvent(String(nextMatch));
+                  }}
+                >
+                  Set to current TBA match
+                </button>
+              )}
             </label>
-            <label>
-              <strong>TBA Event Key</strong>
-              <input
-                value={eventKey}
-                onChange={(event) => setEventKey(event.target.value)}
-                placeholder="e.g. 2026gacmp"
-              />
-            </label>
-            {isG3IdAdmin && (
+            {context?.scheduleMode !== "manual" && (
+              <label>
+                <strong>TBA Event Key</strong>
+                <input
+                  value={eventKey}
+                  onChange={(event) => setEventKey(event.target.value)}
+                  placeholder="e.g. 2026gacmp"
+                />
+              </label>
+            )}
+            {context?.scheduleMode !== "manual" && isG3IdAdmin && (
               <label>
                 <strong>TBA Auth Key</strong>
                 <div className="secret-field">
@@ -1206,6 +1738,7 @@ export function ScoutingAdminPage({
           <h1>Admin</h1>
         </div>
       </div>
+      <ManualModeManager />
       <EventStatus isAdmin isG3IdAdmin={isG3IdAdmin} onOpenSubmission={onOpenSubmission} />
       <AdminManager isG3IdAdmin={isG3IdAdmin} />
       <LiveStrategy />

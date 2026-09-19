@@ -2,6 +2,9 @@ name = "scouting-production"
 main = "src/index.ts"
 compatibility_date = "2026-05-17"
 
+[ai]
+binding = "AI"
+
 [[services]]
 binding = "G3ID"
 service = "g3id-production"
@@ -30,6 +33,9 @@ custom_domain = true
 # that invoke `wrangler deploy --env production`.
 [env.production]
 name = "scouting-production"
+
+[env.production.ai]
+binding = "AI"
 
 [[env.production.services]]
 binding = "G3ID"
