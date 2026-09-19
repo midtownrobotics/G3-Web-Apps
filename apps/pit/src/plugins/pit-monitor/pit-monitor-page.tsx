@@ -7,7 +7,7 @@ import { fetchAllIssues } from "../../shared/getters/issues";
 import { fetchLists } from "../../shared/getters/lists";
 import type { Battery, ChecklistIssueSummary, ChecklistList } from "../../shared/getters/types";
 
-const REFRESH_MS = 5000;
+const REFRESH_MS = 15_000;
 
 // ── External data types ────────────────────────────────────────────────────
 
@@ -591,7 +591,7 @@ export function PitMonitorPage() {
   };
 
   async function loadAll() {
-    const [b, l, i, m, settings] = await Promise.all([
+    const [b, l, i, m] = await Promise.all([
       fetchBatteries().catch(() => [] as Battery[]),
       fetchLists().catch(() => [] as ChecklistList[]),
       fetchAllIssues().catch(() => [] as ChecklistIssueSummary[]),
@@ -599,26 +599,43 @@ export function PitMonitorPage() {
         .$get()
         .then((r) => (r.ok ? (r.json() as Promise<MonitorData>) : null))
         .catch(() => null),
-      api.monitor.settings
-        .$get()
-        .then((r) => (r.ok ? (r.json() as Promise<{ iframeUrl?: string }>) : null))
-        .catch(() => null),
     ]);
     setBatteries(b);
     setCachedBatteries(b);
     setLists(l);
     setIssues(i);
     setMonitor(m);
-    setIframeUrl(settings?.iframeUrl ?? null);
     setLastUpdated(new Date());
     setLoading(false);
   }
 
+  async function loadSettings() {
+    const response = await api.monitor.settings.$get();
+    if (!response.ok) return;
+    const settings = (await response.json()) as { iframeUrl?: string };
+    setIframeUrl(settings.iframeUrl ?? null);
+  }
+
   // biome-ignore lint/correctness/useExhaustiveDependencies: loadAll is stable
   useEffect(() => {
-    loadAll();
-    const interval = setInterval(loadAll, REFRESH_MS);
-    return () => clearInterval(interval);
+    void loadAll();
+    void loadSettings().catch(() => {});
+    let requestInFlight = false;
+    const refresh = async () => {
+      if (document.visibilityState !== "visible" || requestInFlight) return;
+      requestInFlight = true;
+      try {
+        await loadAll();
+      } finally {
+        requestInFlight = false;
+      }
+    };
+    const interval = setInterval(() => void refresh(), REFRESH_MS);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", refresh);
+    };
   }, []);
 
   if (loading) {

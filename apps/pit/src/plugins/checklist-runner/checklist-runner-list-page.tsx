@@ -6,6 +6,8 @@ import { fetchAllIssues } from "../../shared/getters/issues";
 import { fetchLists } from "../../shared/getters/lists";
 import type { ChecklistIssueSummary, ChecklistList } from "../../shared/getters/types";
 
+const POLL_INTERVAL_MS = 5000;
+
 export function ChecklistRunnerListPage() {
   const navigate = useNavigate();
   const [lists, setLists] = useState<ChecklistList[]>([]);
@@ -27,15 +29,26 @@ export function ChecklistRunnerListPage() {
 
   useEffect(() => {
     if (loading) return;
-    const interval = setInterval(() => {
-      Promise.all([fetchLists(), fetchAllIssues()])
-        .then(([listsData, issuesData]) => {
-          setLists(listsData);
-          setIssues(issuesData);
-        })
-        .catch(() => {});
-    }, 1000);
-    return () => clearInterval(interval);
+    let requestInFlight = false;
+    const refresh = async () => {
+      if (document.visibilityState !== "visible" || requestInFlight) return;
+      requestInFlight = true;
+      try {
+        const [listsData, issuesData] = await Promise.all([fetchLists(), fetchAllIssues()]);
+        setLists(listsData);
+        setIssues(issuesData);
+      } catch {
+        // Keep the last successful data visible while a refresh fails.
+      } finally {
+        requestInFlight = false;
+      }
+    };
+    const interval = setInterval(() => void refresh(), POLL_INTERVAL_MS);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", refresh);
+    };
   }, [loading]);
 
   async function handleDeleteIssue(issue: ChecklistIssueSummary) {

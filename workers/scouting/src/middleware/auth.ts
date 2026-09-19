@@ -12,7 +12,7 @@ export const requireAuth = createMiddleware<AppEnv>(async (c, next) => {
   }
 
   const response = await c.env.G3ID.fetch(
-    new Request("http://g3id/auth/me", {
+    new Request("http://g3id/auth/me?includeIdentities=false", {
       headers: { cookie: c.req.header("Cookie") ?? "" },
     }),
   );

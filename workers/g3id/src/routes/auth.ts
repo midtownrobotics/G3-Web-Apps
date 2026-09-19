@@ -31,17 +31,20 @@ export const authRouter = new Hono<AppEnv>()
 
     if (!user) return c.json({ error: "User not found." }, 404);
 
-    const identities = await db
-      .select({
-        id: coreUserIdentities.id,
-        provider: coreUserIdentities.provider,
-        createdAt: coreUserIdentities.createdAt,
-        providerEmail: coreUserIdentities.providerEmail,
-        providerId: coreUserIdentities.providerId,
-      })
-      .from(coreUserIdentities)
-      .where(eq(coreUserIdentities.userId, userId))
-      .all();
+    const includeIdentities = c.req.query("includeIdentities") !== "false";
+    const identities = includeIdentities
+      ? await db
+          .select({
+            id: coreUserIdentities.id,
+            provider: coreUserIdentities.provider,
+            createdAt: coreUserIdentities.createdAt,
+            providerEmail: coreUserIdentities.providerEmail,
+            providerId: coreUserIdentities.providerId,
+          })
+          .from(coreUserIdentities)
+          .where(eq(coreUserIdentities.userId, userId))
+          .all()
+      : [];
 
     let sessionType: "oauth" | "pin" = "oauth";
     let kioskDeviceId: number | undefined;

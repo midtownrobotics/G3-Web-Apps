@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   type AnySQLiteColumn,
   check,
+  index,
   integer,
   sqliteTable,
   text,
@@ -55,6 +56,7 @@ export const coreUserIdentities = sqliteTable(
       sql`${table.provider} IN ('local', 'google', 'slack', 'github', 'onshape', 'steam')`,
     ),
     unique("core_user_identities_provider_provider_id_uniq").on(table.provider, table.providerId),
+    index("core_user_identities_user_id_idx").on(table.userId),
   ],
 );
 

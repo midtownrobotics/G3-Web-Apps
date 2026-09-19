@@ -5,7 +5,7 @@ import { generateBatteryAndStatesPDF } from "../../shared/generate-state-labels"
 import { fetchBatteries } from "../../shared/getters/batteries";
 import type { Battery, BatteryState } from "../../shared/getters/types";
 
-const POLL_INTERVAL_MS = 3000;
+const POLL_INTERVAL_MS = 10_000;
 
 const STATE_META: Record<
   BatteryState,
@@ -121,12 +121,24 @@ export function BatteriesPage() {
 
   useEffect(() => {
     if (loading) return;
-    const interval = setInterval(() => {
-      fetchBatteries()
-        .then(setBatteries)
-        .catch(() => {});
-    }, POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
+    let requestInFlight = false;
+    const refresh = async () => {
+      if (document.visibilityState !== "visible" || requestInFlight) return;
+      requestInFlight = true;
+      try {
+        setBatteries(await fetchBatteries());
+      } catch {
+        // Keep the last successful data visible while a refresh fails.
+      } finally {
+        requestInFlight = false;
+      }
+    };
+    const interval = setInterval(() => void refresh(), POLL_INTERVAL_MS);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", refresh);
+    };
   }, [loading]);
 
   useEffect(() => {
