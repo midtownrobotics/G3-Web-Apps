@@ -39,6 +39,7 @@ type NexusMatch = {
 type NexusData = {
   nowQueuing?: string | null;
   matches: NexusMatch[];
+  isRealNexus?: boolean;
 };
 
 type ContextRankings = {
@@ -653,8 +654,8 @@ export function PitMonitorPage() {
           </div>
         </div>
 
-        {/* Nexus status — full width, only if data available */}
-        {hasNexus && nexus && <NexusSection nexus={nexus} teamNumber={teamNumber} />}
+        {/* Nexus status — full width, only if real Nexus data available */}
+        {nexus?.isRealNexus && <NexusSection nexus={nexus} teamNumber={teamNumber} />}
 
         {/* Main grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

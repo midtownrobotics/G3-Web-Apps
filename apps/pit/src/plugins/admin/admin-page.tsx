@@ -10,6 +10,7 @@ export function AdminPage() {
   const [nexusEventKey, setNexusEventKey] = useState("");
   const [tbaAuthKey, setTbaAuthKey] = useState("");
   const [nexusApiKey, setNexusApiKey] = useState("");
+  const [iframeUrl, setIframeUrl] = useState("");
   const [teamNumber, setTeamNumber] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -32,6 +33,7 @@ export function AdminPage() {
           setNexusEventKey(data.nexusEventKey);
           setTbaAuthKey(data.tbaAuthKey);
           setNexusApiKey(data.nexusApiKey);
+          setIframeUrl(data.iframeUrl ?? "");
           setTeamNumber(data.teamNumber);
         }
       })
@@ -48,6 +50,7 @@ export function AdminPage() {
         nexusEventKey: nexusEventKey.trim(),
         tbaAuthKey: tbaAuthKey.trim(),
         nexusApiKey: nexusApiKey.trim(),
+        iframeUrl: iframeUrl.trim(),
       },
     });
     setSaving(false);
@@ -136,6 +139,25 @@ export function AdminPage() {
             onSaved={() => setSaved(false)}
             secret
             hint="From frc.nexus. Powers live queuing/match status."
+          />
+        </div>
+
+        <div className="bg-white rounded-xl border border-gray-300 p-5 space-y-5">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-200">Pit Monitor Display</h2>
+            <p className="text-sm text-gray-600 mt-0.5">
+              Customize the monitor page display with an embedded feed or dashboard.
+            </p>
+          </div>
+
+          <Field
+            id="iframe-url"
+            label="Custom Monitor Feed URL (Optional)"
+            placeholder="e.g. https://example.com/monitor"
+            value={iframeUrl}
+            onChange={setIframeUrl}
+            onSaved={() => setSaved(false)}
+            hint="URL to display in an iframe on the pit monitor page. Leave blank to disable. Should support embedding (no X-Frame-Options restriction)."
           />
 
           <div className="flex items-center gap-3 pt-1">
