@@ -36,6 +36,19 @@ export function useBarcodeScan(onComplete?: (state: string, battery: string) => 
 
       // Process the completed barcode when "Enter" is detected
       if (event.key === "Enter") {
+        // Special case: CANCEL stops the current scan
+        if (barcodeBuffer === "CANCEL") {
+          console.log("[BarcodeScan] Cancel requested");
+          if (timeoutRef.current) clearTimeout(timeoutRef.current);
+          setScan({
+            stateCode: null,
+            batteryCode: null,
+            scanInProgress: false,
+          });
+          barcodeBuffer = "";
+          return;
+        }
+
         if (barcodeBuffer.length >= 7) {
           const currentState = scanStateRef.current;
           const isStateCode = STATE_CODES.has(barcodeBuffer);
@@ -46,7 +59,9 @@ export function useBarcodeScan(onComplete?: (state: string, battery: string) => 
             if (!currentState.stateCode && !currentState.batteryCode) {
               // First scan - state code
               if (timeoutRef.current) clearTimeout(timeoutRef.current);
+              console.log(`[BarcodeScan] Setting ${TIMEOUT_MS}ms timeout for state code scan`);
               timeoutRef.current = setTimeout(() => {
+                console.log("[BarcodeScan] Timeout fired - resetting scan");
                 setScan({
                   stateCode: null,
                   batteryCode: null,
@@ -93,7 +108,9 @@ export function useBarcodeScan(onComplete?: (state: string, battery: string) => 
             if (!currentState.stateCode && !currentState.batteryCode) {
               // First scan - battery code
               if (timeoutRef.current) clearTimeout(timeoutRef.current);
+              console.log(`[BarcodeScan] Setting ${TIMEOUT_MS}ms timeout for battery code scan`);
               timeoutRef.current = setTimeout(() => {
+                console.log("[BarcodeScan] Timeout fired - resetting scan");
                 setScan({
                   stateCode: null,
                   batteryCode: null,
