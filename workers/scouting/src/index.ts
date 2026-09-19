@@ -32,6 +32,7 @@ type TbaMatch = {
   time: number | null;
   predicted_time: number | null;
   actual_time: number | null;
+  post_result_time?: number | null;
   alliances: {
     red: { team_keys: string[]; score: number };
     blue: { team_keys: string[]; score: number };
@@ -202,6 +203,39 @@ function publicMatch(match: TbaMatch) {
     redTeams,
     blueTeams,
   };
+}
+
+function automaticTbaMatch(matches: TbaMatch[], now = Math.floor(Date.now() / 1000)) {
+  const qualifications = matches
+    .filter((match) => match.comp_level === "qm")
+    .sort((left, right) => matchOrder(left) - matchOrder(right));
+  const ordered = qualifications.length
+    ? qualifications
+    : [...matches].sort((left, right) => matchOrder(left) - matchOrder(right));
+  if (!ordered.length) return undefined;
+  for (let index = 0; index < ordered.length - 1; index += 1) {
+    const match = ordered[index];
+    const hasResult = match.alliances.red.score >= 0 && match.alliances.blue.score >= 0;
+    const endedAt =
+      match.post_result_time ??
+      (match.actual_time ? match.actual_time + 150 : null) ??
+      (hasResult ? (match.predicted_time ?? match.time ?? 0) + 150 : null);
+    if (!endedAt || now < endedAt + 60) return match;
+  }
+  return ordered.at(-1);
+}
+
+async function persistAutomaticMatch(
+  c: Context<AppEnv>,
+  configuredMatchNumber: number | null | undefined,
+  match: TbaMatch | undefined,
+) {
+  if (!match || match.comp_level !== "qm" || match.match_number === configuredMatchNumber) return;
+  await c.env.SCOUTING_DB.prepare(
+    "UPDATE strategy_event_config SET current_match_number = ?, updated_at = ? WHERE id = 1 AND schedule_mode = 'tba'",
+  )
+    .bind(match.match_number, Date.now())
+    .run();
 }
 
 async function getOrCreateScoutAssignment(
@@ -438,11 +472,12 @@ app.get("/teams/search", requireAuth, async (c) => {
 
 async function resolveEventLink(c: Context<AppEnv>) {
   const config = await c.env.SCOUTING_DB.prepare(
-    "SELECT event_key, current_match_number, tba_auth_key FROM strategy_event_config WHERE id = 1",
+    "SELECT event_key, current_match_number, tba_auth_key, schedule_mode FROM strategy_event_config WHERE id = 1",
   ).first<{
     event_key: string;
     current_match_number: number | null;
     tba_auth_key: string | null;
+    schedule_mode: string;
   }>();
   if (!config?.event_key) return { eventKey: null, matchKey: null, matchNumber: null };
   let current: TbaMatch | undefined;
@@ -450,17 +485,15 @@ async function resolveEventLink(c: Context<AppEnv>) {
     const matches = (await getEventMatches(c, config.event_key)).sort(
       (a, b) => matchOrder(a) - matchOrder(b),
     );
-    current = config.current_match_number
-      ? matches.find(
-          (match) =>
-            match.comp_level === "qm" && match.match_number === config.current_match_number,
-        )
-      : matches.find(
-          (match) =>
-            match.actual_time === null &&
-            match.alliances.red.score < 0 &&
-            match.alliances.blue.score < 0,
-        );
+    current =
+      config.schedule_mode === "manual"
+        ? matches.find(
+            (match) =>
+              match.comp_level === "qm" && match.match_number === config.current_match_number,
+          )
+        : automaticTbaMatch(matches);
+    if (config.schedule_mode !== "manual")
+      await persistAutomaticMatch(c, config.current_match_number, current);
   } catch {
     // Keep the configured event link when TBA is temporarily unavailable.
   }
@@ -496,27 +529,18 @@ app.get("/event-context", requireAuth, async (c) => {
       scheduleError = error instanceof Error ? error.message : "Could not load the TBA schedule.";
     }
   }
-  const manualCurrent = config?.current_match_number
+  const configuredCurrent = config?.current_match_number
     ? matches.find(
         (match) => match.comp_level === "qm" && match.match_number === config.current_match_number,
       )
     : undefined;
+  const tbaCurrent = config?.schedule_mode === "manual" ? undefined : automaticTbaMatch(matches);
   const current =
-    manualCurrent ??
-    matches.find(
-      (match) =>
-        match.actual_time === null &&
-        match.alliances.red.score < 0 &&
-        match.alliances.blue.score < 0,
-    ) ??
-    matches.at(-1);
-  const tbaCurrent =
-    matches.find(
-      (match) =>
-        match.actual_time === null &&
-        match.alliances.red.score < 0 &&
-        match.alliances.blue.score < 0,
-    ) ?? matches.at(-1);
+    (config?.schedule_mode === "manual" ? configuredCurrent : tbaCurrent) ??
+    configuredCurrent ??
+    (config?.schedule_mode === "manual" ? matches[0] : matches.at(-1));
+  if (config?.schedule_mode !== "manual")
+    await persistAutomaticMatch(c, config?.current_match_number, current);
   const teamSchedule = matches.filter((match) =>
     [...match.alliances.red.team_keys, ...match.alliances.blue.team_keys].includes("frc1648"),
   );
