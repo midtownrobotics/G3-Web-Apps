@@ -211,6 +211,20 @@ async function getTbaAuthKey(c: Context<AppEnv>) {
   return config?.tba_auth_key || c.env.TBA_AUTH_KEY || "";
 }
 
+async function validateTbaConfiguration(eventKey: string, authKey: string) {
+  if (!authKey) throw new Error("TBA authentication key is not configured.");
+  const response = await fetch(
+    `https://www.thebluealliance.com/api/v3/event/${encodeURIComponent(eventKey)}/simple`,
+    { headers: { "X-TBA-Auth-Key": authKey } },
+  );
+  if (response.ok) return;
+  if (response.status === 401 || response.status === 403)
+    throw new Error("TBA rejected the authentication key. Check the key and try again.");
+  if (response.status === 404)
+    throw new Error(`TBA could not find event ${eventKey}. Check the event key and try again.`);
+  throw new Error(`The Blue Alliance returned ${response.status}. Try again shortly.`);
+}
+
 async function getTbaMatches(c: Context<AppEnv>, eventKey: string) {
   const now = Date.now();
   const cached = await c.env.SCOUTING_DB.prepare(
@@ -514,10 +528,10 @@ app.get("/event-context", requireAuth, async (c) => {
     onlineAdmins: onlineAdmins?.results ?? [],
     scheduleError: admin ? scheduleError : "",
     hasTbaAuthKey: admin ? Boolean(config?.tba_auth_key || c.env.TBA_AUTH_KEY) : false,
-    tbaAuthKey: c.get("userIsAdmin") ? config?.tba_auth_key || c.env.TBA_AUTH_KEY || "" : "",
+    tbaAuthKey: "",
     nexusEventKey: admin ? config?.nexus_event_key || eventKey : "",
     hasNexusApiKey: admin ? Boolean(config?.nexus_api_key || c.env.NEXUS_API_KEY) : false,
-    nexusApiKey: c.get("userIsAdmin") ? config?.nexus_api_key || c.env.NEXUS_API_KEY || "" : "",
+    nexusApiKey: "",
     scheduleMode: admin ? config?.schedule_mode || "tba" : config?.schedule_mode || "tba",
     manualEvent:
       admin && config?.schedule_mode === "manual"
@@ -546,8 +560,8 @@ app.put("/event-context", requireAuth, async (c) => {
   if (!(await isStrategyAdmin(c))) return c.json({ error: "Strategy lead access required." }, 403);
   const body = await c.req.json<Record<string, unknown>>();
   const activeConfig = await c.env.SCOUTING_DB.prepare(
-    "SELECT event_key, schedule_mode FROM strategy_event_config WHERE id = 1",
-  ).first<{ event_key: string; schedule_mode: string }>();
+    "SELECT event_key, tba_auth_key, schedule_mode FROM strategy_event_config WHERE id = 1",
+  ).first<{ event_key: string; tba_auth_key: string | null; schedule_mode: string }>();
   const eventKey =
     activeConfig?.schedule_mode === "manual"
       ? activeConfig.event_key
@@ -559,6 +573,23 @@ app.put("/event-context", requireAuth, async (c) => {
     return c.json({ error: "Only a G3ID admin can update API keys." }, 403);
   if (activeConfig?.schedule_mode !== "manual" && eventKey && !/^\d{4}[a-z0-9]+$/.test(eventKey))
     return c.json({ error: "Enter a valid TBA event key, such as 2026gadal." }, 400);
+  const tbaConfigChanged =
+    activeConfig?.schedule_mode !== "manual" &&
+    Boolean(eventKey) &&
+    (eventKey !== (activeConfig?.event_key || "") || Boolean(tbaAuthKey));
+  if (tbaConfigChanged) {
+    try {
+      await validateTbaConfiguration(
+        eventKey,
+        tbaAuthKey || activeConfig?.tba_auth_key || c.env.TBA_AUTH_KEY || "",
+      );
+    } catch (error) {
+      return c.json(
+        { error: error instanceof Error ? error.message : "Could not validate TBA settings." },
+        400,
+      );
+    }
+  }
   const requestedMatch = body.currentMatchNumber;
   const currentMatchNumber =
     requestedMatch === "" || requestedMatch === null || requestedMatch === undefined
@@ -569,7 +600,7 @@ app.put("/event-context", requireAuth, async (c) => {
     (!Number.isInteger(currentMatchNumber) || currentMatchNumber < 1)
   )
     return c.json({ error: "Current match must be a positive qualification match number." }, 400);
-  await c.env.SCOUTING_DB.prepare(
+  const updateConfig = c.env.SCOUTING_DB.prepare(
     `INSERT INTO strategy_event_config (id, event_key, current_match_number, tba_auth_key, nexus_event_key, nexus_api_key, updated_by, updated_at)
      VALUES (1, ?, ?, NULLIF(?, ''), ?, NULLIF(?, ''), ?, ?)
      ON CONFLICT(id) DO UPDATE SET event_key = excluded.event_key,
@@ -578,17 +609,24 @@ app.put("/event-context", requireAuth, async (c) => {
        nexus_event_key = excluded.nexus_event_key,
        nexus_api_key = CASE WHEN excluded.nexus_api_key IS NULL THEN strategy_event_config.nexus_api_key ELSE excluded.nexus_api_key END,
        updated_by = excluded.updated_by, updated_at = excluded.updated_at`,
-  )
-    .bind(
-      eventKey,
-      currentMatchNumber,
-      tbaAuthKey,
-      nexusEventKey,
-      nexusApiKey,
-      c.get("userId"),
-      Date.now(),
-    )
-    .run();
+  ).bind(
+    eventKey,
+    currentMatchNumber,
+    tbaAuthKey,
+    nexusEventKey,
+    nexusApiKey,
+    c.get("userId"),
+    Date.now(),
+  );
+  if (tbaConfigChanged) {
+    await c.env.SCOUTING_DB.batch([
+      updateConfig,
+      c.env.SCOUTING_DB.prepare("DELETE FROM tba_match_cache WHERE event_key = ?").bind(eventKey),
+      c.env.SCOUTING_DB.prepare("DELETE FROM tba_team_cache WHERE event_key = ?").bind(eventKey),
+    ]);
+  } else {
+    await updateConfig.run();
+  }
   return c.json({ ok: true });
 });
 
