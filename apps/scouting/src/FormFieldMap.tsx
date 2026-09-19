@@ -4,6 +4,7 @@ import {
   type RefObject,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -32,6 +33,7 @@ export function FormFieldMap({
   onDrawingChange?: (hasDrawing: boolean) => void;
 }) {
   const base = useRef<HTMLCanvasElement | null>(null);
+  const committed = useRef<HTMLCanvasElement | null>(null);
   const history = useRef<HistoryEntry[]>([]);
   const hasDrawing = useRef(false);
   const onDrawingChangeRef = useRef(onDrawingChange);
@@ -54,6 +56,10 @@ export function FormFieldMap({
       image.onload = () => {
         const canvas = canvasRef.current;
         if (!canvas) return;
+        if (hasDrawing.current) {
+          URL.revokeObjectURL(image.src);
+          return;
+        }
         const width = 1400;
         const sourceWidth = blob.type === "image/svg+xml" ? width : image.naturalWidth;
         const sourceHeight =
@@ -71,6 +77,7 @@ export function FormFieldMap({
         clean.height = canvas.height;
         clean.getContext("2d")?.drawImage(canvas, 0, 0);
         base.current = clean;
+        committed.current = clean;
         history.current = [];
         hasDrawing.current = false;
         onDrawingChangeRef.current?.(false);
@@ -93,6 +100,18 @@ export function FormFieldMap({
     document.body.classList.toggle("map-workspace-open", fullscreen);
     return () => document.body.classList.remove("map-workspace-open");
   }, [fullscreen]);
+  useLayoutEffect(() => {
+    const canvas = canvasRef.current;
+    const saved = committed.current;
+    const context = canvas?.getContext("2d");
+    if (!canvas || !saved || !context || drawing.current) return;
+    if (canvas.width !== saved.width || canvas.height !== saved.height) {
+      canvas.width = saved.width;
+      canvas.height = saved.height;
+    }
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(saved, 0, 0);
+  });
 
   function point(event: ReactPointerEvent<HTMLCanvasElement>): Point {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -116,6 +135,13 @@ export function FormFieldMap({
     if (hasDrawing.current === value) return;
     hasDrawing.current = value;
     onDrawingChangeRef.current?.(value);
+  }
+  function commitCanvas(canvas: HTMLCanvasElement) {
+    const saved = document.createElement("canvas");
+    saved.width = canvas.width;
+    saved.height = canvas.height;
+    saved.getContext("2d")?.drawImage(canvas, 0, 0);
+    committed.current = saved;
   }
   function arrow(context: CanvasRenderingContext2D, from: Point, to: Point) {
     const angle = Math.atan2(to.y - from.y, to.x - from.x);
@@ -207,14 +233,16 @@ export function FormFieldMap({
     snapshot();
     context.clearRect(0, 0, canvas.width, canvas.height);
     context.drawImage(base.current, 0, 0);
+    commitCanvas(canvas);
     setHasDrawing(false);
   }
   function undo() {
     const canvas = canvasRef.current;
     const context = canvas?.getContext("2d");
     const entry = history.current.pop();
-    if (context && entry) {
+    if (canvas && context && entry) {
       context.putImageData(entry.image, 0, 0);
+      commitCanvas(canvas);
       setHasDrawing(entry.hasDrawing);
     }
   }
@@ -225,6 +253,7 @@ export function FormFieldMap({
       if (tool === "sotm") cone(context, path.current);
     }
     if (path.current.length > 1) setHasDrawing(true);
+    commitCanvas(canvas);
     drawing.current = false;
     start.current = null;
     last.current = null;
