@@ -8,7 +8,7 @@ type ScanState = {
 
 const STATE_CODES = new Set(["ST-IDLE", "ST-CHAR", "ST-NXUP", "ST-BRKN", "ST-ROBT"]);
 const BATTERY_CODE_PATTERN = /^BAT-\d{4}$/;
-const TIMEOUT_MS = 10000;
+const TIMEOUT_MS = 6000;
 
 export function useBarcodeScan(onComplete?: (state: string, battery: string) => void) {
   const [scan, setScan] = useState<ScanState>({
