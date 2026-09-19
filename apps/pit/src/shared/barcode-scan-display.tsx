@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "./api";
 import { useBarcodeScan } from "./barcode-scanner";
 import { useBatteryCache } from "./battery-cache-context";
@@ -45,7 +45,7 @@ export function BarcodeScanDisplay() {
     return battery?.name || `BAT-${String(id).padStart(4, "0")}`;
   };
 
-  const handleComplete = async (stateCode: string, batteryCode: string) => {
+  const handleComplete = useCallback(async (stateCode: string, batteryCode: string) => {
     console.log(`[BarcodeScan] Complete: ${stateCode} -> ${batteryCode}`);
 
     // Extract battery ID from BAT-0000 format
@@ -101,7 +101,7 @@ export function BarcodeScanDisplay() {
       });
       setTimeout(() => setFeedback(null), 2000);
     }
-  };
+  }, [batteries]);
 
   const scan = useBarcodeScan(handleComplete);
 
