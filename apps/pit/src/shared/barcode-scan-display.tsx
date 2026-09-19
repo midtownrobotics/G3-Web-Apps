@@ -29,10 +29,13 @@ export function BarcodeScanDisplay() {
     }
   }, []);
 
-  // Auto-close feedback after 6 seconds
+  // Auto-close feedback after 2 seconds
   useEffect(() => {
     if (feedback) {
-      const timeout = setTimeout(() => setFeedback(null), 6000);
+      const timeout = setTimeout(() => {
+        console.log("[BarcodeScan] Auto-closing feedback after 2 seconds");
+        setFeedback(null);
+      }, 2000);
       return () => clearTimeout(timeout);
     }
   }, [feedback]);
@@ -52,6 +55,7 @@ export function BarcodeScanDisplay() {
     if (!state) {
       console.error(`Invalid state code: ${stateCode}`);
       setFeedback({ type: "error", message: "Invalid state" });
+      setTimeout(() => setFeedback(null), 2000);
       return;
     }
 
@@ -66,10 +70,12 @@ export function BarcodeScanDisplay() {
         const error = await res.text();
         console.error("[BarcodeScan] API error:", error);
         setFeedback({ type: "error", message: "Failed to update battery" });
+        setTimeout(() => setFeedback(null), 2000);
       } else {
         console.log("[BarcodeScan] ✓ Battery updated successfully");
         const batteryName = getBatteryName(batteryId);
         setFeedback({ type: "success", message: `${batteryName} → ${state}` });
+        setTimeout(() => setFeedback(null), 2000);
 
         // If setting to "In Robot", set any other "In Robot" battery to "Idle"
         if (state === "In Robot") {
@@ -89,6 +95,7 @@ export function BarcodeScanDisplay() {
         type: "error",
         message: err instanceof Error ? err.message : "Error updating battery",
       });
+      setTimeout(() => setFeedback(null), 2000);
     }
   };
 
