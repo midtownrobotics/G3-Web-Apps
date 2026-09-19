@@ -213,55 +213,76 @@ function UpcomingMatchesSection({
       <h2 className="text-xs font-bold uppercase tracking-widest text-gray-600">
         Upcoming Matches
       </h2>
-      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-200 text-gray-600 text-xs uppercase tracking-wide">
-              <th className="text-left px-4 py-2 font-semibold">Match</th>
-              <th className="text-left px-4 py-2 font-semibold">Queue</th>
-              <th className="text-left px-4 py-2 font-semibold">Start</th>
-              <th className="text-left px-4 py-2 font-semibold">Blue</th>
-              <th className="text-left px-4 py-2 font-semibold">Red</th>
-            </tr>
-          </thead>
-          <tbody>
-            {upcoming.map((m) => (
-              <tr key={m.label} className="border-b border-gray-200/50 last:border-0">
-                <td className="px-4 py-2.5 font-semibold text-gray-900">{m.label}</td>
-                <td className="px-4 py-2.5 text-gray-600 tabular-nums">
-                  {m.times.actualQueueTime
-                    ? formatTime(m.times.actualQueueTime)
-                    : m.times.estimatedQueueTime
-                      ? formatTime(m.times.estimatedQueueTime)
-                      : "—"}
-                </td>
-                <td className="px-4 py-2.5 text-gray-600 tabular-nums">
-                  {formatTime(m.times.estimatedStartTime)}
-                </td>
-                <td className="px-4 py-2.5">
-                  <span
-                    className={
-                      m.blueTeams?.includes(teamNumber)
-                        ? "text-blue-600 font-bold"
-                        : "text-gray-600"
-                    }
-                  >
-                    {m.blueTeams?.filter(Boolean).join(", ")}
-                  </span>
-                </td>
-                <td className="px-4 py-2.5">
-                  <span
-                    className={
-                      m.redTeams?.includes(teamNumber) ? "text-red-600 font-bold" : "text-gray-600"
-                    }
-                  >
-                    {m.redTeams?.filter(Boolean).join(", ")}
-                  </span>
-                </td>
+      <div
+        className="bg-white border border-gray-200 rounded-2xl overflow-hidden flex flex-col"
+        style={{ maxHeight: "400px" }}
+      >
+        <div className="overflow-y-auto flex-1">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-white border-b border-gray-200">
+              <tr className="text-gray-600 text-xs uppercase tracking-wide">
+                <th className="text-left px-4 py-2 font-semibold">Match</th>
+                <th className="text-left px-4 py-2 font-semibold">Queue</th>
+                <th className="text-left px-4 py-2 font-semibold">Start</th>
+                <th className="text-left px-4 py-2 font-semibold">Blue</th>
+                <th className="text-left px-4 py-2 font-semibold">Red</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {upcoming.map((m) => {
+                const isOurMatch = teamInMatch(m, teamNumber);
+                return (
+                  <tr
+                    key={m.label}
+                    className={`border-b border-gray-200/50 last:border-0 ${isOurMatch ? "bg-red-50" : ""}`}
+                  >
+                    <td
+                      className={`px-4 py-2.5 font-semibold ${isOurMatch ? "text-red-700" : "text-gray-900"}`}
+                    >
+                      {m.label}
+                    </td>
+                    <td
+                      className={`px-4 py-2.5 tabular-nums ${isOurMatch ? "text-red-600 font-semibold" : "text-gray-600"}`}
+                    >
+                      {m.times.actualQueueTime
+                        ? formatTime(m.times.actualQueueTime)
+                        : m.times.estimatedQueueTime
+                          ? formatTime(m.times.estimatedQueueTime)
+                          : "—"}
+                    </td>
+                    <td
+                      className={`px-4 py-2.5 tabular-nums ${isOurMatch ? "text-red-600 font-semibold" : "text-gray-600"}`}
+                    >
+                      {formatTime(m.times.estimatedStartTime)}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <span
+                        className={
+                          m.blueTeams?.includes(teamNumber)
+                            ? "text-blue-600 font-bold bg-blue-100 px-2 py-1 rounded"
+                            : "text-gray-600"
+                        }
+                      >
+                        {m.blueTeams?.filter(Boolean).join(", ")}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <span
+                        className={
+                          m.redTeams?.includes(teamNumber)
+                            ? "text-red-600 font-bold bg-red-100 px-2 py-1 rounded"
+                            : "text-gray-600"
+                        }
+                      >
+                        {m.redTeams?.filter(Boolean).join(", ")}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
@@ -550,6 +571,7 @@ export function PitMonitorPage() {
   const [monitor, setMonitor] = useState<MonitorData | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
+  const [iframeUrl, setIframeUrl] = useState<string | null>(null);
 
   const handleFullscreen = async () => {
     if (!isFullscreen) {
@@ -568,7 +590,7 @@ export function PitMonitorPage() {
   };
 
   async function loadAll() {
-    const [b, l, i, m] = await Promise.all([
+    const [b, l, i, m, settings] = await Promise.all([
       fetchBatteries().catch(() => [] as Battery[]),
       fetchLists().catch(() => [] as ChecklistList[]),
       fetchAllIssues().catch(() => [] as ChecklistIssueSummary[]),
@@ -576,12 +598,17 @@ export function PitMonitorPage() {
         .$get()
         .then((r) => (r.ok ? (r.json() as Promise<MonitorData>) : null))
         .catch(() => null),
+      api.monitor.settings
+        .$get()
+        .then((r) => (r.ok ? (r.json() as Promise<{ iframeUrl?: string }>) : null))
+        .catch(() => null),
     ]);
     setBatteries(b);
     setCachedBatteries(b);
     setLists(l);
     setIssues(i);
     setMonitor(m);
+    setIframeUrl(settings?.iframeUrl ?? null);
     setLastUpdated(new Date());
     setLoading(false);
   }
@@ -643,8 +670,25 @@ export function PitMonitorPage() {
             {hasNexus && nexus && <UpcomingMatchesSection nexus={nexus} teamNumber={teamNumber} />}
           </div>
 
-          {/* Right: batteries + checklist + issues */}
+          {/* Right: custom iframe + batteries + checklist + issues */}
           <div className="space-y-5">
+            {iframeUrl && (
+              <div className="space-y-2">
+                <h2 className="text-xs font-bold uppercase tracking-widest text-gray-600">
+                  Monitor Feed
+                </h2>
+                <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+                  <iframe
+                    src={iframeUrl}
+                    title="Custom monitor feed"
+                    className="w-full"
+                    style={{ height: "300px" }}
+                    frameBorder="0"
+                    allowFullScreen
+                  />
+                </div>
+              </div>
+            )}
             <BatteriesSection batteries={batteries} />
             <ChecklistSection lists={lists} issues={issues} />
           </div>
