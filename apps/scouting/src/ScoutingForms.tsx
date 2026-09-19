@@ -1359,16 +1359,13 @@ function EventStatus({
   const [showNexusApiKey, setShowNexusApiKey] = useState(false);
   const [saving, setSaving] = useState(false);
   const editingRef = useRef(false);
-  const tbaAuthKeyRef = useRef<HTMLInputElement>(null);
   const load = useCallback(async () => {
     const result = await api<EventContext>("/event-context");
     setContext(result);
     if (!editingRef.current) {
       setEventKey(result.eventKey);
       setMatchNumber(result.currentMatchNumber?.toString() ?? "");
-      setTbaAuthKey((current) => result.tbaAuthKey || tbaAuthKeyRef.current?.value || current);
       setNexusEventKey(result.nexusEventKey || result.eventKey);
-      setNexusApiKey(result.nexusApiKey);
     }
   }, []);
   useEffect(() => {
@@ -1382,19 +1379,19 @@ function EventStatus({
     };
   }, [load]);
   async function updateEvent(currentMatchNumber: string) {
-    const filledTbaAuthKey = tbaAuthKeyRef.current?.value || tbaAuthKey;
-    setTbaAuthKey(filledTbaAuthKey);
     setSaving(true);
     await api("/event-context", {
       method: "PUT",
       body: JSON.stringify({
         eventKey,
         currentMatchNumber,
-        tbaAuthKey: filledTbaAuthKey,
+        tbaAuthKey,
         nexusEventKey,
         nexusApiKey,
       }),
     }).finally(() => setSaving(false));
+    setTbaAuthKey("");
+    setNexusApiKey("");
     editingRef.current = false;
     await load();
   }
@@ -1486,7 +1483,6 @@ function EventStatus({
                 <div className="secret-field">
                   <input
                     id="tba-key"
-                    ref={tbaAuthKeyRef}
                     type={showTbaAuthKey ? "text" : "password"}
                     value={tbaAuthKey}
                     onChange={(event) => setTbaAuthKey(event.target.value)}
