@@ -114,6 +114,34 @@ const SETTING_KEYS = [
 ] as const;
 type SettingKey = (typeof SETTING_KEYS)[number];
 
+interface NexusMonitorData {
+  matches?: unknown[];
+  isRealNexus?: boolean;
+  [key: string]: unknown;
+}
+
+interface TbaScheduleMatch {
+  comp_level?: string;
+  match_number?: number;
+  predicted_time?: number | null;
+  time?: number | null;
+  alliances?: {
+    blue?: { team_keys?: string[] };
+    red?: { team_keys?: string[] };
+  };
+}
+
+interface MonitorScheduleMatch {
+  label: string;
+  status: "Queuing soon";
+  blueTeams: string[] | null;
+  redTeams: string[] | null;
+  times: {
+    estimatedStartTime: number | null;
+    estimatedQueueTime: number | null;
+  };
+}
+
 const settingsValidator = validator("json", (value, c): Partial<Record<SettingKey, string>> => {
   const v = (value ?? {}) as Record<string, unknown>;
   const out: Partial<Record<SettingKey, string>> = {};
@@ -688,34 +716,32 @@ const app = base
     }
 
     // Fallback to Blue Alliance schedule if Nexus is unavailable
-    // biome-ignore lint/suspicious/noExplicitAny: external API shapes
-    let finalNexus = nexus as any;
-    // biome-ignore lint/suspicious/noExplicitAny: external API shapes
-    const isRealNexus = !!(nexus && (nexus as any).matches && (nexus as any).matches.length > 0);
+    let finalNexus = nexus as NexusMonitorData | null;
+    const isRealNexus = Boolean(finalNexus?.matches?.length);
     if (!isRealNexus && tbaSchedule && Array.isArray(tbaSchedule)) {
       // Build a Nexus-like schedule from Blue Alliance data
-      // biome-ignore lint/suspicious/noExplicitAny: external API shapes
-      const tbaMatches = tbaSchedule as any[];
+      const tbaMatches = tbaSchedule as TbaScheduleMatch[];
       finalNexus = {
         matches: tbaMatches
-          .filter((m: any) => m.comp_level && m.match_number)
-          .map((m: any) => ({
-            label: `${m.comp_level.toUpperCase()}${m.match_number}`,
+          .filter((match) => match.comp_level && match.match_number)
+          .map<MonitorScheduleMatch>((match) => ({
+            label: `${match.comp_level?.toUpperCase()}${match.match_number}`,
             status: "Queuing soon" as const, // Blue Alliance doesn't provide status, default to queuing soon
             blueTeams:
-              m.alliances?.blue?.team_keys?.map((tk: string) => tk.replace("frc", "")) ?? null,
+              match.alliances?.blue?.team_keys?.map((teamKey) => teamKey.replace("frc", "")) ??
+              null,
             redTeams:
-              m.alliances?.red?.team_keys?.map((tk: string) => tk.replace("frc", "")) ?? null,
+              match.alliances?.red?.team_keys?.map((teamKey) => teamKey.replace("frc", "")) ?? null,
             times: {
-              estimatedStartTime: m.predicted_time
-                ? m.predicted_time * 1000
-                : m.time
-                  ? m.time * 1000
+              estimatedStartTime: match.predicted_time
+                ? match.predicted_time * 1000
+                : match.time
+                  ? match.time * 1000
                   : null,
-              estimatedQueueTime: m.predicted_time ? (m.predicted_time - 300) * 1000 : null, // Estimate queue 5min before
+              estimatedQueueTime: match.predicted_time ? (match.predicted_time - 300) * 1000 : null, // Estimate queue 5min before
             },
           }))
-          .sort((a: any, b: any) => {
+          .sort((a, b) => {
             const timeA = a.times.estimatedStartTime ?? 0;
             const timeB = b.times.estimatedStartTime ?? 0;
             return timeA - timeB;

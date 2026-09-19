@@ -1,4 +1,5 @@
 name = "scouting-production"
+account_id = "e54a97a23069e7889e8e820c00e520d8"
 main = "src/index.ts"
 compatibility_date = "2026-05-17"
 
