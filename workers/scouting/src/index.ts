@@ -32,6 +32,7 @@ type TbaMatch = {
   time: number | null;
   predicted_time: number | null;
   actual_time: number | null;
+  post_result_time?: number | null;
   alliances: {
     red: { team_keys: string[]; score: number };
     blue: { team_keys: string[]; score: number };
@@ -202,6 +203,97 @@ function publicMatch(match: TbaMatch) {
     redTeams,
     blueTeams,
   };
+}
+
+function automaticTbaMatch(matches: TbaMatch[], now = Math.floor(Date.now() / 1000)) {
+  const qualifications = matches
+    .filter((match) => match.comp_level === "qm")
+    .sort((left, right) => matchOrder(left) - matchOrder(right));
+  const ordered = qualifications.length
+    ? qualifications
+    : [...matches].sort((left, right) => matchOrder(left) - matchOrder(right));
+  if (!ordered.length) return undefined;
+  for (let index = 0; index < ordered.length - 1; index += 1) {
+    const match = ordered[index];
+    const hasResult = match.alliances.red.score >= 0 && match.alliances.blue.score >= 0;
+    const endedAt =
+      match.post_result_time ??
+      (match.actual_time ? match.actual_time + 150 : null) ??
+      (hasResult ? (match.predicted_time ?? match.time ?? 0) + 150 : null);
+    if (!endedAt || now < endedAt + 60) return match;
+  }
+  return ordered.at(-1);
+}
+
+async function persistAutomaticMatch(
+  c: Context<AppEnv>,
+  configuredMatchNumber: number | null | undefined,
+  match: TbaMatch | undefined,
+) {
+  if (!match || match.comp_level !== "qm" || match.match_number === configuredMatchNumber) return;
+  await c.env.SCOUTING_DB.prepare(
+    "UPDATE strategy_event_config SET current_match_number = ?, updated_at = ? WHERE id = 1 AND schedule_mode = 'tba'",
+  )
+    .bind(match.match_number, Date.now())
+    .run();
+}
+
+async function getOrCreateScoutAssignment(
+  c: Context<AppEnv>,
+  eventKey: string,
+  matchNumber: number,
+  teams: string[],
+) {
+  const existing = await c.env.SCOUTING_DB.prepare(
+    "SELECT team_number FROM scouting_match_assignments WHERE event_key = ? AND match_number = ? AND user_id = ?",
+  )
+    .bind(eventKey, matchNumber, c.get("userId"))
+    .first<{ team_number: string }>();
+  if (existing && teams.includes(existing.team_number)) return existing.team_number;
+
+  const submitted = await c.env.SCOUTING_DB.prepare(
+    `SELECT s.team_name
+       FROM scouting_form_submissions s
+       JOIN scouting_forms f ON f.id = s.form_id
+      WHERE f.form_kind = 'scouting' AND s.submitted_by = ?
+        AND s.event_key = ? AND s.match_number = ? AND s.archived_at IS NULL
+      LIMIT 1`,
+  )
+    .bind(c.get("userId"), eventKey, matchNumber)
+    .first<{ team_name: string }>();
+  if (submitted) return submitted.team_name;
+
+  if (!teams.length) return null;
+  const assignedCounts = await c.env.SCOUTING_DB.prepare(
+    `SELECT team_number, COUNT(*) AS assignment_count
+       FROM scouting_match_assignments
+      WHERE event_key = ? AND match_number = ?
+      GROUP BY team_number`,
+  )
+    .bind(eventKey, matchNumber)
+    .all<{ team_number: string; assignment_count: number }>();
+  const counts = new Map(
+    assignedCounts.results.map((row) => [row.team_number, Number(row.assignment_count)]),
+  );
+  const team = teams.reduce((best, candidate) =>
+    (counts.get(candidate) ?? 0) < (counts.get(best) ?? 0) ? candidate : best,
+  );
+  await c.env.SCOUTING_DB.prepare(
+    `INSERT OR IGNORE INTO scouting_match_assignments
+       (event_key, match_number, user_id, team_number, assigned_at)
+     VALUES (?, ?, ?, ?, ?)`,
+  )
+    .bind(eventKey, matchNumber, c.get("userId"), team, Date.now())
+    .run();
+  return (
+    (
+      await c.env.SCOUTING_DB.prepare(
+        "SELECT team_number FROM scouting_match_assignments WHERE event_key = ? AND match_number = ? AND user_id = ?",
+      )
+        .bind(eventKey, matchNumber, c.get("userId"))
+        .first<{ team_number: string }>()
+    )?.team_number ?? null
+  );
 }
 
 async function getTbaAuthKey(c: Context<AppEnv>) {
@@ -380,11 +472,12 @@ app.get("/teams/search", requireAuth, async (c) => {
 
 async function resolveEventLink(c: Context<AppEnv>) {
   const config = await c.env.SCOUTING_DB.prepare(
-    "SELECT event_key, current_match_number, tba_auth_key FROM strategy_event_config WHERE id = 1",
+    "SELECT event_key, current_match_number, tba_auth_key, schedule_mode FROM strategy_event_config WHERE id = 1",
   ).first<{
     event_key: string;
     current_match_number: number | null;
     tba_auth_key: string | null;
+    schedule_mode: string;
   }>();
   if (!config?.event_key) return { eventKey: null, matchKey: null, matchNumber: null };
   let current: TbaMatch | undefined;
@@ -392,17 +485,15 @@ async function resolveEventLink(c: Context<AppEnv>) {
     const matches = (await getEventMatches(c, config.event_key)).sort(
       (a, b) => matchOrder(a) - matchOrder(b),
     );
-    current = config.current_match_number
-      ? matches.find(
-          (match) =>
-            match.comp_level === "qm" && match.match_number === config.current_match_number,
-        )
-      : matches.find(
-          (match) =>
-            match.actual_time === null &&
-            match.alliances.red.score < 0 &&
-            match.alliances.blue.score < 0,
-        );
+    current =
+      config.schedule_mode === "manual"
+        ? matches.find(
+            (match) =>
+              match.comp_level === "qm" && match.match_number === config.current_match_number,
+          )
+        : automaticTbaMatch(matches);
+    if (config.schedule_mode !== "manual")
+      await persistAutomaticMatch(c, config.current_match_number, current);
   } catch {
     // Keep the configured event link when TBA is temporarily unavailable.
   }
@@ -438,27 +529,18 @@ app.get("/event-context", requireAuth, async (c) => {
       scheduleError = error instanceof Error ? error.message : "Could not load the TBA schedule.";
     }
   }
-  const manualCurrent = config?.current_match_number
+  const configuredCurrent = config?.current_match_number
     ? matches.find(
         (match) => match.comp_level === "qm" && match.match_number === config.current_match_number,
       )
     : undefined;
+  const tbaCurrent = config?.schedule_mode === "manual" ? undefined : automaticTbaMatch(matches);
   const current =
-    manualCurrent ??
-    matches.find(
-      (match) =>
-        match.actual_time === null &&
-        match.alliances.red.score < 0 &&
-        match.alliances.blue.score < 0,
-    ) ??
-    matches.at(-1);
-  const tbaCurrent =
-    matches.find(
-      (match) =>
-        match.actual_time === null &&
-        match.alliances.red.score < 0 &&
-        match.alliances.blue.score < 0,
-    ) ?? matches.at(-1);
+    (config?.schedule_mode === "manual" ? configuredCurrent : tbaCurrent) ??
+    configuredCurrent ??
+    (config?.schedule_mode === "manual" ? matches[0] : matches.at(-1));
+  if (config?.schedule_mode !== "manual")
+    await persistAutomaticMatch(c, config?.current_match_number, current);
   const teamSchedule = matches.filter((match) =>
     [...match.alliances.red.team_keys, ...match.alliances.blue.team_keys].includes("frc1648"),
   );
@@ -490,7 +572,6 @@ app.get("/event-context", requireAuth, async (c) => {
     (row) => Number(row.match_number) === currentMatchNumber,
   );
   const submittedUserIds = new Set(currentMatchSubmissions.map((row) => String(row.submitted_by)));
-  const submittedTeams = new Set(currentMatchSubmissions.map((row) => String(row.team_name)));
   const onlineScouts = current
     ? await c.env.SCOUTING_DB.prepare(
         `SELECT user_id, display_name, last_seen_at
@@ -508,11 +589,15 @@ app.get("/event-context", requireAuth, async (c) => {
     activeScoutIds.push(c.get("userId"));
     activeScoutIds.sort();
   }
-  const availableTeams = current
-    ? publicMatch(current).teams.filter((team) => !submittedTeams.has(team))
-    : [];
-  const assignmentIndex = activeScoutIds.indexOf(c.get("userId"));
-  const assignedTeam = assignmentIndex >= 0 ? (availableTeams[assignmentIndex] ?? null) : null;
+  const assignedTeam =
+    c.req.query("assign") === "true" && current && eventKey && currentMatchNumber
+      ? await getOrCreateScoutAssignment(
+          c,
+          eventKey,
+          currentMatchNumber,
+          publicMatch(current).teams,
+        )
+      : null;
   return c.json({
     eventKey: admin ? eventKey : "",
     currentMatchNumber: admin ? currentMatchNumber : null,
@@ -1366,8 +1451,7 @@ app.post("/scouting-forms/:id/submissions", requireAuth, async (c) => {
     .first<{ fields_json: string; form_kind: string }>();
   if (!formDefinition) return c.json({ error: "Scouting form not found or inactive." }, 404);
   const form = await c.req.formData();
-  const teamName = teamNumber(form.get("teamName"));
-  if (!teamName) return c.json({ error: "A valid team number is required." }, 400);
+  let teamName = teamNumber(form.get("teamName"));
   const answers = parseJson<Record<string, unknown>>(form.get("answers"), {});
   const fields = parseJson<ScoutingField[]>(formDefinition.fields_json, []);
   const eventLink = await resolveEventLink(c);
@@ -1386,7 +1470,16 @@ app.post("/scouting-forms/:id/submissions", requireAuth, async (c) => {
       .first();
     if (existing)
       return c.json({ error: "You already submitted a scouting form for this match." }, 409);
+    const assignment = await c.env.SCOUTING_DB.prepare(
+      "SELECT team_number FROM scouting_match_assignments WHERE event_key = ? AND match_number = ? AND user_id = ?",
+    )
+      .bind(eventLink.eventKey, eventLink.matchNumber, c.get("userId"))
+      .first<{ team_number: string }>();
+    if (!assignment)
+      return c.json({ error: "No team is assigned. Refresh the form and try again." }, 409);
+    teamName = assignment.team_number;
   }
+  if (!teamName) return c.json({ error: "A valid team number is required." }, 400);
   const cleanAnswers: Record<string, string | number | boolean | string[]> = {};
   for (const field of fields) {
     const value = answers[field.id];

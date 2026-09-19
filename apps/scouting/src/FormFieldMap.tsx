@@ -178,31 +178,43 @@ export function FormFieldMap({ canvasRef }: { canvasRef: RefObject<HTMLCanvasEle
   return (
     <div className={`map-editor form-map-editor ${fullscreen ? "map-editor-fullscreen" : ""}`}>
       <div className="map-toolbar">
-        <button type="button" onClick={() => setFullscreen((value) => !value)}>
+        <button
+          type="button"
+          className="map-fullscreen-button"
+          onClick={() => setFullscreen((value) => !value)}
+          aria-label={fullscreen ? "Exit fullscreen map" : "Open fullscreen map"}
+          title={fullscreen ? "Exit fullscreen" : "Fullscreen map"}
+        >
           {fullscreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
-          {fullscreen ? "Exit fullscreen" : "Fullscreen map"}
+          <span>{fullscreen ? "Exit fullscreen" : "Fullscreen map"}</span>
         </button>
         <span className="toolbar-divider" />
         <button
           type="button"
-          className={tool === "draw" ? "active" : ""}
+          className={`map-tool-button ${tool === "draw" ? "active" : ""}`}
           onClick={() => setTool("draw")}
+          aria-label="Draw freehand"
+          title="Draw"
         >
-          <Pencil size={16} /> Draw
+          <Pencil size={16} /> <span>Draw</span>
         </button>
         <button
           type="button"
-          className={tool === "arrow" ? "active" : ""}
+          className={`map-tool-button ${tool === "arrow" ? "active" : ""}`}
           onClick={() => setTool("arrow")}
+          aria-label="Draw arrow"
+          title="Arrow"
         >
-          <ArrowRight size={17} /> Arrow
+          <ArrowRight size={17} /> <span>Arrow</span>
         </button>
         <button
           type="button"
-          className={tool === "sotm" ? "active" : ""}
+          className={`map-tool-button ${tool === "sotm" ? "active" : ""}`}
           onClick={() => setTool("sotm")}
+          aria-label="Draw start of match path"
+          title="Start of match"
         >
-          <Target size={17} /> SOTM
+          <Target size={17} /> <span>SOTM</span>
         </button>
         <div className="drawing-colors">
           {COLORS.map((option) => (
@@ -216,11 +228,23 @@ export function FormFieldMap({ canvasRef }: { canvasRef: RefObject<HTMLCanvasEle
             />
           ))}
         </div>
-        <button type="button" onClick={undo}>
-          <RotateCcw size={16} /> Undo
+        <button
+          type="button"
+          className="map-undo-button"
+          onClick={undo}
+          aria-label="Undo drawing"
+          title="Undo"
+        >
+          <RotateCcw size={16} /> <span>Undo</span>
         </button>
-        <button type="button" className="clear-drawings-button" onClick={clear}>
-          <Trash2 size={16} /> Clear
+        <button
+          type="button"
+          className="clear-drawings-button"
+          onClick={clear}
+          aria-label="Clear drawing"
+          title="Clear"
+        >
+          <Trash2 size={16} /> <span>Clear</span>
         </button>
       </div>
       <div className="canvas-shell has-image">

@@ -1030,8 +1030,14 @@ textarea:focus {
   height: 31px;
   border: 0;
   border-radius: 6px;
-  background: color-mix(in srgb, #a71433 8%, transparent);
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  color: var(--text-muted, #60656d);
+}
+.field-actions .delete-field-button {
   color: #a71433;
+}
+.field-actions .field-order-button {
+  display: none;
 }
 .field-actions button:disabled {
   opacity: 0.3;
@@ -1095,6 +1101,21 @@ textarea:focus {
   flex: 1;
   border: 0;
 }
+.analysis-search .analysis-clear {
+  width: 42px;
+  min-width: 42px;
+  padding: 0;
+  justify-content: center;
+}
+.analysis-error {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(167, 20, 51, 0.4);
+  border-radius: 8px;
+  color: #a71433;
+  background: color-mix(in srgb, #a71433 8%, var(--surface, white));
+  font-weight: 700;
+}
 .analysis-tabs {
   display: flex;
   gap: 6px;
@@ -1127,6 +1148,51 @@ textarea:focus {
 }
 .competition-filter select {
   min-width: 12rem;
+}
+.analysis-controls {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+.analysis-overview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(125px, 1fr));
+  gap: 10px;
+}
+.analysis-overview > div {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 2px 9px;
+  min-width: 0;
+  padding: 13px 14px;
+  border: 1px solid var(--border, #ddd);
+  border-radius: 8px;
+  background: var(--surface, white);
+}
+.analysis-overview svg {
+  grid-row: 1 / 3;
+  color: #a71433;
+}
+.analysis-overview strong {
+  font-size: 22px;
+  line-height: 1;
+}
+.analysis-overview span,
+.analysis-overview small {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted, #6f7379);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.analysis-overview .analysis-average {
+  grid-template-columns: 1fr;
+}
+.analysis-overview .analysis-average small {
+  grid-column: 1;
 }
 .archived-filter {
   display: inline-flex;
@@ -1527,11 +1593,14 @@ textarea:focus {
 }
 .analysis-reports dl div {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
   gap: 8px;
   padding: 14px 16px;
   border-bottom: 1px solid var(--border, #ddd);
+}
+.analysis-reports dl div.starred-answer {
+  background: color-mix(in srgb, #d9a514 9%, transparent);
 }
 .analysis-reports header > .delete-report-button,
 .auto-path-grid .delete-report-button {
@@ -6233,6 +6302,19 @@ html[data-theme="dark"] .designer-field > .field-actions {
   background: #faeef1;
 }
 
+.form-map-editor:not(.map-editor-fullscreen) .canvas-shell {
+  min-height: 0;
+  max-height: none;
+  aspect-ratio: 17.541 / 9.0692;
+  overflow: hidden;
+}
+
+.form-map-editor:not(.map-editor-fullscreen) .canvas-shell canvas {
+  width: 100%;
+  height: auto;
+  max-height: none;
+}
+
 html[data-theme="dark"] .map-toolbar .clear-drawings-button:hover {
   background: rgba(167, 20, 51, 0.2);
 }
@@ -6271,6 +6353,7 @@ html[data-theme="dark"] .strategy-admins,
 html[data-theme="dark"] .team-entry,
 html[data-theme="dark"] .analysis-search,
 html[data-theme="dark"] .analysis-reports article,
+html[data-theme="dark"] .analysis-overview > div,
 html[data-theme="dark"] .auto-path-grid article,
 html[data-theme="dark"] .comparison-scoreboard,
 html[data-theme="dark"] .comparison-row,
@@ -6520,6 +6603,73 @@ html[data-theme="dark"] textarea {
     min-height: 48px;
     padding-inline: 14px;
   }
+
+  .form-map-editor .map-toolbar,
+  .form-map-editor.map-editor-fullscreen .map-toolbar {
+    display: grid;
+    min-height: 0;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 7px;
+    overflow: visible;
+    padding: 8px;
+  }
+
+  .form-map-editor .map-toolbar .toolbar-divider {
+    display: none;
+  }
+
+  .form-map-editor .map-toolbar > button {
+    width: 100%;
+    min-width: 0;
+    min-height: 48px;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .form-map-editor .map-toolbar > button span {
+    display: none;
+  }
+
+  .form-map-editor .map-toolbar .drawing-colors {
+    grid-column: 1 / -1;
+    justify-content: center;
+    padding: 6px;
+  }
+
+  .form-map-editor .map-toolbar .drawing-colors button {
+    width: 36px;
+    height: 36px;
+    min-height: 36px;
+  }
+
+  .form-map-editor:not(.map-editor-fullscreen) .canvas-shell {
+    width: 100%;
+    min-height: 0;
+    aspect-ratio: 17.541 / 9.0692;
+  }
+
+  .form-map-editor:not(.map-editor-fullscreen) .canvas-shell canvas {
+    width: 100%;
+    height: auto;
+  }
+
+  .form-map-editor.map-editor-fullscreen {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .form-map-editor.map-editor-fullscreen .canvas-shell {
+    display: grid;
+    min-height: 0;
+    padding: 4px;
+    place-items: center;
+  }
+
+  .form-map-editor.map-editor-fullscreen .canvas-shell canvas {
+    width: 100%;
+    height: auto;
+    max-height: 100%;
+    object-fit: contain;
+  }
 }
 
 /* Phone layout for the complete Strategy workflow. */
@@ -6640,14 +6790,21 @@ html[data-theme="dark"] textarea {
 
   .designer-field > .field-actions,
   html[data-theme="dark"] .designer-field > .field-actions {
-    grid-column: 3;
-    grid-row: 1;
+    display: grid;
+    grid-column: 1 / -1;
+    grid-row: auto;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
     justify-self: stretch;
   }
 
   .field-actions button {
-    width: 44px;
+    width: 100%;
     height: 46px;
+  }
+
+  .field-actions .field-order-button {
+    display: grid;
   }
 
   .number-settings {
@@ -6733,6 +6890,24 @@ html[data-theme="dark"] textarea {
   .analysis-search button {
     width: 100%;
     min-height: 48px;
+  }
+
+  .analysis-search .analysis-clear {
+    width: 48px;
+  }
+
+  .analysis-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .analysis-controls .competition-filter,
+  .analysis-controls select {
+    width: 100%;
+  }
+
+  .analysis-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .analysis-tabs {

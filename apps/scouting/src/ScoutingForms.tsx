@@ -1,5 +1,7 @@
 import {
   AlertCircle,
+  ArrowDown,
+  ArrowUp,
   CalendarClock,
   Check,
   CheckCircle2,
@@ -213,13 +215,17 @@ function EntryForm({
   const [messageType, setMessageType] = useState<"success" | "error">("success");
   const [saving, setSaving] = useState(false);
   const canvases = useRef<Record<string, HTMLCanvasElement | null>>({});
+  const assignedMatchKey = useRef<string | null>(null);
   const currentMatch = context?.currentMatch ?? null;
-  // The match key intentionally resets a manually edited team even when the new assignment is identical.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: match transitions must refill the assigned team.
   useEffect(() => {
-    if (form.kind === "scouting" && context?.assignedTeam) {
+    if (form.kind !== "scouting") return;
+    const matchKey = context?.currentMatch?.key ?? null;
+    if (context?.assignedTeam) {
       setTeamName(context.assignedTeam);
+    } else if (matchKey && assignedMatchKey.current !== matchKey) {
+      setTeamName("");
     }
+    if (matchKey) assignedMatchKey.current = matchKey;
   }, [context?.assignedTeam, context?.currentMatch?.key, form.kind]);
   async function submit(event: SyntheticEvent) {
     event.preventDefault();
@@ -277,7 +283,12 @@ function EntryForm({
         <span>
           Team number <b>*</b>
         </span>
-        <TeamLookupInput value={teamName} onChange={setTeamName} inputMode="numeric" />
+        <TeamLookupInput
+          value={teamName}
+          onChange={setTeamName}
+          inputMode="numeric"
+          readOnly={form.kind === "scouting"}
+        />
       </label>
       <div className="scouting-questions">
         {form.fields.map((field) => {
@@ -315,9 +326,7 @@ function EntryForm({
         type="submit"
         className="primary-button"
         disabled={
-          saving ||
-          (form.kind === "scouting" &&
-            (context?.hasSubmittedCurrentMatch || !context?.assignedTeam))
+          saving || (form.kind === "scouting" && (context?.hasSubmittedCurrentMatch || !teamName))
         }
       >
         <Check size={17} />{" "}
@@ -325,7 +334,7 @@ function EntryForm({
           ? "Submitting…"
           : form.kind === "scouting" && context?.hasSubmittedCurrentMatch
             ? "Already submitted"
-            : form.kind === "scouting" && !context?.assignedTeam
+            : form.kind === "scouting" && !teamName
               ? "Waiting for team"
               : "Submit report"}
       </button>
@@ -369,6 +378,17 @@ function Editor({
       ...current,
       fields: current.fields.map((field) => (field.id === id ? { ...field, ...change } : field)),
     }));
+  }
+  function moveField(id: string, direction: -1 | 1) {
+    setDraft((current) => {
+      const from = current.fields.findIndex((field) => field.id === id);
+      const to = from + direction;
+      if (from < 0 || to < 0 || to >= current.fields.length) return current;
+      const fields = [...current.fields];
+      const [moved] = fields.splice(from, 1);
+      fields.splice(to, 0, moved);
+      return { ...current, fields };
+    });
   }
   return (
     <div className="form-designer editor-card">
@@ -505,12 +525,35 @@ function Editor({
             <div className="field-actions">
               <button
                 type="button"
+                className="field-order-button"
+                disabled={index === 0}
+                onClick={() => moveField(field.id, -1)}
+                aria-label={`Move question ${index + 1} up`}
+                title="Move question up"
+              >
+                <ArrowUp size={18} />
+              </button>
+              <button
+                type="button"
+                className="field-order-button"
+                disabled={index === draft.fields.length - 1}
+                onClick={() => moveField(field.id, 1)}
+                aria-label={`Move question ${index + 1} down`}
+                title="Move question down"
+              >
+                <ArrowDown size={18} />
+              </button>
+              <button
+                type="button"
+                className="delete-field-button"
                 onClick={() =>
                   setDraft({
                     ...draft,
                     fields: draft.fields.filter((item) => item.id !== field.id),
                   })
                 }
+                aria-label={`Delete question ${index + 1}`}
+                title="Delete question"
               >
                 <Trash2 size={16} />
               </button>
@@ -1619,7 +1662,7 @@ export function ScoutingForms({
   }, [load]);
   useEffect(() => {
     const loadMatch = () =>
-      api<EventContext>("/event-context")
+      api<EventContext>("/event-context?assign=true")
         .then(setContext)
         .catch(() => undefined);
     loadMatch();
