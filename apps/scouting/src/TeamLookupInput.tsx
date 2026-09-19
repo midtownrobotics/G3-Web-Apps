@@ -27,8 +27,9 @@ export function TeamLookupInput({
   const listId = useId();
 
   useEffect(() => {
-    if (value !== query && /^\d+$/.test(value)) setQuery(value);
-  }, [value, query]);
+    if (value === query) return;
+    if (readOnly || /^\d+$/.test(value)) setQuery(value);
+  }, [value, query, readOnly]);
 
   useEffect(() => {
     const search = query.trim();
