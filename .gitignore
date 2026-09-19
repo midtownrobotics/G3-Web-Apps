@@ -29,3 +29,7 @@ build/
 .DS_Store
 Thumbs.db
 workers/shop/example-bom-res*.json
+.dev-logs/scouting-*.log
+.dev-logs/manual-schedule-test*
+.dev-logs/ios-paper-cropped.jpg
+apps/scouting/eng.traineddata

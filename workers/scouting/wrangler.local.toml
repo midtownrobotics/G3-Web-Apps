@@ -2,6 +2,9 @@ name = "scouting-local"
 main = "src/index.ts"
 compatibility_date = "2026-05-17"
 
+[ai]
+binding = "AI"
+
 [[services]]
 binding = "G3ID"
 service = "g3id"
