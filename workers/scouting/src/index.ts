@@ -229,22 +229,37 @@ async function getOrCreateScoutAssignment(
     .first<{ team_name: string }>();
   if (submitted) return submitted.team_name;
 
-  for (const team of teams) {
-    await c.env.SCOUTING_DB.prepare(
-      `INSERT OR IGNORE INTO scouting_match_assignments
-         (event_key, match_number, user_id, team_number, assigned_at)
-       VALUES (?, ?, ?, ?, ?)`,
-    )
-      .bind(eventKey, matchNumber, c.get("userId"), team, Date.now())
-      .run();
-    const assignment = await c.env.SCOUTING_DB.prepare(
-      "SELECT team_number FROM scouting_match_assignments WHERE event_key = ? AND match_number = ? AND user_id = ?",
-    )
-      .bind(eventKey, matchNumber, c.get("userId"))
-      .first<{ team_number: string }>();
-    if (assignment) return assignment.team_number;
-  }
-  return null;
+  if (!teams.length) return null;
+  const assignedCounts = await c.env.SCOUTING_DB.prepare(
+    `SELECT team_number, COUNT(*) AS assignment_count
+       FROM scouting_match_assignments
+      WHERE event_key = ? AND match_number = ?
+      GROUP BY team_number`,
+  )
+    .bind(eventKey, matchNumber)
+    .all<{ team_number: string; assignment_count: number }>();
+  const counts = new Map(
+    assignedCounts.results.map((row) => [row.team_number, Number(row.assignment_count)]),
+  );
+  const team = teams.reduce((best, candidate) =>
+    (counts.get(candidate) ?? 0) < (counts.get(best) ?? 0) ? candidate : best,
+  );
+  await c.env.SCOUTING_DB.prepare(
+    `INSERT OR IGNORE INTO scouting_match_assignments
+       (event_key, match_number, user_id, team_number, assigned_at)
+     VALUES (?, ?, ?, ?, ?)`,
+  )
+    .bind(eventKey, matchNumber, c.get("userId"), team, Date.now())
+    .run();
+  return (
+    (
+      await c.env.SCOUTING_DB.prepare(
+        "SELECT team_number FROM scouting_match_assignments WHERE event_key = ? AND match_number = ? AND user_id = ?",
+      )
+        .bind(eventKey, matchNumber, c.get("userId"))
+        .first<{ team_number: string }>()
+    )?.team_number ?? null
+  );
 }
 
 async function getTbaAuthKey(c: Context<AppEnv>) {
@@ -533,7 +548,6 @@ app.get("/event-context", requireAuth, async (c) => {
     (row) => Number(row.match_number) === currentMatchNumber,
   );
   const submittedUserIds = new Set(currentMatchSubmissions.map((row) => String(row.submitted_by)));
-  const submittedTeams = new Set(currentMatchSubmissions.map((row) => String(row.team_name)));
   const onlineScouts = current
     ? await c.env.SCOUTING_DB.prepare(
         `SELECT user_id, display_name, last_seen_at
@@ -557,7 +571,7 @@ app.get("/event-context", requireAuth, async (c) => {
           c,
           eventKey,
           currentMatchNumber,
-          publicMatch(current).teams.filter((team) => !submittedTeams.has(team)),
+          publicMatch(current).teams,
         )
       : null;
   return c.json({
