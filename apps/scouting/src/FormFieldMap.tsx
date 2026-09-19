@@ -111,11 +111,14 @@ export function FormFieldMap({ canvasRef }: { canvasRef: RefObject<HTMLCanvasEle
       to.x - head * Math.cos(angle + Math.PI / 6),
       to.y - head * Math.sin(angle + Math.PI / 6),
     );
-    context.strokeStyle = "rgba(255, 255, 255, 0.95)";
-    context.lineWidth = 13;
+    context.strokeStyle = "rgba(0, 0, 0, 0.9)";
+    context.lineWidth = 25;
+    context.stroke();
+    context.strokeStyle = "rgba(255, 255, 255, 0.98)";
+    context.lineWidth = 18;
     context.stroke();
     context.strokeStyle = color;
-    context.lineWidth = 7;
+    context.lineWidth = 10;
     context.stroke();
   }
   function cone(context: CanvasRenderingContext2D, points: Point[]) {
@@ -145,16 +148,19 @@ export function FormFieldMap({ canvasRef }: { canvasRef: RefObject<HTMLCanvasEle
       .map((item, index) => Math.hypot(item.x - points[index].x, item.y - points[index].y));
     const total = lengths.reduce((sum, length) => sum + length, 0);
     if (!total) return;
-    context.strokeStyle = "rgba(255, 255, 255, 0.95)";
-    context.lineWidth = 16;
+    context.strokeStyle = "rgba(0, 0, 0, 0.9)";
+    context.lineWidth = 29;
     context.lineCap = "round";
     context.lineJoin = "round";
     context.beginPath();
     context.moveTo(points[0].x, points[0].y);
     for (const point of points.slice(1)) context.lineTo(point.x, point.y);
     context.stroke();
+    context.strokeStyle = "rgba(255, 255, 255, 0.98)";
+    context.lineWidth = 21;
+    context.stroke();
     let traveled = 0;
-    context.lineWidth = 9;
+    context.lineWidth = 12;
     lengths.forEach((length, index) => {
       const from = points[index];
       const to = points[index + 1];

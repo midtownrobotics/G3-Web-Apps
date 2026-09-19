@@ -1135,7 +1135,9 @@ textarea:focus {
 }
 .analysis-reports {
   display: grid;
-  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  align-items: start;
+  gap: 10px;
 }
 .competition-filter {
   display: flex;
@@ -1234,7 +1236,66 @@ textarea:focus {
 }
 .report-result {
   display: grid;
+  min-width: 0;
+}
+.report-result.expanded {
+  grid-column: 1 / -1;
+}
+.report-summary-button {
+  display: grid;
+  width: 100%;
+  min-height: 76px;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
   gap: 10px;
+  padding: 12px 13px;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+}
+.report-summary-button > span {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+.report-summary-button > span strong,
+.report-summary-button > span small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.report-summary-button > span strong {
+  font-size: 16px;
+}
+.report-summary-button > span small {
+  color: var(--text-muted, #6f7379);
+  font-size: 11px;
+}
+.report-match-number {
+  color: #a71433;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.report-summary-button > svg {
+  transition: transform 160ms ease;
+}
+.report-summary-button > svg.expanded {
+  transform: rotate(180deg);
+}
+.report-summary-button:hover {
+  background: color-mix(in srgb, #a71433 7%, transparent);
+}
+.report-details {
+  border-top: 1px solid var(--border, #ddd);
+}
+.report-details .report-metadata {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
 }
 .report-team-line {
   display: inline-flex !important;
@@ -1419,13 +1480,14 @@ textarea:focus {
 }
 .analysis-reports header {
   display: flex;
+  align-items: center;
   justify-content: space-between;
+  gap: 10px;
   padding: 14px 16px;
   border-bottom: 1px solid var(--border, #ddd);
 }
 .analysis-reports header div {
-  display: grid;
-  gap: 3px;
+  display: flex;
 }
 .analysis-reports header span,
 .analysis-reports time {
@@ -1728,6 +1790,21 @@ body.analysis-path-open {
 }
 
 @media (max-width: 760px) {
+  .analysis-reports {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .report-summary-button {
+    min-height: 72px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 7px;
+    padding: 10px;
+  }
+  .report-summary-button > svg {
+    display: none;
+  }
+  .report-match-number {
+    font-size: 12px;
+  }
   .auto-path-dialog-backdrop {
     padding: 10px;
   }
