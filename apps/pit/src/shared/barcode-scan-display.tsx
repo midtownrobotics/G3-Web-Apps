@@ -73,9 +73,13 @@ export function BarcodeScanDisplay() {
 
         // If setting to "In Robot", set any other "In Robot" battery to "Idle"
         if (state === "In Robot") {
-          const inRobotBattery = batteries.find((b) => b.state === "In Robot" && b.id !== batteryId);
+          const inRobotBattery = batteries.find(
+            (b) => b.state === "In Robot" && b.id !== batteryId,
+          );
           if (inRobotBattery) {
-            console.log(`[BarcodeScan] Setting previous In Robot battery ${inRobotBattery.id} to Idle`);
+            console.log(
+              `[BarcodeScan] Setting previous In Robot battery ${inRobotBattery.id} to Idle`,
+            );
             await api.batteries[":id"].state.$patch({
               param: { id: String(inRobotBattery.id) },
               json: { state: "Idle" },
