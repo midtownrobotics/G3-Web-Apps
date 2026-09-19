@@ -548,7 +548,16 @@ export function Analysis({ initialReportId }: { initialReportId?: string | null 
           <div className="auto-path-grid">
             {autoFields.map(({ report, field, url }) => (
               <article key={`${report.id}-${field.id}`}>
-                <img src={`${API_URL}${url}`} alt={`${report.teamName} ${field.label}`} />
+                <a
+                  className="auto-path-image-link"
+                  href={`${API_URL}${url}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={`Open full-size path for team ${report.teamName}`}
+                  title="Open full-size drawing"
+                >
+                  <img src={`${API_URL}${url}`} alt={`${report.teamName} ${field.label}`} />
+                </a>
                 <div>
                   <MapIcon size={16} />
                   <strong>

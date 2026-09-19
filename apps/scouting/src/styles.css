@@ -1635,10 +1635,28 @@ textarea:focus {
   border-radius: 11px;
   background: var(--surface, white);
 }
+.auto-path-image-link {
+  display: block;
+  overflow: hidden;
+  width: 100%;
+  aspect-ratio: 17.541 / 9.0692;
+  background: #17191d;
+}
 .auto-path-grid img {
   display: block;
   width: 100%;
-  background: white;
+  height: 100%;
+  object-fit: contain;
+  filter: contrast(1.08) saturate(1.18);
+  transition: transform 160ms ease;
+}
+.auto-path-image-link:hover img,
+.auto-path-image-link:focus-visible img {
+  transform: scale(1.015);
+}
+.auto-path-image-link:focus-visible {
+  outline: 3px solid rgba(167, 20, 51, 0.45);
+  outline-offset: -3px;
 }
 .auto-path-grid article div {
   display: grid;
@@ -6429,8 +6447,7 @@ html[data-theme="dark"] .counter-intervals button.active {
   background: #a71433;
 }
 
-html[data-theme="dark"] .scouting-drawing canvas,
-html[data-theme="dark"] .auto-path-grid img {
+html[data-theme="dark"] .scouting-drawing canvas {
   background: #f8f8f8;
 }
 
