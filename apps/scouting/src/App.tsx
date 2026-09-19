@@ -1524,8 +1524,9 @@ function AutoRouteDrawing({ onChange }: { onChange: (file: File | null) => void 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fieldRef = useRef<HTMLImageElement | null>(null);
   const drawing = useRef(false);
+  const strokesRef = useRef<RouteStroke[]>([]);
   const [strokes, setStrokes] = useState<RouteStroke[]>([]);
-  const [color, setColor] = useState("#a71433");
+  const [color, setColor] = useState("#ff334f");
 
   const render = useCallback((items: RouteStroke[]) => {
     const canvas = canvasRef.current;
@@ -1582,18 +1583,21 @@ function AutoRouteDrawing({ onChange }: { onChange: (file: File | null) => void 
   function start(event: ReactPointerEvent<HTMLCanvasElement>) {
     drawing.current = true;
     event.currentTarget.setPointerCapture(event.pointerId);
-    const next = [...strokes, { color, points: [point(event)] }];
+    const next = [...strokesRef.current, { color, points: [point(event)] }];
+    strokesRef.current = next;
     setStrokes(next);
     render(next);
   }
 
   function move(event: ReactPointerEvent<HTMLCanvasElement>) {
     if (!drawing.current) return;
-    const next = strokes.map((stroke, index) =>
-      index === strokes.length - 1
+    const current = strokesRef.current;
+    const next = current.map((stroke, index) =>
+      index === current.length - 1
         ? { ...stroke, points: [...stroke.points, point(event)] }
         : stroke,
     );
+    strokesRef.current = next;
     setStrokes(next);
     render(next);
   }
@@ -1601,10 +1605,11 @@ function AutoRouteDrawing({ onChange }: { onChange: (file: File | null) => void 
   function finish() {
     if (!drawing.current) return;
     drawing.current = false;
-    exportDrawing(strokes);
+    exportDrawing(strokesRef.current);
   }
 
   function replaceStrokes(next: RouteStroke[]) {
+    strokesRef.current = next;
     setStrokes(next);
     render(next);
     exportDrawing(next);
@@ -1615,7 +1620,7 @@ function AutoRouteDrawing({ onChange }: { onChange: (file: File | null) => void 
       <div className="auto-drawing-toolbar">
         <span>Draw the robot path on the field</span>
         <div className="drawing-colors" aria-label="Route color">
-          {["#a71433", "#1565c0", "#2e7d32", "#f9a825"].map((option) => (
+          {["#ff334f", "#36a3ff", "#35d06f", "#ffd43b"].map((option) => (
             <button
               type="button"
               key={option}

@@ -8,7 +8,7 @@ import {
   useState,
 } from "react";
 
-const COLORS = ["#e53935", "#2e7d32", "#f9a825", "#ec407a"];
+const COLORS = ["#ff334f", "#35d06f", "#ffd43b", "#ff66c4"];
 type Point = { x: number; y: number };
 type Tool = "draw" | "arrow" | "sotm";
 
@@ -49,8 +49,10 @@ export function FormFieldMap({ canvasRef }: { canvasRef: RefObject<HTMLCanvasEle
         canvas.width = Math.round(sourceWidth * scale);
         canvas.height = Math.round(sourceHeight * scale);
         const context = canvas.getContext("2d");
-        context?.clearRect(0, 0, canvas.width, canvas.height);
-        context?.drawImage(image, 0, 0, canvas.width, canvas.height);
+        if (!context) return;
+        context.fillStyle = "#17191d";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
         const clean = document.createElement("canvas");
         clean.width = canvas.width;
         clean.height = canvas.height;
@@ -95,10 +97,8 @@ export function FormFieldMap({ canvasRef }: { canvasRef: RefObject<HTMLCanvasEle
   function arrow(context: CanvasRenderingContext2D, from: Point, to: Point) {
     const angle = Math.atan2(to.y - from.y, to.x - from.x);
     const head = 22;
-    context.strokeStyle = color;
-    context.fillStyle = color;
-    context.lineWidth = 5;
     context.lineCap = "round";
+    context.lineJoin = "round";
     context.beginPath();
     context.moveTo(from.x, from.y);
     context.lineTo(to.x, to.y);
@@ -111,6 +111,11 @@ export function FormFieldMap({ canvasRef }: { canvasRef: RefObject<HTMLCanvasEle
       to.x - head * Math.cos(angle + Math.PI / 6),
       to.y - head * Math.sin(angle + Math.PI / 6),
     );
+    context.strokeStyle = "rgba(255, 255, 255, 0.95)";
+    context.lineWidth = 13;
+    context.stroke();
+    context.strokeStyle = color;
+    context.lineWidth = 7;
     context.stroke();
   }
   function cone(context: CanvasRenderingContext2D, points: Point[]) {
@@ -140,10 +145,16 @@ export function FormFieldMap({ canvasRef }: { canvasRef: RefObject<HTMLCanvasEle
       .map((item, index) => Math.hypot(item.x - points[index].x, item.y - points[index].y));
     const total = lengths.reduce((sum, length) => sum + length, 0);
     if (!total) return;
-    let traveled = 0;
-    context.lineWidth = 8;
+    context.strokeStyle = "rgba(255, 255, 255, 0.95)";
+    context.lineWidth = 16;
     context.lineCap = "round";
     context.lineJoin = "round";
+    context.beginPath();
+    context.moveTo(points[0].x, points[0].y);
+    for (const point of points.slice(1)) context.lineTo(point.x, point.y);
+    context.stroke();
+    let traveled = 0;
+    context.lineWidth = 9;
     lengths.forEach((length, index) => {
       const from = points[index];
       const to = points[index + 1];
