@@ -1,4 +1,14 @@
-import { BarChart3, Map as MapIcon, Scale, Search, Star, Trash2, Users, X } from "lucide-react";
+import {
+  BarChart3,
+  ChevronDown,
+  Map as MapIcon,
+  Scale,
+  Search,
+  Star,
+  Trash2,
+  Users,
+  X,
+} from "lucide-react";
 import { type SyntheticEvent, useEffect, useState } from "react";
 import type { ScoutingField } from "./ScoutingForms";
 import { TeamLookupInput } from "./TeamLookupInput";
@@ -56,6 +66,7 @@ export function Analysis({ initialReportId }: { initialReportId?: string | null 
   const [loadError, setLoadError] = useState("");
   const [reportSort, setReportSort] = useState<"match" | "newest" | "starred">("match");
   const [tab, setTab] = useState<"stats" | "matches" | "auto" | "compare">("stats");
+  const [expandedReportId, setExpandedReportId] = useState<string | null>(initialReportId ?? null);
   const [selectedPath, setSelectedPath] = useState<{
     url: string;
     teamName: string;
@@ -111,6 +122,7 @@ export function Analysis({ initialReportId }: { initialReportId?: string | null 
   }, []);
   useEffect(() => {
     if (!loaded || !initialReportId) return;
+    setExpandedReportId(initialReportId);
     window.setTimeout(() => {
       document.getElementById(`report-${initialReportId}`)?.scrollIntoView({
         behavior: "smooth",
@@ -424,97 +436,107 @@ export function Analysis({ initialReportId }: { initialReportId?: string | null 
             </section>
           )}
           <div className="analysis-reports">
-            {visibleReports.map((report, index) => (
-              <div className="report-result" key={report.id}>
-                {(index === 0 ||
-                  `${visibleReports[index - 1].eventKey || "Unassigned"}-${new Date(visibleReports[index - 1].createdAt).toDateString()}-${visibleReports[index - 1].matchNumber ?? "none"}` !==
-                    `${report.eventKey || "Unassigned"}-${new Date(report.createdAt).toDateString()}-${report.matchNumber ?? "none"}`) && (
-                  <h2 className="competition-heading">
-                    {report.eventKey || "Unassigned"} ·{" "}
-                    {new Date(report.createdAt).toLocaleDateString()} ·{" "}
-                    {report.matchNumber ? `Match ${report.matchNumber}` : "No match assigned"}
-                  </h2>
-                )}
-                <article
-                  id={`report-${report.id}`}
-                  className={`${report.starredFieldIds.length ? "starred-report" : ""} ${report.archivedAt ? "archived-report" : ""}`}
-                >
-                  <header>
-                    <div>
-                      <span className="report-team-line">
-                        <strong>Team {report.teamName}</strong>
-                        <button
-                          type="button"
-                          className={`star-button ${report.starredFieldIds.includes("__report") ? "active" : ""}`}
-                          onClick={() => toggleStar(report, "__report")}
-                          aria-label={
-                            report.starredFieldIds.includes("__report")
-                              ? `Unstar team ${report.teamName} report`
-                              : `Star team ${report.teamName} report`
-                          }
-                          title={
-                            report.starredFieldIds.includes("__report")
-                              ? "Unstar report"
-                              : "Star report"
-                          }
-                        >
-                          <Star size={16} fill="currentColor" />
-                        </button>
-                      </span>
-                      <span>{report.formName}</span>
-                      <span>{report.submittedByName}</span>
-                      {report.matchNumber && <span>Match {report.matchNumber}</span>}
-                    </div>
-                    <time>{new Date(report.createdAt).toLocaleString()}</time>
+            {visibleReports.map((report) => {
+              const expanded = expandedReportId === report.id;
+              return (
+                <div className={`report-result ${expanded ? "expanded" : ""}`} key={report.id}>
+                  <article
+                    id={`report-${report.id}`}
+                    className={`${report.starredFieldIds.length ? "starred-report" : ""} ${report.archivedAt ? "archived-report" : ""}`}
+                  >
                     <button
                       type="button"
-                      className="delete-report-button"
-                      onClick={() => permanentlyDeleteReport(report)}
-                      aria-label={`Permanently delete report for ${report.teamName}`}
-                      title="Remove bad data"
+                      className="report-summary-button"
+                      aria-expanded={expanded}
+                      aria-controls={`report-details-${report.id}`}
+                      onClick={() => setExpandedReportId(expanded ? null : report.id)}
                     >
-                      <Trash2 size={17} />
+                      <span>
+                        <strong>Team {report.teamName}</strong>
+                        <small>{report.formName}</small>
+                      </span>
+                      <strong className="report-match-number">
+                        {report.matchNumber ? `Match ${report.matchNumber}` : "No match"}
+                      </strong>
+                      <ChevronDown size={18} className={expanded ? "expanded" : ""} />
                     </button>
-                  </header>
-                  <dl>
-                    {report.fields
-                      .filter((field) => field.type !== "fieldMap")
-                      .map((field) => (
-                        <div
-                          className={
-                            report.starredFieldIds.includes(field.id) ? "starred-answer" : ""
-                          }
-                          key={field.id}
-                        >
-                          <dt>{field.label}</dt>
-                          <dd>
-                            {Array.isArray(report.answers[field.id])
-                              ? (report.answers[field.id] as unknown[]).join(", ")
-                              : String(report.answers[field.id] ?? "—")}
-                          </dd>
+                    {expanded && (
+                      <div className="report-details" id={`report-details-${report.id}`}>
+                        <header>
+                          <div className="report-metadata">
+                            <span>{report.eventKey || "Unassigned competition"}</span>
+                            <span>{report.submittedByName}</span>
+                            <time>{new Date(report.createdAt).toLocaleString()}</time>
+                          </div>
                           <button
                             type="button"
-                            className={`star-button ${report.starredFieldIds.includes(field.id) ? "active" : ""}`}
-                            onClick={() => toggleStar(report, field.id)}
+                            className={`star-button ${report.starredFieldIds.includes("__report") ? "active" : ""}`}
+                            onClick={() => toggleStar(report, "__report")}
                             aria-label={
-                              report.starredFieldIds.includes(field.id)
-                                ? `Remove highlight from ${field.label}`
-                                : `Highlight ${field.label}`
+                              report.starredFieldIds.includes("__report")
+                                ? `Unstar team ${report.teamName} report`
+                                : `Star team ${report.teamName} report`
                             }
                             title={
-                              report.starredFieldIds.includes(field.id)
-                                ? "Remove highlight"
-                                : "Highlight answer"
+                              report.starredFieldIds.includes("__report")
+                                ? "Unstar report"
+                                : "Star report"
                             }
                           >
-                            <Star size={15} fill="currentColor" />
+                            <Star size={16} fill="currentColor" />
                           </button>
-                        </div>
-                      ))}
-                  </dl>
-                </article>
-              </div>
-            ))}
+                          <button
+                            type="button"
+                            className="delete-report-button"
+                            onClick={() => permanentlyDeleteReport(report)}
+                            aria-label={`Permanently delete report for ${report.teamName}`}
+                            title="Remove bad data"
+                          >
+                            <Trash2 size={17} />
+                          </button>
+                        </header>
+                        <dl>
+                          {report.fields
+                            .filter((field) => field.type !== "fieldMap")
+                            .map((field) => (
+                              <div
+                                className={
+                                  report.starredFieldIds.includes(field.id) ? "starred-answer" : ""
+                                }
+                                key={field.id}
+                              >
+                                <dt>{field.label}</dt>
+                                <dd>
+                                  {Array.isArray(report.answers[field.id])
+                                    ? (report.answers[field.id] as unknown[]).join(", ")
+                                    : String(report.answers[field.id] ?? "—")}
+                                </dd>
+                                <button
+                                  type="button"
+                                  className={`star-button ${report.starredFieldIds.includes(field.id) ? "active" : ""}`}
+                                  onClick={() => toggleStar(report, field.id)}
+                                  aria-label={
+                                    report.starredFieldIds.includes(field.id)
+                                      ? `Remove highlight from ${field.label}`
+                                      : `Highlight ${field.label}`
+                                  }
+                                  title={
+                                    report.starredFieldIds.includes(field.id)
+                                      ? "Remove highlight"
+                                      : "Highlight answer"
+                                  }
+                                >
+                                  <Star size={15} fill="currentColor" />
+                                </button>
+                              </div>
+                            ))}
+                        </dl>
+                      </div>
+                    )}
+                  </article>
+                </div>
+              );
+            })}
           </div>
         </div>
       ) : tab === "matches" ? (

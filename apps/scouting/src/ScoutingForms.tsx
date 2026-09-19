@@ -78,15 +78,18 @@ function FieldInput({
   value,
   setValue,
   canvasRef,
+  canvasKey,
 }: {
   field: ScoutingField;
   value: unknown;
   setValue: (value: unknown) => void;
   canvasRef?: RefObject<HTMLCanvasElement | null>;
+  canvasKey?: number;
 }) {
   const inputId = `field-${field.id}`;
   const [counterInterval, setCounterInterval] = useState<(typeof COUNTER_INTERVALS)[number]>(1);
-  if (field.type === "fieldMap" && canvasRef) return <FormFieldMap canvasRef={canvasRef} />;
+  if (field.type === "fieldMap" && canvasRef)
+    return <FormFieldMap key={canvasKey} canvasRef={canvasRef} />;
   if (field.type === "counter") {
     const current = Number(value ?? 0);
     return (
@@ -214,7 +217,9 @@ function EntryForm({
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error">("success");
   const [saving, setSaving] = useState(false);
+  const [canvasKey, setCanvasKey] = useState(0);
   const canvases = useRef<Record<string, HTMLCanvasElement | null>>({});
+  const canvasAdapters = useRef<Record<string, RefObject<HTMLCanvasElement | null>>>({});
   const assignedMatchKey = useRef<string | null>(null);
   const currentMatch = context?.currentMatch ?? null;
   useEffect(() => {
@@ -246,6 +251,7 @@ function EntryForm({
       }
       await api(`/scouting-forms/${form.id}/submissions`, { method: "POST", body: payload });
       setAnswers({});
+      setCanvasKey((value) => value + 1);
       setMessageType("success");
       setMessage("Report submitted.");
       await refreshContext();
@@ -255,6 +261,20 @@ function EntryForm({
     } finally {
       setSaving(false);
     }
+  }
+  function canvasAdapter(fieldId: string) {
+    const existing = canvasAdapters.current[fieldId];
+    if (existing) return existing;
+    const adapter: RefObject<HTMLCanvasElement | null> = {
+      get current() {
+        return canvases.current[fieldId] ?? null;
+      },
+      set current(value: HTMLCanvasElement | null) {
+        canvases.current[fieldId] = value;
+      },
+    };
+    canvasAdapters.current[fieldId] = adapter;
+    return adapter;
   }
   return (
     <form className="scouting-entry" onSubmit={submit}>
@@ -292,17 +312,7 @@ function EntryForm({
       </label>
       <div className="scouting-questions">
         {form.fields.map((field) => {
-          const mapRef =
-            field.type === "fieldMap"
-              ? {
-                  get current() {
-                    return canvases.current[field.id] ?? null;
-                  },
-                  set current(value: HTMLCanvasElement | null) {
-                    canvases.current[field.id] = value;
-                  },
-                }
-              : undefined;
+          const mapRef = field.type === "fieldMap" ? canvasAdapter(field.id) : undefined;
           return (
             <div
               className={`scouting-question ${field.type === "fieldMap" ? "wide" : ""}`}
@@ -317,6 +327,7 @@ function EntryForm({
                 value={answers[field.id]}
                 setValue={(value) => setAnswers((current) => ({ ...current, [field.id]: value }))}
                 canvasRef={mapRef}
+                canvasKey={canvasKey}
               />
             </div>
           );

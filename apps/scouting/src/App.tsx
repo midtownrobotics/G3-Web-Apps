@@ -1538,8 +1538,8 @@ function AutoRouteDrawing({ onChange }: { onChange: (file: File | null) => void 
     if (field?.complete) context.drawImage(field, 0, 0, canvas.width, canvas.height);
     for (const stroke of items) {
       if (!stroke.points.length) continue;
-      context.strokeStyle = "rgba(255,255,255,.9)";
-      context.lineWidth = 16;
+      context.strokeStyle = "rgba(0,0,0,.9)";
+      context.lineWidth = 29;
       context.lineCap = "round";
       context.lineJoin = "round";
       context.beginPath();
@@ -1547,8 +1547,11 @@ function AutoRouteDrawing({ onChange }: { onChange: (file: File | null) => void 
         index ? context.lineTo(point.x, point.y) : context.moveTo(point.x, point.y),
       );
       context.stroke();
+      context.strokeStyle = "rgba(255,255,255,.98)";
+      context.lineWidth = 21;
+      context.stroke();
       context.strokeStyle = stroke.color;
-      context.lineWidth = 9;
+      context.lineWidth = 12;
       context.stroke();
     }
   }, []);
