@@ -277,7 +277,12 @@ function EntryForm({
         <span>
           Team number <b>*</b>
         </span>
-        <TeamLookupInput value={teamName} onChange={setTeamName} inputMode="numeric" />
+        <TeamLookupInput
+          value={teamName}
+          onChange={setTeamName}
+          inputMode="numeric"
+          readOnly={form.kind === "scouting"}
+        />
       </label>
       <div className="scouting-questions">
         {form.fields.map((field) => {
@@ -1619,7 +1624,7 @@ export function ScoutingForms({
   }, [load]);
   useEffect(() => {
     const loadMatch = () =>
-      api<EventContext>("/event-context")
+      api<EventContext>("/event-context?assign=true")
         .then(setContext)
         .catch(() => undefined);
     loadMatch();
