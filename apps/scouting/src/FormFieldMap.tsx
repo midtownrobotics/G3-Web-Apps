@@ -11,6 +11,7 @@ import {
 const COLORS = ["#ff334f", "#35d06f", "#ffd43b", "#ff66c4"];
 type Point = { x: number; y: number };
 type Tool = "draw" | "arrow" | "sotm";
+type HistoryEntry = { image: ImageData; hasDrawing: boolean };
 
 function drawingColorAt(hex: string, progress: number) {
   const value = Number.parseInt(hex.slice(1), 16);
@@ -23,9 +24,17 @@ function drawingColorAt(hex: string, progress: number) {
   return `rgb(${channel(16)}, ${channel(8)}, ${channel(0)})`;
 }
 
-export function FormFieldMap({ canvasRef }: { canvasRef: RefObject<HTMLCanvasElement | null> }) {
+export function FormFieldMap({
+  canvasRef,
+  onDrawingChange,
+}: {
+  canvasRef: RefObject<HTMLCanvasElement | null>;
+  onDrawingChange?: (hasDrawing: boolean) => void;
+}) {
   const base = useRef<HTMLCanvasElement | null>(null);
-  const history = useRef<ImageData[]>([]);
+  const history = useRef<HistoryEntry[]>([]);
+  const hasDrawing = useRef(false);
+  const onDrawingChangeRef = useRef(onDrawingChange);
   const drawing = useRef(false);
   const start = useRef<Point | null>(null);
   const last = useRef<Point | null>(null);
@@ -34,6 +43,10 @@ export function FormFieldMap({ canvasRef }: { canvasRef: RefObject<HTMLCanvasEle
   const [tool, setTool] = useState<Tool>("draw");
   const [color, setColor] = useState(COLORS[0]);
   const [fullscreen, setFullscreen] = useState(false);
+
+  useEffect(() => {
+    onDrawingChangeRef.current = onDrawingChange;
+  }, [onDrawingChange]);
 
   const loadBlob = useCallback(
     (blob: Blob) => {
@@ -59,6 +72,8 @@ export function FormFieldMap({ canvasRef }: { canvasRef: RefObject<HTMLCanvasEle
         clean.getContext("2d")?.drawImage(canvas, 0, 0);
         base.current = clean;
         history.current = [];
+        hasDrawing.current = false;
+        onDrawingChangeRef.current?.(false);
         URL.revokeObjectURL(image.src);
       };
       image.src = URL.createObjectURL(blob);
@@ -90,9 +105,17 @@ export function FormFieldMap({ canvasRef }: { canvasRef: RefObject<HTMLCanvasEle
     const canvas = canvasRef.current;
     const context = canvas?.getContext("2d");
     if (canvas && context) {
-      history.current.push(context.getImageData(0, 0, canvas.width, canvas.height));
+      history.current.push({
+        image: context.getImageData(0, 0, canvas.width, canvas.height),
+        hasDrawing: hasDrawing.current,
+      });
       if (history.current.length > 20) history.current.shift();
     }
+  }
+  function setHasDrawing(value: boolean) {
+    if (hasDrawing.current === value) return;
+    hasDrawing.current = value;
+    onDrawingChangeRef.current?.(value);
   }
   function arrow(context: CanvasRenderingContext2D, from: Point, to: Point) {
     const angle = Math.atan2(to.y - from.y, to.x - from.x);
@@ -142,7 +165,7 @@ export function FormFieldMap({ canvasRef }: { canvasRef: RefObject<HTMLCanvasEle
   function finishGradient(context: CanvasRenderingContext2D, points: Point[]) {
     if (points.length < 2) return;
     const beforeStroke = history.current[history.current.length - 1];
-    if (beforeStroke) context.putImageData(beforeStroke, 0, 0);
+    if (beforeStroke) context.putImageData(beforeStroke.image, 0, 0);
     const lengths = points
       .slice(1)
       .map((item, index) => Math.hypot(item.x - points[index].x, item.y - points[index].y));
@@ -184,12 +207,29 @@ export function FormFieldMap({ canvasRef }: { canvasRef: RefObject<HTMLCanvasEle
     snapshot();
     context.clearRect(0, 0, canvas.width, canvas.height);
     context.drawImage(base.current, 0, 0);
+    setHasDrawing(false);
   }
   function undo() {
     const canvas = canvasRef.current;
     const context = canvas?.getContext("2d");
-    const image = history.current.pop();
-    if (context && image) context.putImageData(image, 0, 0);
+    const entry = history.current.pop();
+    if (context && entry) {
+      context.putImageData(entry.image, 0, 0);
+      setHasDrawing(entry.hasDrawing);
+    }
+  }
+  function finishDrawing(canvas: HTMLCanvasElement) {
+    const context = canvas.getContext("2d");
+    if (context && tool !== "arrow" && path.current.length > 1) {
+      finishGradient(context, path.current);
+      if (tool === "sotm") cone(context, path.current);
+    }
+    if (path.current.length > 1) setHasDrawing(true);
+    drawing.current = false;
+    start.current = null;
+    last.current = null;
+    preview.current = null;
+    path.current = [];
   }
 
   return (
@@ -299,22 +339,11 @@ export function FormFieldMap({ canvasRef }: { canvasRef: RefObject<HTMLCanvasEle
               context.stroke();
               path.current.push(next);
             }
+            setHasDrawing(true);
             last.current = next;
           }}
-          onPointerUp={(event) => {
-            const context = event.currentTarget.getContext("2d");
-            if (context && tool !== "arrow") {
-              finishGradient(context, path.current);
-              if (tool === "sotm") cone(context, path.current);
-            }
-            drawing.current = false;
-            start.current = null;
-            last.current = null;
-            preview.current = null;
-          }}
-          onPointerCancel={() => {
-            drawing.current = false;
-          }}
+          onPointerUp={(event) => finishDrawing(event.currentTarget)}
+          onPointerCancel={(event) => finishDrawing(event.currentTarget)}
         />
       </div>
     </div>

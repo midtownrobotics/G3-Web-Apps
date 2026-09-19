@@ -79,17 +79,19 @@ function FieldInput({
   setValue,
   canvasRef,
   canvasKey,
+  onDrawingChange,
 }: {
   field: ScoutingField;
   value: unknown;
   setValue: (value: unknown) => void;
   canvasRef?: RefObject<HTMLCanvasElement | null>;
   canvasKey?: number;
+  onDrawingChange?: (hasDrawing: boolean) => void;
 }) {
   const inputId = `field-${field.id}`;
   const [counterInterval, setCounterInterval] = useState<(typeof COUNTER_INTERVALS)[number]>(1);
   if (field.type === "fieldMap" && canvasRef)
-    return <FormFieldMap key={canvasKey} canvasRef={canvasRef} />;
+    return <FormFieldMap key={canvasKey} canvasRef={canvasRef} onDrawingChange={onDrawingChange} />;
   if (field.type === "counter") {
     const current = Number(value ?? 0);
     return (
@@ -220,6 +222,7 @@ function EntryForm({
   const [canvasKey, setCanvasKey] = useState(0);
   const canvases = useRef<Record<string, HTMLCanvasElement | null>>({});
   const canvasAdapters = useRef<Record<string, RefObject<HTMLCanvasElement | null>>>({});
+  const drawnFields = useRef(new Set<string>());
   const assignedMatchKey = useRef<string | null>(null);
   const currentMatch = context?.currentMatch ?? null;
   useEffect(() => {
@@ -241,6 +244,7 @@ function EntryForm({
       payload.set("teamName", teamName);
       payload.set("answers", JSON.stringify(answers));
       for (const field of form.fields.filter((item) => item.type === "fieldMap")) {
+        if (!drawnFields.current.has(field.id)) continue;
         const canvas = canvases.current[field.id];
         if (canvas) {
           const blob = await new Promise<Blob | null>((resolve) =>
@@ -251,6 +255,7 @@ function EntryForm({
       }
       await api(`/scouting-forms/${form.id}/submissions`, { method: "POST", body: payload });
       setAnswers({});
+      drawnFields.current.clear();
       setCanvasKey((value) => value + 1);
       setMessageType("success");
       setMessage("Report submitted.");
@@ -328,6 +333,10 @@ function EntryForm({
                 setValue={(value) => setAnswers((current) => ({ ...current, [field.id]: value }))}
                 canvasRef={mapRef}
                 canvasKey={canvasKey}
+                onDrawingChange={(hasDrawing) => {
+                  if (hasDrawing) drawnFields.current.add(field.id);
+                  else drawnFields.current.delete(field.id);
+                }}
               />
             </div>
           );

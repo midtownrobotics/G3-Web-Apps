@@ -51,6 +51,50 @@ type TeamComment = {
   created_at: number;
 };
 
+const AUTO_PATH_COLORS = [
+  [255, 51, 79],
+  [53, 208, 111],
+  [255, 212, 59],
+  [255, 102, 196],
+  [229, 57, 53],
+  [46, 125, 50],
+  [249, 168, 37],
+  [236, 64, 122],
+];
+
+function imageHasAutoPath(image: HTMLImageElement) {
+  const canvas = document.createElement("canvas");
+  canvas.width = image.naturalWidth;
+  canvas.height = image.naturalHeight;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) return true;
+  try {
+    context.drawImage(image, 0, 0);
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    let matchingSamples = 0;
+    for (let y = 0; y < canvas.height; y += 4) {
+      for (let x = 0; x < canvas.width; x += 4) {
+        const offset = (y * canvas.width + x) * 4;
+        const matches = AUTO_PATH_COLORS.some(([red, green, blue]) => {
+          const redDifference = pixels[offset] - red;
+          const greenDifference = pixels[offset + 1] - green;
+          const blueDifference = pixels[offset + 2] - blue;
+          return (
+            redDifference * redDifference +
+              greenDifference * greenDifference +
+              blueDifference * blueDifference <
+            1600
+          );
+        });
+        if (matches && ++matchingSamples >= 6) return true;
+      }
+    }
+    return false;
+  } catch {
+    return true;
+  }
+}
+
 export function Analysis({ initialReportId }: { initialReportId?: string | null }) {
   const [team, setTeam] = useState("");
   const [searched, setSearched] = useState("");
@@ -64,6 +108,7 @@ export function Analysis({ initialReportId }: { initialReportId?: string | null 
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
+  const [blankPathIds, setBlankPathIds] = useState<Set<string>>(() => new Set());
   const [reportSort, setReportSort] = useState<"match" | "newest" | "starred">("match");
   const [tab, setTab] = useState<"stats" | "matches" | "auto" | "compare">("stats");
   const [expandedReportId, setExpandedReportId] = useState<string | null>(initialReportId ?? null);
@@ -91,6 +136,7 @@ export function Analysis({ initialReportId }: { initialReportId?: string | null 
             )
           : result.reports,
       );
+      setBlankPathIds(new Set());
       setCompetition("all");
       setSearched(teamFilter);
       setSearchedB(tab === "compare" ? teamBFilter : "");
@@ -249,6 +295,9 @@ export function Analysis({ initialReportId }: { initialReportId?: string | null 
         .filter((field) => field.type === "fieldMap" && report.drawings[field.id])
         .map((field) => ({ report, field, url: report.drawings[field.id] })),
     );
+  const visibleAutoFields = autoFields.filter(
+    ({ report, field }) => !blankPathIds.has(`${report.id}-${field.id}`),
+  );
   const visibleComments = teamComments
     .filter(
       (comment) => competition === "all" || (comment.event_key || "Unassigned") === competition,
@@ -585,45 +634,56 @@ export function Analysis({ initialReportId }: { initialReportId?: string | null 
             </label>
           )}
           <div className="auto-path-grid">
-            {autoFields.map(({ report, field, url }) => (
-              <article key={`${report.id}-${field.id}`}>
-                <button
-                  type="button"
-                  className="auto-path-image-link"
-                  aria-label={`Open full-size path for team ${report.teamName}`}
-                  title="Open full-size drawing"
-                  onClick={() =>
-                    setSelectedPath({
-                      url: `${API_URL}${url}`,
-                      teamName: report.teamName,
-                      label: field.label,
-                    })
-                  }
-                >
-                  <img src={`${API_URL}${url}`} alt={`${report.teamName} ${field.label}`} />
-                </button>
-                <div>
-                  <MapIcon size={16} />
-                  <strong>
-                    Team {report.teamName} · {field.label}
-                  </strong>
-                  <span>
-                    {report.eventKey || "Unassigned"} · {report.formName} ·{" "}
-                    {new Date(report.createdAt).toLocaleDateString()}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  className="delete-report-button"
-                  onClick={() => permanentlyDeleteReport(report)}
-                  aria-label={`Permanently delete report for ${report.teamName}`}
-                  title="Remove bad data"
-                >
-                  <Trash2 size={17} />
-                </button>
-              </article>
-            ))}
-            {loaded && !autoFields.length && (
+            {visibleAutoFields.map(({ report, field, url }) => {
+              const pathId = `${report.id}-${field.id}`;
+              return (
+                <article key={pathId}>
+                  <button
+                    type="button"
+                    className="auto-path-image-link"
+                    aria-label={`Open full-size path for team ${report.teamName}`}
+                    title="Open full-size drawing"
+                    onClick={() =>
+                      setSelectedPath({
+                        url: `${API_URL}${url}`,
+                        teamName: report.teamName,
+                        label: field.label,
+                      })
+                    }
+                  >
+                    <img
+                      src={`${API_URL}${url}`}
+                      alt={`${report.teamName} ${field.label}`}
+                      crossOrigin="use-credentials"
+                      onLoad={(event) => {
+                        if (imageHasAutoPath(event.currentTarget)) return;
+                        setBlankPathIds((current) => new Set(current).add(pathId));
+                      }}
+                    />
+                  </button>
+                  <div>
+                    <MapIcon size={16} />
+                    <strong>
+                      Team {report.teamName} · {field.label}
+                    </strong>
+                    <span>
+                      {report.eventKey || "Unassigned"} · {report.formName} ·{" "}
+                      {new Date(report.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="delete-report-button"
+                    onClick={() => permanentlyDeleteReport(report)}
+                    aria-label={`Permanently delete report for ${report.teamName}`}
+                    title="Remove bad data"
+                  >
+                    <Trash2 size={17} />
+                  </button>
+                </article>
+              );
+            })}
+            {loaded && !visibleAutoFields.length && (
               <div className="forms-empty">
                 No autonomous paths reported{searched ? ` for ${searched}` : ""}.
               </div>
