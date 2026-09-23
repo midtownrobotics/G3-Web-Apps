@@ -6,7 +6,7 @@ import type { AppEnv } from "../types";
 import { newId } from "./id";
 import { createSession } from "./session";
 
-type HandleResult = { success: boolean; message: string };
+type HandleResult = { success: boolean; message: string; token?: string | null };
 
 export async function handleSlackCode(opts: {
   code: string;
@@ -145,8 +145,8 @@ export async function handleSlackCode(opts: {
     await updateStatus("success", undefined, sessionId);
     return {
       success: true,
-      message:
-        "✅ Signed in successfully. Return to yur browser. Your G3ID login page should update shortly.",
+      token: record.pollingToken,
+      message: "✅ Signed in successfully.",
     };
   }
 

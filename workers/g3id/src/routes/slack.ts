@@ -72,7 +72,15 @@ export const slackRouter = new Hono<AppEnv>()
           type: record.type as "signin" | "link",
           env: c.env,
         });
-        await sendDM(slackUserId, result.message, c.env);
+
+        // For successful sign-ins, add a direct link to complete auth from browser
+        let message = result.message;
+        if (result.success && result.token && record.type === "signin") {
+          const completeUrl = `${c.env.FRONTEND_URL}/auth/slack/complete?token=${result.token}`;
+          message = `${message}\n\n<${completeUrl}|Click here to return to your browser>`;
+        }
+
+        await sendDM(slackUserId, message, c.env);
       })(),
     );
 
