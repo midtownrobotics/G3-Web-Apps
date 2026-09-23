@@ -6,7 +6,12 @@ import type { AppEnv } from "../types";
 import { newId } from "./id";
 import { createSession } from "./session";
 
-type HandleResult = { success: boolean; message: string; token?: string | null };
+type HandleResult = {
+  success: boolean;
+  message: string;
+  token?: string | null;
+  redirectUrl?: string | null;
+};
 
 export async function handleSlackCode(opts: {
   code: string;
@@ -146,6 +151,7 @@ export async function handleSlackCode(opts: {
     return {
       success: true,
       token: record.pollingToken,
+      redirectUrl: record.redirectUrl,
       message: "✅ Signed in successfully.",
     };
   }

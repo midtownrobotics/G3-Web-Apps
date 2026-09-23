@@ -77,6 +77,7 @@ export const coreSlackLinkCodes = sqliteTable(
     code: text("code").notNull().unique(),
     type: text("type").notNull(),
     pollingToken: text("polling_token"),
+    redirectUrl: text("redirect_url"), // where to redirect after successful auth
     expiresAt: integer("expires_at").notNull(),
     used: integer("used").notNull().default(0),
     status: text("status").notNull().default("pending"), // pending, success, failed, linked, signup_pending

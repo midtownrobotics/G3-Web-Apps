@@ -35,6 +35,7 @@ export const slackAuthRouter = new Hono<AppEnv>()
         code,
         type: "signin",
         pollingToken: token,
+        redirectUrl: redirect || null,
         expiresAt: now + 900,
         used: 0,
         createdAt: now,
