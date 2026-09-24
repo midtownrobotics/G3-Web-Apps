@@ -72,7 +72,18 @@ export const slackRouter = new Hono<AppEnv>()
           type: record.type as "signin" | "link",
           env: c.env,
         });
-        await sendDM(slackUserId, result.message, c.env);
+
+        // For successful sign-ins, add a direct link to complete auth from browser
+        let message = result.message;
+        if (result.success && result.token && record.type === "signin") {
+          let completeUrl = `${c.env.FRONTEND_URL}/auth/slack/complete?token=${result.token}`;
+          if (result.redirectUrl) {
+            completeUrl += `&redirect=${encodeURIComponent(result.redirectUrl)}`;
+          }
+          message = `${message}\n\n<${completeUrl}|Click here to return to your browser>\n\nFor your next login, if you clicked the "↗️ Open Slack" button, the code has already been copied to your device and you can simply paste it below!! ↓↓↓↓↓↓`;
+        }
+
+        await sendDM(slackUserId, message, c.env);
       })(),
     );
 

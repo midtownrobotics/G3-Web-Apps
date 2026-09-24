@@ -35,6 +35,7 @@ export const slackAuthRouter = new Hono<AppEnv>()
         code,
         type: "signin",
         pollingToken: token,
+        redirectUrl: redirect || null,
         expiresAt: now + 900,
         used: 0,
         createdAt: now,
@@ -101,6 +102,33 @@ export const slackAuthRouter = new Hono<AppEnv>()
     }
 
     return c.json({ status: "expired" });
+  })
+  // Complete — from Slack link, set cookie and redirect (only for successful sign-ins)
+  .get("/slack/complete", async (c) => {
+    const token = c.req.query("token");
+    const redirect = sanitizeRedirect(c.req.query("redirect"));
+
+    if (!token) {
+      return c.text("Invalid or missing token", 400);
+    }
+
+    const db = createDb(c.env.DB);
+    const record = await db
+      .select()
+      .from(coreSlackLinkCodes)
+      .where(eq(coreSlackLinkCodes.pollingToken, token))
+      .get();
+
+    if (!record || record.status !== "success" || !record.sessionId) {
+      return c.text("Invalid or expired token", 400);
+    }
+
+    // Set the session cookie
+    setCookie(c, "g3_session", record.sessionId, sessionCookieOptions(c.env.FRONTEND_URL));
+
+    // Redirect to the original URL or home
+    const redirectUrl = redirect || `${c.env.FRONTEND_URL}/`;
+    return c.redirect(redirectUrl);
   })
   // Cancel — expire the code so it cannot be redeemed
   .delete("/slack/cancel", async (c) => {
