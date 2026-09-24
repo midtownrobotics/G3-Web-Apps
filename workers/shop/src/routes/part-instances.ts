@@ -116,8 +116,9 @@ export const partInstancesRouter = new Hono<AppEnv>()
           })),
         );
 
-        // Insert in batches to avoid hitting database size limits
-        const batchSize = 100;
+        // Insert in smaller batches to avoid SQLite limits (max ~500 params per statement)
+        // With ~4 columns per row, 10 rows per batch is conservative and safe
+        const batchSize = 10;
         for (let i = 0; i < processRecords.length; i += batchSize) {
           const batch = processRecords.slice(i, i + batchSize);
           await db.insert(partInstanceProcesses).values(batch);
