@@ -61,7 +61,7 @@ export function PartCard({
   const subsystemName =
     data.subsystems.find((s) => s.id === row.definition.subsystemId)?.name ?? "—";
   const totalInstances = data.instances.filter(
-    (i) => i.partDefinitionId === row.definition.id,
+    (i) => i.partDefinitionId === row.definition.id && !i.isStale,
   ).length;
 
   async function setPriority(next: boolean) {
