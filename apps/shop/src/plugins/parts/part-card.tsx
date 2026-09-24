@@ -62,7 +62,7 @@ export function PartCard({
     data.subsystems.find((s) => s.id === row.definition.subsystemId)?.name ?? "—";
   // For display, re-index active instances so numbering starts at 1 for each edit cycle
   const activeInstances = data.instances
-    .filter((i) => i.partDefinitionId === row.definition.id && !i.isStale)
+    .filter((i) => i.partDefinitionId === row.definition.id && i.isStale === 0)
     .sort((a, b) => a.instanceNumber - b.instanceNumber);
   const activePosition = activeInstances.findIndex((i) => i.id === row.instance.id) + 1;
   const totalInstances = activeInstances.length;
