@@ -110,21 +110,35 @@ export function AddPartPage() {
 
       const { processIds: pipeline } = resolvePipeline();
 
-      const defRes = await api["part-definitions"].$post({
-        json: {
-          onshapePartNumber: form.onshapePartNumber.trim(),
-          revision: form.revision.trim(),
-          subsystemId: form.subsystemId,
-          name: form.name.trim(),
-          notes: form.notes.trim() || undefined,
-          processIds: pipeline,
-        },
-      });
-      if (!defRes.ok) {
-        setBanner(await getErrorMessage(defRes as unknown as Response));
-        return;
+      // When editing & obsoleting, check if this part number + revision already exists
+      let definition: PartDefinition | undefined;
+      if (transfer) {
+        definition = data?.definitions.find(
+          (d) =>
+            d.onshapePartNumber === form.onshapePartNumber.trim() &&
+            d.revision === form.revision.trim() &&
+            !d.isObsolete,
+        );
       }
-      const definition = (await defRes.json()) as PartDefinition;
+
+      // If not found (or not in edit mode), create a new definition
+      if (!definition) {
+        const defRes = await api["part-definitions"].$post({
+          json: {
+            onshapePartNumber: form.onshapePartNumber.trim(),
+            revision: form.revision.trim(),
+            subsystemId: form.subsystemId,
+            name: form.name.trim(),
+            notes: form.notes.trim() || undefined,
+            processIds: pipeline,
+          },
+        });
+        if (!defRes.ok) {
+          setBanner(await getErrorMessage(defRes as unknown as Response));
+          return;
+        }
+        definition = (await defRes.json()) as PartDefinition;
+      }
 
       const instRes = await api["part-instances"].$post({
         json: { partDefinitionId: definition.id, quantity: form.quantity },
