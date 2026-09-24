@@ -1,4 +1,4 @@
-import { and, asc, eq, max } from "drizzle-orm";
+import { asc, eq, max } from "drizzle-orm";
 import { Hono } from "hono";
 import { validator } from "hono/validator";
 import { createShopDb } from "../db";
@@ -65,7 +65,7 @@ export const partInstancesRouter = new Hono<AppEnv>()
         const result = await db
           .select({ maxInstance: max(partInstances.instanceNumber) })
           .from(partInstances)
-          .where(and(eq(partInstances.partDefinitionId, partDefinitionId), eq(partInstances.isStale, 0)))
+          .where(eq(partInstances.partDefinitionId, partDefinitionId))
           .get();
 
         const nextNumber = (result?.maxInstance ?? 0) + 1;
