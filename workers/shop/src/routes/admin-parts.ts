@@ -450,4 +450,24 @@ export const adminPartsRouter = new Hono<AppEnv>()
         500,
       );
     }
+  })
+  .delete("/obsolete-instances", requireAdmin, async (c) => {
+    try {
+      const db = createShopDb(c.env.SHOP_DB);
+
+      await db
+        .delete(schema.partInstances)
+        .where(eq(schema.partInstances.isStale, 1));
+
+      return c.json({
+        success: true,
+        message: "All obsolete instances deleted",
+      });
+    } catch (err) {
+      console.error("[Delete Obsolete Instances Error]", err);
+      return c.json(
+        { error: err instanceof Error ? err.message : "Failed to delete obsolete instances" },
+        500,
+      );
+    }
   });
