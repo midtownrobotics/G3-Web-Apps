@@ -61,9 +61,13 @@ export function PartCard({
   const subsystemName =
     data.subsystems.find((s) => s.id === row.definition.subsystemId)?.name ?? "—";
   // For display, re-index active instances so numbering starts at 1 for each edit cycle
-  const activeInstances = data.instances
-    .filter((i) => i.partDefinitionId === row.definition.id && i.isStale === 0)
+  const allInstancesForDef = data.instances.filter((i) => i.partDefinitionId === row.definition.id);
+  console.log(`[Part Card] Definition ${row.definition.id} has ${allInstancesForDef.length} total instances`);
+  console.log(`[Part Card] Sample instances:`, allInstancesForDef.slice(0, 3).map(i => ({ id: i.id, num: i.instanceNumber, isStale: i.isStale, isStaleType: typeof i.isStale })));
+  const activeInstances = allInstancesForDef
+    .filter((i) => i.isStale === 0)
     .sort((a, b) => a.instanceNumber - b.instanceNumber);
+  console.log(`[Part Card] After filtering isStale === 0: ${activeInstances.length} active instances`);
   const activePosition = activeInstances.findIndex((i) => i.id === row.instance.id) + 1;
   const totalInstances = activeInstances.length;
 
