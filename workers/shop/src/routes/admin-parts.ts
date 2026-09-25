@@ -470,9 +470,17 @@ export const adminPartsRouter = new Hono<AppEnv>()
         });
       }
 
-      // Delete associated processes first (due to foreign key constraint)
-      // Batch in chunks to avoid SQLite parameter limit (usually ~32k but often restricted to 1000)
       const batchSize = 100;
+
+      // Delete associated actions (actions table has FK to part_instances)
+      for (let i = 0; i < staleInstanceIds.length; i += batchSize) {
+        const batch = staleInstanceIds.slice(i, i + batchSize);
+        await db
+          .delete(schema.actions)
+          .where(inArray(schema.actions.partInstanceId, batch));
+      }
+
+      // Delete associated processes (part_instance_processes has FK to part_instances)
       for (let i = 0; i < staleInstanceIds.length; i += batchSize) {
         const batch = staleInstanceIds.slice(i, i + batchSize);
         await db
@@ -480,7 +488,7 @@ export const adminPartsRouter = new Hono<AppEnv>()
           .where(inArray(schema.partInstanceProcesses.partInstanceId, batch));
       }
 
-      // Then delete the stale instances
+      // Finally delete the stale instances
       await db
         .delete(schema.partInstances)
         .where(eq(schema.partInstances.isStale, 1));
