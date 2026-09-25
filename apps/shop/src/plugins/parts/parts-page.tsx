@@ -514,7 +514,6 @@ function PartsTable({
                 />
               );
             })
-            )),
           )}
         </div>
       </div>
