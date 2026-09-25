@@ -455,13 +455,36 @@ export const adminPartsRouter = new Hono<AppEnv>()
     try {
       const db = createShopDb(c.env.SHOP_DB);
 
+      // First, get all stale instance IDs
+      const staleInstances = await db
+        .select({ id: schema.partInstances.id })
+        .from(schema.partInstances)
+        .where(eq(schema.partInstances.isStale, 1));
+
+      const staleInstanceIds = staleInstances.map((i) => i.id);
+
+      if (staleInstanceIds.length === 0) {
+        return c.json({
+          success: true,
+          message: "No obsolete instances to delete",
+        });
+      }
+
+      // Delete associated processes first (due to foreign key constraint)
+      for (const instanceId of staleInstanceIds) {
+        await db
+          .delete(schema.partInstanceProcesses)
+          .where(eq(schema.partInstanceProcesses.partInstanceId, instanceId));
+      }
+
+      // Then delete the stale instances
       await db
         .delete(schema.partInstances)
         .where(eq(schema.partInstances.isStale, 1));
 
       return c.json({
         success: true,
-        message: "All obsolete instances deleted",
+        message: `Deleted ${staleInstanceIds.length} obsolete instances`,
       });
     } catch (err) {
       console.error("[Delete Obsolete Instances Error]", err);
