@@ -76,8 +76,11 @@ export function PartsPage() {
   // Total instances ever made per definition — drives the "#n of N total" label.
   const totalByDef = useMemo(() => {
     const map = new Map<number, number>();
-    for (const inst of data?.instances ?? [])
-      map.set(inst.partDefinitionId, (map.get(inst.partDefinitionId) ?? 0) + 1);
+    for (const inst of data?.instances ?? []) {
+      if (inst.isStale === 0) {
+        map.set(inst.partDefinitionId, (map.get(inst.partDefinitionId) ?? 0) + 1);
+      }
+    }
     return map;
   }, [data]);
 
@@ -484,24 +487,33 @@ function PartsTable({
 
         <div className="divide-y divide-steel/15">
           {groups.map((group) =>
-            group.map((row, i) => (
-              <PartRow
-                key={row.instance.id}
-                row={row}
-                total={totalByDef.get(row.definition.id) ?? 1}
-                connector={
-                  group.length === 1
-                    ? "only"
-                    : i === 0
-                      ? "first"
-                      : i === group.length - 1
-                        ? "last"
-                        : "middle"
-                }
-                processName={processName}
-                touch={touch}
-                onOpen={() => onOpen(row.instance.id)}
-              />
+            group.map((row, i) => {
+              const activeForDef = (data?.instances ?? []).filter(
+                (inst) => inst.partDefinitionId === row.definition.id && inst.isStale === 0,
+              );
+              const activePosition =
+                activeForDef.findIndex((inst) => inst.id === row.instance.id) + 1;
+              return (
+                <PartRow
+                  key={row.instance.id}
+                  row={row}
+                  total={totalByDef.get(row.definition.id) ?? 1}
+                  activePosition={activePosition}
+                  connector={
+                    group.length === 1
+                      ? "only"
+                      : i === 0
+                        ? "first"
+                        : i === group.length - 1
+                          ? "last"
+                          : "middle"
+                  }
+                  processName={processName}
+                  touch={touch}
+                  onOpen={() => onOpen(row.instance.id)}
+                />
+              );
+            })
             )),
           )}
         </div>
@@ -513,6 +525,7 @@ function PartsTable({
 function PartRow({
   row,
   total,
+  activePosition,
   connector,
   processName,
   touch,
@@ -520,6 +533,7 @@ function PartRow({
 }: {
   row: InstanceRow;
   total: number;
+  activePosition: number;
   connector: "only" | "first" | "middle" | "last";
   processName: (pid: number) => string;
   touch: boolean;
@@ -569,9 +583,9 @@ function PartRow({
 
       <span
         className="w-16 shrink-0 hidden sm:block text-xs text-steel-dark text-center"
-        title={`Instance ${row.instance.instanceNumber} of ${total}`}
+        title={`Instance ${activePosition} of ${total}`}
       >
-        {row.instance.instanceNumber}/{total}
+        {activePosition}/{total}
       </span>
 
       <span className="w-40 shrink-0 hidden md:block text-sm text-ink text-center">
