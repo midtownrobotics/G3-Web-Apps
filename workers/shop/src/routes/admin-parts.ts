@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import { createShopDb } from "../db";
 import * as schema from "../db/schema";
@@ -471,10 +471,11 @@ export const adminPartsRouter = new Hono<AppEnv>()
       }
 
       // Delete associated processes first (due to foreign key constraint)
-      for (const instanceId of staleInstanceIds) {
+      // Use inArray to delete all related processes in one query
+      if (staleInstanceIds.length > 0) {
         await db
           .delete(schema.partInstanceProcesses)
-          .where(eq(schema.partInstanceProcesses.partInstanceId, instanceId));
+          .where(inArray(schema.partInstanceProcesses.partInstanceId, staleInstanceIds));
       }
 
       // Then delete the stale instances
