@@ -471,11 +471,13 @@ export const adminPartsRouter = new Hono<AppEnv>()
       }
 
       // Delete associated processes first (due to foreign key constraint)
-      // Use inArray to delete all related processes in one query
-      if (staleInstanceIds.length > 0) {
+      // Batch in chunks to avoid SQLite parameter limit (usually ~32k but often restricted to 1000)
+      const batchSize = 100;
+      for (let i = 0; i < staleInstanceIds.length; i += batchSize) {
+        const batch = staleInstanceIds.slice(i, i + batchSize);
         await db
           .delete(schema.partInstanceProcesses)
-          .where(inArray(schema.partInstanceProcesses.partInstanceId, staleInstanceIds));
+          .where(inArray(schema.partInstanceProcesses.partInstanceId, batch));
       }
 
       // Then delete the stale instances
