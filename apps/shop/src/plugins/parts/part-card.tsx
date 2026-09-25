@@ -66,6 +66,7 @@ export function PartCard({
     .sort((a, b) => a.instanceNumber - b.instanceNumber);
   const activePosition = activeInstances.findIndex((i) => i.id === row.instance.id) + 1;
   const totalInstances = activeInstances.length;
+  console.log(`[DEBUG] row.instance.id=${row.instance.id}, activeInstances.length=${activeInstances.length}, activePosition=${activePosition}, totalInstances=${totalInstances}`);
 
   async function setPriority(next: boolean) {
     setBusy(true);
