@@ -76,9 +76,7 @@ export const slackRouter = new Hono<AppEnv>()
         // For successful sign-ins, add a direct link to complete auth from browser
         let message = result.message;
         if (result.success && result.token && record.type === "signin") {
-          const currentUrl = new URL(c.req.url);
-          const apiBaseUrl = `${currentUrl.protocol}//${currentUrl.host}`;
-          let completeUrl = `${apiBaseUrl}/auth/slack/complete?token=${result.token}`;
+          let completeUrl = `https://api.g3id.g3robotics.com/auth/slack/complete?token=${result.token}`;
           if (result.redirectUrl) {
             completeUrl += `&redirect=${encodeURIComponent(result.redirectUrl)}`;
           }
