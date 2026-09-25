@@ -61,13 +61,9 @@ export function PartCard({
   const subsystemName =
     data.subsystems.find((s) => s.id === row.definition.subsystemId)?.name ?? "—";
   // For display, re-index active instances so numbering starts at 1 for each edit cycle
-  const allInstancesForDef = data.instances.filter((i) => i.partDefinitionId === row.definition.id);
-  console.log(`[Part Card] Definition ${row.definition.id} has ${allInstancesForDef.length} total instances`);
-  console.log(`[Part Card] Sample instances:`, allInstancesForDef.slice(0, 3).map(i => ({ id: i.id, num: i.instanceNumber, isStale: i.isStale, isStaleType: typeof i.isStale })));
-  const activeInstances = allInstancesForDef
-    .filter((i) => i.isStale === 0)
+  const activeInstances = data.instances
+    .filter((i) => i.partDefinitionId === row.definition.id && i.isStale === 0)
     .sort((a, b) => a.instanceNumber - b.instanceNumber);
-  console.log(`[Part Card] After filtering isStale === 0: ${activeInstances.length} active instances`);
   const activePosition = activeInstances.findIndex((i) => i.id === row.instance.id) + 1;
   const totalInstances = activeInstances.length;
 
@@ -181,19 +177,6 @@ export function PartCard({
             <p className="text-sm text-steel-dark font-mono">
               {row.definition.onshapePartNumber} · Rev {row.definition.revision}
             </p>
-            <details className="text-xs text-steel mt-2">
-              <summary className="cursor-pointer">Debug Info</summary>
-              <div className="text-steel-dark font-mono space-y-1 mt-1 p-2 bg-mist rounded">
-                <div>Total for def: {allInstancesForDef.length}</div>
-                <div>Active (isStale===0): {activeInstances.length}</div>
-                <div>Current row id: {row.instance.id}</div>
-                {allInstancesForDef.slice(0, 5).map(i => (
-                  <div key={i.id} className="text-[10px]">
-                    id={i.id} num={i.instanceNumber} stale={i.isStale} (type: {typeof i.isStale})
-                  </div>
-                ))}
-              </div>
-            </details>
             {isObsolete && (
               <span className="inline-block mt-1.5 text-[10px] font-semibold uppercase tracking-wider text-steel-dark bg-steel-tint border border-steel/40 rounded-full px-2 py-0.5">
                 Obsolete · view only
