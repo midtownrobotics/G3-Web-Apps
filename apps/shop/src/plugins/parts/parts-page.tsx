@@ -513,7 +513,7 @@ function PartsTable({
                   onOpen={() => onOpen(row.instance.id)}
                 />
               );
-            })
+            }),
           )}
         </div>
       </div>

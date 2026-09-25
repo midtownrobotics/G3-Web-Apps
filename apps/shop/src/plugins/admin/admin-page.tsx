@@ -99,6 +99,7 @@ export function AdminPage() {
         {/* Section 3: Data Management */}
         <Section title="Data Management" defaultOpen={false}>
           <button
+            type="button"
             onClick={deleteObsoleteInstances}
             disabled={deletingObsolete}
             className="px-4 py-2 bg-crimson hover:bg-crimson-dark text-paper font-semibold rounded-lg transition-colors disabled:opacity-50"
@@ -106,7 +107,8 @@ export function AdminPage() {
             {deletingObsolete ? "Deleting…" : "Delete Obsolete Instances"}
           </button>
           <p className="text-xs text-steel mt-2">
-            Permanently removes all part instances marked as obsolete from previous Edit & Obsolete operations. This frees up instance numbers for reuse.
+            Permanently removes all part instances marked as obsolete from previous Edit & Obsolete
+            operations. This frees up instance numbers for reuse.
           </p>
         </Section>
 

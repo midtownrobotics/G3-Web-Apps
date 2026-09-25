@@ -212,11 +212,7 @@ export function PartCard({
               <Meta label="Name" value={row.definition.name} />
               <Meta label="Part Number" value={row.definition.onshapePartNumber} mono />
               <Meta label="Revision" value={row.definition.revision} mono />
-              <Meta
-                label="Instance"
-                value={`#${activePosition} of ${totalInstances}`}
-                mono
-              />
+              <Meta label="Instance" value={`#${activePosition} of ${totalInstances}`} mono />
               <Meta label="Subsystem" value={subsystemName} />
               <Meta label="Notes" value={row.definition.notes || "—"} />
               <Meta

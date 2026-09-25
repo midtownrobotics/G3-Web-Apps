@@ -475,9 +475,7 @@ export const adminPartsRouter = new Hono<AppEnv>()
       // Delete associated actions (actions table has FK to part_instances)
       for (let i = 0; i < staleInstanceIds.length; i += batchSize) {
         const batch = staleInstanceIds.slice(i, i + batchSize);
-        await db
-          .delete(schema.actions)
-          .where(inArray(schema.actions.partInstanceId, batch));
+        await db.delete(schema.actions).where(inArray(schema.actions.partInstanceId, batch));
       }
 
       // Delete associated processes (part_instance_processes has FK to part_instances)
@@ -489,9 +487,7 @@ export const adminPartsRouter = new Hono<AppEnv>()
       }
 
       // Finally delete the stale instances
-      await db
-        .delete(schema.partInstances)
-        .where(eq(schema.partInstances.isStale, 1));
+      await db.delete(schema.partInstances).where(eq(schema.partInstances.isStale, 1));
 
       return c.json({
         success: true,
