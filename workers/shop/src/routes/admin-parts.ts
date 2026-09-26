@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import { createShopDb } from "../db";
 import * as schema from "../db/schema";
@@ -447,6 +447,56 @@ export const adminPartsRouter = new Hono<AppEnv>()
       console.error("[Dev Test Drawing Error]", err);
       return c.json(
         { error: err instanceof Error ? err.message : "Failed to upload test drawing" },
+        500,
+      );
+    }
+  })
+  .delete("/obsolete-instances", requireAdmin, async (c) => {
+    try {
+      const db = createShopDb(c.env.SHOP_DB);
+
+      // First, get all stale instance IDs
+      const staleInstances = await db
+        .select({ id: schema.partInstances.id })
+        .from(schema.partInstances)
+        .where(eq(schema.partInstances.isStale, 1));
+
+      const staleInstanceIds = staleInstances.map((i) => i.id);
+
+      if (staleInstanceIds.length === 0) {
+        return c.json({
+          success: true,
+          message: "No obsolete instances to delete",
+        });
+      }
+
+      const batchSize = 100;
+
+      // Delete associated actions (actions table has FK to part_instances)
+      for (let i = 0; i < staleInstanceIds.length; i += batchSize) {
+        const batch = staleInstanceIds.slice(i, i + batchSize);
+        await db.delete(schema.actions).where(inArray(schema.actions.partInstanceId, batch));
+      }
+
+      // Delete associated processes (part_instance_processes has FK to part_instances)
+      for (let i = 0; i < staleInstanceIds.length; i += batchSize) {
+        const batch = staleInstanceIds.slice(i, i + batchSize);
+        await db
+          .delete(schema.partInstanceProcesses)
+          .where(inArray(schema.partInstanceProcesses.partInstanceId, batch));
+      }
+
+      // Finally delete the stale instances
+      await db.delete(schema.partInstances).where(eq(schema.partInstances.isStale, 1));
+
+      return c.json({
+        success: true,
+        message: `Deleted ${staleInstanceIds.length} obsolete instances`,
+      });
+    } catch (err) {
+      console.error("[Delete Obsolete Instances Error]", err);
+      return c.json(
+        { error: err instanceof Error ? err.message : "Failed to delete obsolete instances" },
         500,
       );
     }

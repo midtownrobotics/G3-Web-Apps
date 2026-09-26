@@ -60,9 +60,12 @@ export function PartCard({
     data.processes.find((p) => p.id === pid)?.name ?? `Process #${pid}`;
   const subsystemName =
     data.subsystems.find((s) => s.id === row.definition.subsystemId)?.name ?? "—";
-  const totalInstances = data.instances.filter(
-    (i) => i.partDefinitionId === row.definition.id,
-  ).length;
+  // For display, re-index active instances so numbering starts at 1 for each edit cycle
+  const activeInstances = data.instances
+    .filter((i) => i.partDefinitionId === row.definition.id && i.isStale === 0)
+    .sort((a, b) => a.instanceNumber - b.instanceNumber);
+  const activePosition = activeInstances.findIndex((i) => i.id === row.instance.id) + 1;
+  const totalInstances = activeInstances.length;
 
   async function setPriority(next: boolean) {
     setBusy(true);
@@ -168,7 +171,7 @@ export function PartCard({
             <h2 className="font-display text-3xl text-ink truncate">
               {row.definition.name}{" "}
               <span className="text-steel text-2xl">
-                #{row.instance.instanceNumber} of {totalInstances}
+                #{activePosition} of {totalInstances}
               </span>
             </h2>
             <p className="text-sm text-steel-dark font-mono">
@@ -209,11 +212,7 @@ export function PartCard({
               <Meta label="Name" value={row.definition.name} />
               <Meta label="Part Number" value={row.definition.onshapePartNumber} mono />
               <Meta label="Revision" value={row.definition.revision} mono />
-              <Meta
-                label="Instance"
-                value={`#${row.instance.instanceNumber} of ${totalInstances}`}
-                mono
-              />
+              <Meta label="Instance" value={`#${activePosition} of ${totalInstances}`} mono />
               <Meta label="Subsystem" value={subsystemName} />
               <Meta label="Notes" value={row.definition.notes || "—"} />
               <Meta

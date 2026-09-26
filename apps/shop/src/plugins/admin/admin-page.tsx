@@ -9,6 +9,7 @@ import { ActionsLog } from "./actions-log";
 export function AdminPage() {
   const { data, loading, error, refresh } = useShopData();
   const [banner, setBanner] = useState<string | null>(null);
+  const [deletingObsolete, setDeletingObsolete] = useState(false);
 
   const [newSubsystem, setNewSubsystem] = useState("");
   const [newProcess, setNewProcess] = useState("");
@@ -37,6 +38,20 @@ export function AdminPage() {
     await refresh();
   }
 
+  async function deleteObsoleteInstances() {
+    if (!window.confirm("Delete all obsolete instances? This cannot be undone.")) return;
+    setDeletingObsolete(true);
+    const res = await api.admin["obsolete-instances"].$delete();
+    if (!res.ok) {
+      setBanner(await getErrorMessage(res as unknown as Response));
+      setDeletingObsolete(false);
+      return;
+    }
+    setBanner("Obsolete instances deleted successfully");
+    setDeletingObsolete(false);
+    await refresh();
+  }
+
   if (loading) return <PageLoading />;
 
   return (
@@ -48,7 +63,7 @@ export function AdminPage() {
         {banner && <ErrorBanner message={banner} />}
 
         {/* Section 1: Actions Log */}
-        <Section title="Actions Log">
+        <Section title="Actions Log" defaultOpen={false}>
           {data ? (
             <ActionsLog data={data} />
           ) : (
@@ -57,7 +72,7 @@ export function AdminPage() {
         </Section>
 
         {/* Section 2: Shop Settings */}
-        <Section title="Shop Settings">
+        <Section title="Shop Settings" defaultOpen={false}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <NameList
               title="Subsystems"
@@ -81,17 +96,33 @@ export function AdminPage() {
           </div>
         </Section>
 
-        {/* Section 3: Kiosk Mode */}
+        {/* Section 3: Data Management */}
+        <Section title="Data Management" defaultOpen={false}>
+          <button
+            type="button"
+            onClick={deleteObsoleteInstances}
+            disabled={deletingObsolete}
+            className="px-4 py-2 bg-crimson hover:bg-crimson-dark text-paper font-semibold rounded-lg transition-colors disabled:opacity-50"
+          >
+            {deletingObsolete ? "Deleting…" : "Delete Obsolete Instances"}
+          </button>
+          <p className="text-xs text-steel mt-2">
+            Permanently removes all part instances marked as obsolete from previous Edit & Obsolete
+            operations. This frees up instance numbers for reuse.
+          </p>
+        </Section>
+
+        {/* Section 4: Kiosk Mode */}
         <Section title="Kiosk Mode" defaultOpen={false}>
           <KioskModeSettings />
         </Section>
 
-        {/* Section 4: OnShape Configuration */}
+        {/* Section 5: OnShape Configuration */}
         <Section title="OnShape Configuration" defaultOpen={false}>
           {data ? <OnShapeConfig /> : <p className="text-sm text-steel">Loading…</p>}
         </Section>
 
-        {/* Section 5: Slack Configuration */}
+        {/* Section 6: Slack Configuration */}
         <Section title="Slack Configuration" defaultOpen={false}>
           <SlackSettings />
         </Section>
