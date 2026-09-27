@@ -14,10 +14,10 @@ import { useShopData } from "../../shared/use-shop-data";
 import { useTouchDevice } from "../../shared/use-touch";
 import { PartCard } from "./part-card";
 
-type SortKey = "newest" | "oldest" | "alpha" | "priority" | "process" | "status" | "subsystem";
+type SortKey = "newest" | "oldest" | "alpha" | "alpha-rev" | "number" | "number-rev" | "revision" | "revision-rev" | "instance" | "instance-rev" | "process" | "process-rev" | "progress" | "progress-rev" | "priority" | "status" | "subsystem";
 
 /** Sorts that order whole blueprints — instances stay grouped with a connector line. */
-const GROUPED_SORTS: SortKey[] = ["newest", "oldest", "alpha", "priority", "subsystem"];
+const GROUPED_SORTS: SortKey[] = ["newest", "oldest", "alpha", "alpha-rev", "number", "number-rev", "revision", "revision-rev", "instance", "instance-rev", "process", "process-rev", "progress", "progress-rev", "priority", "subsystem"];
 
 const STATE_ORDER: Record<InstanceState, number> = {
   doing: 0,
@@ -310,6 +310,53 @@ function PartsTable({
       case "alpha":
         grouped.sort((a, b) => def(a).name.localeCompare(def(b).name));
         break;
+      case "alpha-rev":
+        grouped.sort((a, b) => def(b).name.localeCompare(def(a).name));
+        break;
+      case "number":
+        grouped.sort((a, b) => def(a).onshapePartNumber.localeCompare(def(b).onshapePartNumber));
+        break;
+      case "number-rev":
+        grouped.sort((a, b) => def(b).onshapePartNumber.localeCompare(def(a).onshapePartNumber));
+        break;
+      case "revision":
+        grouped.sort((a, b) => def(a).revision.localeCompare(def(b).revision));
+        break;
+      case "revision-rev":
+        grouped.sort((a, b) => def(b).revision.localeCompare(def(a).revision));
+        break;
+      case "instance":
+        grouped.sort((a, b) => a[0].instance.instanceNumber - b[0].instance.instanceNumber);
+        break;
+      case "instance-rev":
+        grouped.sort((a, b) => b[0].instance.instanceNumber - a[0].instance.instanceNumber);
+        break;
+      case "process-rev":
+        grouped.sort((a, b) => {
+          const an = b[0].current ? processName(b[0].current.processId) : "￿";
+          const bn = a[0].current ? processName(a[0].current.processId) : "￿";
+          return an.localeCompare(bn) || def(b).name.localeCompare(def(a).name);
+        });
+        break;
+      case "progress":
+        grouped.sort((a, b) => {
+          const aComplete = a.filter((r) => r.state === "complete").length;
+          const bComplete = b.filter((r) => r.state === "complete").length;
+          const aPercent = (aComplete / a.length) * 100;
+          const bPercent = (bComplete / b.length) * 100;
+          console.log(`[Progress Sort] ${def(a).name}: ${aPercent.toFixed(1)}% | ${def(b).name}: ${bPercent.toFixed(1)}%`);
+          return bPercent - aPercent || def(b).createdAt - def(a).createdAt;
+        });
+        break;
+      case "progress-rev":
+        grouped.sort((a, b) => {
+          const aComplete = a.filter((r) => r.state === "complete").length;
+          const bComplete = b.filter((r) => r.state === "complete").length;
+          const aPercent = (aComplete / a.length) * 100;
+          const bPercent = (bComplete / b.length) * 100;
+          return aPercent - bPercent || def(a).createdAt - def(b).createdAt;
+        });
+        break;
       case "priority":
         for (const g of grouped)
           g.sort(
@@ -386,7 +433,6 @@ function PartsTable({
               <option value="alpha">A–Z</option>
               <option value="priority">Priority first</option>
               <option value="process">By process</option>
-              <option value="status">By status</option>
               <option value="subsystem">By subsystem</option>
             </select>
           </label>
@@ -471,12 +517,48 @@ function PartsTable({
       <div className="bg-paper border border-steel/30 rounded-xl overflow-hidden">
         <div className="flex items-center gap-3 px-3 py-2 border-b border-steel/25 bg-mist text-xs font-semibold uppercase tracking-wider text-steel">
           <span className="w-3.5 shrink-0" />
-          <span className="flex-1 min-w-0 text-center">Part</span>
-          <span className="w-44 shrink-0 hidden sm:block text-center">Number</span>
-          <span className="w-12 shrink-0 hidden sm:block text-center">Rev</span>
-          <span className="w-16 shrink-0 hidden sm:block text-center">Instance</span>
-          <span className="w-40 shrink-0 hidden md:block text-center">Process</span>
-          <span className="w-20 shrink-0 text-center">Progress</span>
+          <button
+            type="button"
+            onClick={() => setSort(sort === "alpha" ? "alpha-rev" : "alpha")}
+            className="flex-1 min-w-0 text-left hover:text-ink transition-colors"
+          >
+            Part {sort === "alpha" ? "↓" : sort === "alpha-rev" ? "↑" : ""}
+          </button>
+          <button
+            type="button"
+            onClick={() => setSort(sort === "number" ? "number-rev" : "number")}
+            className="w-44 shrink-0 hidden sm:block text-left hover:text-ink transition-colors"
+          >
+            Number {sort === "number" ? "↓" : sort === "number-rev" ? "↑" : ""}
+          </button>
+          <button
+            type="button"
+            onClick={() => setSort(sort === "revision" ? "revision-rev" : "revision")}
+            className="w-12 shrink-0 hidden sm:block text-center hover:text-ink transition-colors"
+          >
+            Rev {sort === "revision" ? "↓" : sort === "revision-rev" ? "↑" : ""}
+          </button>
+          <button
+            type="button"
+            onClick={() => setSort(sort === "instance" ? "instance-rev" : "instance")}
+            className="w-16 shrink-0 hidden sm:block text-center hover:text-ink transition-colors"
+          >
+            Inst {sort === "instance" ? "↓" : sort === "instance-rev" ? "↑" : ""}
+          </button>
+          <button
+            type="button"
+            onClick={() => setSort(sort === "process" ? "process-rev" : "process")}
+            className="w-40 shrink-0 hidden md:block text-center hover:text-ink transition-colors"
+          >
+            Proc {sort === "process" ? "↓" : sort === "process-rev" ? "↑" : ""}
+          </button>
+          <button
+            type="button"
+            onClick={() => setSort(sort === "progress" ? "progress-rev" : "progress")}
+            className="w-20 shrink-0 text-center hover:text-ink transition-colors"
+          >
+            Progress {sort === "progress" ? "↓" : sort === "progress-rev" ? "↑" : ""}
+          </button>
         </div>
 
         {groups.length === 0 && (
