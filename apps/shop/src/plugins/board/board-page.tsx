@@ -37,9 +37,6 @@ const LOAD_STYLES = {
   high: "bg-crimson-tint border-crimson/40",
 };
 
-// Auto-open the kiosk's machine only once per app load, so the overview stays reachable.
-let kioskAutoOpened = false;
-
 export function BoardPage() {
   const { data, loading, error, refresh } = useShopData();
   const navigate = useNavigate();
@@ -50,7 +47,12 @@ export function BoardPage() {
   const touch = useTouchDevice() || kiosk.active;
 
   // The active view comes from the URL: /board = overview, /board/process/:id.
-  const view: number | "overview" = params.processId ? Number(params.processId) : "overview";
+  // For kiosks, override to match machine if available, otherwise force overview.
+  let view: number | "overview" = params.processId ? Number(params.processId) : "overview";
+  if (kiosk.active && data) {
+    const machine = matchMachineProcess(data.processes, kiosk.machineName);
+    view = machine ? machine.id : "overview";
+  }
 
   const [banner, setBanner] = useState<string | null>(null);
   const [selectedInstanceId, setSelectedInstanceId] = useState<number | null>(null);
@@ -76,13 +78,6 @@ export function BoardPage() {
     }
   }, [searchParams]);
 
-  // A kiosk named after a machine opens straight to that machine's queue.
-  useEffect(() => {
-    if (!kiosk.active || kioskAutoOpened || !data || params.processId) return;
-    const machine = matchMachineProcess(data.processes, kiosk.machineName);
-    kioskAutoOpened = true;
-    if (machine) navigate(processPath(machine.id), { replace: true });
-  }, [kiosk.active, kiosk.machineName, data, params.processId, navigate]);
 
   // Who is logged in at each kiosk, refreshed alongside the heartbeat cadence.
   useEffect(() => {
@@ -148,7 +143,7 @@ export function BoardPage() {
         )}
 
         <div className="flex items-start justify-between gap-4">
-          {kiosk.active && matchMachineProcess(data!.processes, kiosk.machineName) ? (
+          {kiosk.active ? (
             <h1 className="font-display text-4xl text-ink">
               {view === "overview" ? "Shop Floor" : processName(view)}
             </h1>
@@ -163,7 +158,7 @@ export function BoardPage() {
               className="font-display text-4xl text-ink bg-paper border border-steel/40 focus:outline-none focus:ring-2 focus:ring-crimson rounded-lg px-1"
             >
               <option value="overview">Shop Floor</option>
-              {data!.processes.map((p) => (
+              {data?.processes.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
                 </option>
