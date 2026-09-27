@@ -74,13 +74,13 @@ export function DrawingPreview({
           }
 
           const dpr = window.devicePixelRatio || 1;
-          const width = 600;
-          const scale = width / page.getViewport({ scale: 1 }).width;
+          const containerWidth = canvas.parentElement?.clientWidth || 600;
+          const scale = containerWidth / page.getViewport({ scale: 1 }).width;
           const viewport = page.getViewport({ scale: scale * dpr });
 
           canvas.width = viewport.width;
           canvas.height = viewport.height;
-          canvas.style.width = `${width}px`;
+          canvas.style.width = `${containerWidth}px`;
           canvas.style.height = `${viewport.height / dpr}px`;
 
           const ctx = canvas.getContext("2d");
