@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@g3/config": "workspace:*",
     "hono": "^4.7.0"
   },
   "devDependencies": {

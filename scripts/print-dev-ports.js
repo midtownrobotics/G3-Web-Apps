@@ -6,7 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const configPath = path.join(__dirname, "..", ".dev-ports.json");
+const configPath = path.join(__dirname, "..", "packages", "config", "team.json");
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -68,7 +68,15 @@ function printServerInfo(config) {
 
 async function main() {
   try {
-    const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    const team = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    const withUrl = (servers) =>
+      Object.fromEntries(
+        Object.entries(servers).map(([key, s]) => [
+          key,
+          { ...s, url: `http://localhost:${s.devPort}` },
+        ]),
+      );
+    const config = { apps: withUrl(team.apps), workers: withUrl(team.workers) };
 
     console.log("🚀 Starting G3 Robotics development servers...\n");
 

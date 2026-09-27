@@ -1,7 +1,8 @@
+import { apiBase as apiBaseFor } from "@g3/config/client";
 import { FaGithub, FaGoogle, FaSlack, FaSteam } from "react-icons/fa";
 import { Link, useSearchParams } from "react-router-dom";
 
-const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
+const apiBase = apiBaseFor("g3id");
 
 export function LoginPage() {
   const [searchParams] = useSearchParams();

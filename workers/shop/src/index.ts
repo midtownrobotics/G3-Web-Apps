@@ -1,4 +1,5 @@
 import type { MessageBatch } from "@cloudflare/workers-types";
+import { allowedOrigin } from "@g3/config";
 import { sendMessage } from "@g3/slack";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
@@ -30,13 +31,7 @@ base.onError((err, c) => {
 base.use(
   "*",
   cors({
-    origin: (origin) => {
-      if (!origin) return null;
-      if (origin === "https://g3robotics.com") return origin;
-      if (origin.endsWith(".g3robotics.com")) return origin;
-      if (origin.startsWith("http://localhost:")) return origin;
-      return null;
-    },
+    origin: (origin) => allowedOrigin(origin),
     allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization"],
     credentials: true,

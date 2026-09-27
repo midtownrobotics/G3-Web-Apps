@@ -1,3 +1,4 @@
+import { external } from "@g3/config";
 import { Hono } from "hono";
 import { requireAuth } from "../middleware/auth";
 import type { AppEnv } from "../types";
@@ -8,7 +9,7 @@ export const printRouter = new Hono<AppEnv>().post("/", requireAuth, async (c) =
     const query = c.req.query();
 
     const qs = new URLSearchParams(query).toString();
-    const url = `https://shoppi-print.g3robotics.com/print${qs ? `?${qs}` : ""}`;
+    const url = `${external.printServer}/print${qs ? `?${qs}` : ""}`;
 
     const printToken = c.env.PRINT_TOKEN || "";
     const printRes = await fetch(url, {

@@ -1,3 +1,4 @@
+import { loginUrl, workerUrl } from "@g3/config/client";
 /* FRC Skill Trees — G3 backend shim.
  *
  * This module preserves the exact export surface app.js imported from the old
@@ -11,15 +12,11 @@
  * Firestore's realtime onSnapshot is emulated by polling.
  */
 
-const isLocal =
-  location.hostname === "localhost" || location.hostname === "127.0.0.1";
-
 // G3ID API (login/logout + session validation via the worker's service binding)
 // and the G3ID web app (the hosted login page we redirect unauthenticated
 // users to). The skill-tree worker serves the app's data.
-const G3ID_API = isLocal ? "http://localhost:8787" : "https://api.g3id.g3robotics.com";
-const G3ID_WEB = isLocal ? "http://localhost:5173" : "https://g3id.g3robotics.com";
-const API_URL = isLocal ? "http://localhost:8790" : "https://api.skilltree.g3robotics.com";
+const G3ID_API = workerUrl("g3id");
+const API_URL = workerUrl("skillTree");
 
 const POLL_INTERVAL_MS = 4000;
 
@@ -34,7 +31,7 @@ export const db = { __g3: true };
 // ── Auth ────────────────────────────────────────────────────────────────────
 
 function redirectToLogin() {
-  window.location.href = `${G3ID_WEB}/login?redirect=${encodeURIComponent(window.location.href)}`;
+  window.location.href = loginUrl();
 }
 
 async function fetchMe() {

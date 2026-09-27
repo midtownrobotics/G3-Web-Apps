@@ -1,12 +1,11 @@
+import { workerUrl } from "@g3/config/client";
 import { Loader2, LogOut, Minus, Plus, Search, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
-// The attendance worker lives on its own subdomain (api.attendance.g3robotics.com)
-// but shares the g3id session cookie (set on the root .g3robotics.com domain), so
-// a plain fetch with credentials works the same way api.ts's typed client does for
-// g3id's own routes.
-const ATTENDANCE_API_URL = import.meta.env.VITE_ATTENDANCE_API_URL ?? "";
+// The attendance worker lives on its own subdomain but shares the g3id session
+// cookie (set on the root domain), so a plain fetch with credentials works.
+const ATTENDANCE_API_URL = workerUrl("attendance");
 
 type MemberSummary = {
   id: string;

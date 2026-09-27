@@ -1,3 +1,4 @@
+import { linkTo } from "@g3/config/client";
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import type { PluginNavItem } from "./plugin-types";
@@ -57,7 +58,7 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
         <>
           <a
             className="hidden md:block ml-auto text-sm font-medium text-secondary-600 hover:text-secondary-900 transition-colors"
-            href="https://web.g3robotics.com"
+            href={linkTo("web")}
           >
             All Apps
           </a>
@@ -99,7 +100,7 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
           ))}
           <a
             className="text-2xl font-display font-bold text-secondary-900 hover:text-primary-500 transition-colors"
-            href="https://web.g3robotics.com"
+            href={linkTo("web")}
           >
             All Apps
           </a>

@@ -1,6 +1,6 @@
-const API_ORIGIN = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
-export const API_URL = `${API_ORIGIN}/scouting`;
-export const G3ID_URL = import.meta.env.VITE_G3ID_URL ?? "https://g3id.g3robotics.com";
+import { apiBase, linkTo } from "@g3/config/client";
+export const API_URL = `${apiBase("scouting").replace(/\/$/, "")}/scouting`;
+export const G3ID_URL = linkTo("g3id");
 const inflightGets = new Map<string, Promise<unknown>>();
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {

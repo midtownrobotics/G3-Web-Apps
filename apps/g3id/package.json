@@ -11,6 +11,7 @@
     "test": "exit 0"
   },
   "dependencies": {
+    "@g3/config": "workspace:*",
     "hono": "^4.7.0",
     "lucide-react": "^1.16.0",
     "react": "^19.0.0",

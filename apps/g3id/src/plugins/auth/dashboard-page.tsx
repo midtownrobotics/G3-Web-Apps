@@ -1,3 +1,4 @@
+import { apiBase } from "@g3/config/client";
 import { OnShapeIcon } from "@g3/ui";
 import { Loader2, Shield } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -293,7 +294,7 @@ export function DashboardPage() {
                       identity.provider === "google" ||
                       identity.provider === "github") && (
                       <a
-                        href={`${import.meta.env.VITE_API_BASE_URL}/auth/${identity.provider}/link`}
+                        href={`${apiBase("g3id")}/auth/${identity.provider}/link`}
                         className="px-2 py-1 rounded bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold transition-colors cursor-pointer"
                         title={`Add another ${identity.provider} account`}
                       >
@@ -319,7 +320,7 @@ export function DashboardPage() {
           <div className="mt-3 space-y-2">
             {!me.identities.some((i) => i.provider === "google") && (
               <a
-                href={`${import.meta.env.VITE_API_BASE_URL}/auth/google/link`}
+                href={`${apiBase("g3id")}/auth/google/link`}
                 className="w-full flex items-center justify-center gap-2 rounded-lg bg-primary-600 hover:bg-primary-700 px-4 py-2 text-sm text-white transition-colors"
               >
                 <FaGoogle size={16} />
@@ -328,7 +329,7 @@ export function DashboardPage() {
             )}
             {!me.identities.some((i) => i.provider === "github") && (
               <a
-                href={`${import.meta.env.VITE_API_BASE_URL}/auth/github/link`}
+                href={`${apiBase("g3id")}/auth/github/link`}
                 className="w-full flex items-center justify-center gap-2 rounded-lg bg-primary-600 hover:bg-primary-700 px-4 py-2 text-sm text-white transition-colors"
               >
                 <FaGithub size={16} />
@@ -337,7 +338,7 @@ export function DashboardPage() {
             )}
             {!me.identities.some((i) => i.provider === "steam") && (
               <a
-                href={`${import.meta.env.VITE_API_BASE_URL}/auth/steam/link`}
+                href={`${apiBase("g3id")}/auth/steam/link`}
                 className="w-full flex items-center justify-center gap-2 rounded-lg bg-primary-600 hover:bg-primary-700 px-4 py-2 text-sm text-white transition-colors"
               >
                 <FaSteam size={16} />
@@ -381,7 +382,7 @@ export function DashboardPage() {
           )}
           {me.sessionType === "oauth" && !me.identities.some((i) => i.provider === "onshape") && (
             <a
-              href={`${import.meta.env.VITE_API_BASE_URL}/auth/onshape`}
+              href={`${apiBase("g3id")}/auth/onshape`}
               className="mt-3 w-full flex items-center justify-center gap-2 rounded-lg bg-primary-600 hover:bg-primary-700 px-4 py-2 text-sm text-white transition-colors"
             >
               <OnShapeIcon size={16} white />

@@ -1,3 +1,4 @@
+import { allowedOrigin, team as teamConfig } from "@g3/config";
 import { sendDM } from "@g3/slack";
 import { type Context, Hono } from "hono";
 import { cors } from "hono/cors";
@@ -49,12 +50,7 @@ app.onError((error, c) => {
 app.use(
   "*",
   cors({
-    origin: (origin) => {
-      if (!origin) return null;
-      if (origin.endsWith(".g3robotics.com")) return origin;
-      if (origin.startsWith("http://localhost:")) return origin;
-      return null;
-    },
+    origin: (origin) => allowedOrigin(origin),
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowHeaders: ["Content-Type"],
     credentials: true,
@@ -542,7 +538,9 @@ app.get("/event-context", requireAuth, async (c) => {
   if (config?.schedule_mode !== "manual")
     await persistAutomaticMatch(c, config?.current_match_number, current);
   const teamSchedule = matches.filter((match) =>
-    [...match.alliances.red.team_keys, ...match.alliances.blue.team_keys].includes("frc1648"),
+    [...match.alliances.red.team_keys, ...match.alliances.blue.team_keys].includes(
+      `frc${teamConfig.number}`,
+    ),
   );
   const nextTeamMatch = current
     ? teamSchedule.find((match) => matchOrder(match) >= matchOrder(current))

@@ -2,6 +2,7 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
+import { apiRequestMatcher, devServer } from "../../packages/config/src/vite";
 
 export default defineConfig({
   plugins: [
@@ -46,10 +47,7 @@ export default defineConfig({
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
         runtimeCaching: [
           {
-            // Dev: same-origin /api/* via Vite proxy
-            // Prod: https://api.pit.g3robotics.com/*
-            urlPattern: ({ url }) =>
-              url.pathname.startsWith("/api/") || url.hostname === "api.pit.g3robotics.com",
+            urlPattern: apiRequestMatcher("pit"),
             handler: "NetworkFirst",
             options: {
               cacheName: "api-cache",
@@ -67,15 +65,5 @@ export default defineConfig({
       },
     }),
   ],
-  server: {
-    port: 5175,
-    strictPort: true,
-    allowedHosts: [".grayjn.com"],
-    proxy: {
-      "/api": {
-        target: "http://localhost:8789",
-        rewrite: (path) => path.replace(/^\/api/, ""),
-      },
-    },
-  },
+  server: devServer("pit", "pit"),
 });

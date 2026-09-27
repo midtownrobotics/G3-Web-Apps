@@ -1,10 +1,9 @@
+import { linkTo, loginUrl } from "@g3/config/client";
 import { useEffect, useRef, useState } from "react";
 import { BsFillPersonFill } from "react-icons/bs";
 import { Link } from "react-router-dom";
 import { g3id } from "../lib/api";
 import type { PluginNavItem } from "./plugin-types";
-
-const G3ID_LOGIN = `https://g3id.g3robotics.com/login?redirect=${encodeURIComponent(typeof window !== "undefined" ? window.location.href : "")}`;
 
 type Me = { displayName: string } | null;
 
@@ -70,15 +69,12 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
           {/* Auth — desktop */}
           <div className="hidden md:block">
             {me === undefined ? null : me ? (
-              <a
-                className="text-sm text-gray-600 hover:text-red-600"
-                href="https://g3id.g3robotics.com/"
-              >
+              <a className="text-sm text-gray-600 hover:text-red-600" href={linkTo("g3id")}>
                 Hello, {me.displayName}!
               </a>
             ) : (
               <a
-                href={G3ID_LOGIN}
+                href={loginUrl()}
                 className="flex items-center gap-2 text-sm text-gray-600 hover:text-red-600 transition-colors"
               >
                 <p>Login</p>
@@ -127,14 +123,14 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
             {me === undefined ? null : me ? (
               <a
                 className="text-2xl text-gray-600 hover:text-red-600"
-                href="https://g3id.g3robotics.com/"
+                href={linkTo("g3id")}
                 onClick={closeMenu}
               >
                 Hello, {me.displayName}!
               </a>
             ) : (
               <a
-                href={G3ID_LOGIN}
+                href={loginUrl()}
                 className="flex items-center gap-2 text-2xl text-gray-600 hover:text-red-600 transition-colors"
                 onClick={closeMenu}
               >

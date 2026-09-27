@@ -1,4 +1,5 @@
-import { g3idUrl, isKioskDevice, redirectToKioskLogin } from "./kiosk";
+import { loginUrl } from "@g3/config/client";
+import { isKioskDevice, redirectToKioskLogin } from "./kiosk";
 
 /** Send the user to g3id login, preserving where they were so they return after auth.
  * Kiosk devices go to the PIN pad instead of the normal login page. */
@@ -7,8 +8,7 @@ export function redirectToLogin(): void {
     redirectToKioskLogin();
     return;
   }
-  const redirect = encodeURIComponent(window.location.href);
-  window.location.href = `${g3idUrl()}/login?redirect=${redirect}`;
+  window.location.href = loginUrl();
 }
 
 export async function getErrorMessage(res: Response): Promise<string> {

@@ -120,10 +120,10 @@ async function processSingleBOMJob(
           return `
   • *${part.partNumber}*${part.name ? ` - "${part.name}"` : ""}${part.quantity ? ` (x${part.quantity})` : ""}
     ${part.revision ? `• Revision: ${part.revision}` : ""}
-    • <https://shop.g3robotics.com/part?p=${part.partNumber}|Shop SW Link>${partLink}${drawingLink}
+    • <${env.FRONTEND_URL}/part?p=${part.partNumber}|Shop SW Link>${partLink}${drawingLink}
           `;
         }),
-        "\nClick <https://shop.g3robotics.com/ingest|here> to assign production processes.",
+        `\nClick <${env.FRONTEND_URL}/ingest|here> to assign production processes.`,
       ].join("\n");
 
       console.log(`[BOM Queue Job] [${Date.now() - jobStartTime}ms] Sending Slack message`);

@@ -1,3 +1,4 @@
+import { allowedOrigin, team as teamConfig } from "@g3/config";
 import { eq, inArray, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
@@ -18,13 +19,7 @@ base.onError((err, c) => {
 base.use(
   "*",
   cors({
-    origin: (origin) => {
-      if (!origin) return null;
-      if (origin === "https://g3robotics.com") return origin;
-      if (origin.endsWith(".g3robotics.com")) return origin;
-      if (origin.startsWith("http://localhost:")) return origin;
-      return null;
-    },
+    origin: (origin) => allowedOrigin(origin),
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allowHeaders: ["Content-Type", "Authorization"],
     credentials: true,
@@ -602,7 +597,7 @@ const app = base
   // Pit monitor — proxies external APIs so the frontend avoids CORS
   .get("/monitor/data", requireAuth, async (c) => {
     const db = createDb(c.env.PIT_DB);
-    const team = c.env.TEAM_NUMBER;
+    const team = String(teamConfig.number);
     const eventKey = await getSetting(db, "eventKey", c.env.EVENT_KEY);
     const nexusEventKey = await getSetting(db, "nexusEventKey", c.env.EVENT_KEY);
     const tbaKey = await getSetting(db, "tbaAuthKey", c.env.TBA_AUTH_KEY);
@@ -782,7 +777,7 @@ const app = base
       tbaAuthKey,
       nexusApiKey,
       iframeUrl,
-      teamNumber: c.env.TEAM_NUMBER,
+      teamNumber: String(teamConfig.number),
     });
   })
 

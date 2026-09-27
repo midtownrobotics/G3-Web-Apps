@@ -1,8 +1,11 @@
+import { apiBase as apiBaseFor } from "@g3/config/client";
 import { useEffect, useState } from "react";
 import { api } from "../../shared/api";
 import { getErrorMessage } from "../../shared/api-error";
 import { ErrorBanner, PageLoading } from "../../shared/ui";
 import { useAuthUser } from "../../shared/use-auth";
+
+const apiBase = apiBaseFor("shop");
 
 type Drawing = {
   id: number;
@@ -57,7 +60,6 @@ export function FilesPage() {
     setPrintingId(drawing.id);
     try {
       // Fetch the PDF from the drawing endpoint
-      const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
       const downloadRes = await fetch(
         `${apiBase}/parts/${drawing.partNumber}/${drawing.revision}/drawing`,
       );
@@ -101,17 +103,14 @@ export function FilesPage() {
       const encoder = new TextEncoder();
       const testBuffer = encoder.encode(testContent);
 
-      const printRes = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL ?? ""}/print?title=test-print`,
-        {
-          method: "POST",
-          headers: {
-            "content-type": "text/plain",
-          },
-          body: testBuffer,
-          credentials: "include",
+      const printRes = await fetch(`${apiBase}/print?title=test-print`, {
+        method: "POST",
+        headers: {
+          "content-type": "text/plain",
         },
-      );
+        body: testBuffer,
+        credentials: "include",
+      });
 
       const printData = (await printRes.json()) as { ok: boolean; jobId?: string; error?: string };
       if (!printData.ok) {
@@ -226,7 +225,7 @@ export function FilesPage() {
                         {printingId === drawing.id ? "Printing…" : "Print"}
                       </button>
                       <a
-                        href={`${import.meta.env.VITE_API_BASE_URL ?? ""}/parts/${drawing.partNumber}/${drawing.revision}/drawing`}
+                        href={`${apiBase}/parts/${drawing.partNumber}/${drawing.revision}/drawing`}
                         download={drawing.filename}
                         className="px-3 py-1.5 text-xs font-medium border border-steel/40 text-steel hover:text-ink rounded transition-colors"
                       >

@@ -1,5 +1,8 @@
+import { apiBase as apiBaseFor } from "@g3/config/client";
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+
+const apiBase = apiBaseFor("shop");
 
 interface ErrorState {
   error: string;
@@ -22,7 +25,6 @@ export function PartViewerPage() {
 
   const checkDrawing = useCallback(async () => {
     try {
-      const apiBase = import.meta.env.VITE_API_BASE_URL || "/api";
       const url = `${apiBase}/parts/${partNumber}/drawing`;
 
       const response = await fetch(url, {
@@ -69,7 +71,6 @@ export function PartViewerPage() {
       formData.append("partNumber", partNumber);
       formData.append("uploadedBy", "part-viewer");
 
-      const apiBase = import.meta.env.VITE_API_BASE_URL || "/api";
       const res = await fetch(`${apiBase}/drawings/upload`, {
         method: "POST",
         body: formData,

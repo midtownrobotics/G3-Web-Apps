@@ -1,3 +1,4 @@
+import { linkTo } from "@g3/config/client";
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { api } from "../lib/api";
@@ -80,7 +81,7 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
           {isLoggedIn && (
             <a
               className="relative text-sm font-medium text-gray-300 hover:text-white transition-colors py-4"
-              href="https://web.g3robotics.com"
+              href={linkTo("web")}
             >
               All Apps
             </a>
@@ -133,7 +134,7 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
           {isLoggedIn && (
             <a
               className="text-2xl font-bold text-gray-300 hover:text-white transition-colors"
-              href="https://web.g3robotics.com"
+              href={linkTo("web")}
             >
               All Apps
             </a>

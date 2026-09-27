@@ -1,3 +1,4 @@
+import { apiUrl } from "@g3/config";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "../db/schema";
@@ -126,7 +127,7 @@ export async function registerOnShapeWebhook(documentId: string, env: AppEnv["Bi
   }
 
   const credentials = btoa(`${apiKey}:${apiSecret}`);
-  const webhookUrl = "https://api.shop.g3robotics.com/onshape/events";
+  const webhookUrl = `${apiUrl("shop")}/onshape/events`;
 
   const response = await fetch("https://cad.onshape.com/api/v16/webhooks", {
     method: "POST",

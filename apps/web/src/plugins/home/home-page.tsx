@@ -1,3 +1,5 @@
+import { rootUrl, statboticsTeamUrl, tbaTeamUrl, team } from "@g3/config";
+import { linkTo, loginUrl } from "@g3/config/client";
 import { useEffect, useState } from "react";
 import type { IconType } from "react-icons";
 import {
@@ -27,71 +29,71 @@ type App = {
 const APPS: App[] = [
   {
     label: "G3ID",
-    href: "https://g3id.g3robotics.com",
+    href: linkTo("g3id"),
     icon: FaUserShield,
     bg: "bg-red-600",
   },
   {
     label: "Shop",
-    href: "https://shop.g3robotics.com",
+    href: linkTo("shop"),
     icon: FaToolbox,
     bg: "bg-orange-600",
   },
   {
     label: "Pit",
-    href: "https://pit.g3robotics.com",
+    href: linkTo("pit"),
     icon: FaHardHat,
     bg: "bg-yellow-600",
   },
   {
     label: "Skill Tree",
-    href: "https://skilltree.g3robotics.com",
+    href: linkTo("skillTree"),
     icon: LuGitBranch,
     bg: "bg-amber-900",
   },
   {
     label: "Strategy",
-    href: "https://scouting.g3robotics.com",
+    href: linkTo("scouting"),
     icon: FaRobot,
     bg: "bg-slate-900",
   },
   {
     label: "Public Site",
-    href: "https://www.g3robotics.com",
+    href: team.website,
     bg: "bg-gray-400",
     logoSrc: g3Logo,
   },
   {
     label: "Slack",
-    href: "https://g3robotics.slack.com",
+    href: team.slack,
     icon: FaSlack,
     bg: "bg-blue-300",
     external: true,
   },
   {
     label: "The Blue Alliance",
-    href: "https://www.thebluealliance.com/team/1648",
+    href: tbaTeamUrl,
     icon: FaTrophy,
     bg: "bg-blue-600",
     external: true,
   },
   {
     label: "Statbotics",
-    href: "https://www.statbotics.io/team/1648",
+    href: statboticsTeamUrl,
     icon: FaChartLine,
     bg: "bg-purple-400",
     external: true,
   },
   {
     label: "GitHub",
-    href: "https://github.com/midtownrobotics",
+    href: team.github,
     icon: FaGithub,
     bg: "bg-gray-700",
     external: true,
   },
   {
     label: "Instagram",
-    href: "https://www.instagram.com/g3robotics1648/",
+    href: team.instagram,
     icon: FaInstagram,
     bg: "bg-gradient-to-br from-yellow-400 via-pink-500 to-purple-600",
     external: true,
@@ -133,21 +135,21 @@ export function HomePage() {
         <div className="max-w-md w-full space-y-6 text-center">
           <div>
             <p className="text-red-600 font-semibold text-lg tracking-widest uppercase mb-2">
-              FRC Team 1648
+              FRC Team {team.number}
             </p>
-            <h1 className="text-4xl font-bold text-gray-900 mb-2">G3 Robotics</h1>
+            <h1 className="text-4xl font-bold text-gray-900 mb-2">{team.name}</h1>
             <p className="text-gray-600">FIRST Robotics Competition</p>
           </div>
 
           <div className="space-y-3 pt-6">
             <a
-              href={`https://g3id.g3robotics.com/login?redirect=${encodeURIComponent(window.location.href)}`}
+              href={loginUrl()}
               className="block w-full px-6 py-3 rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold transition-colors"
             >
               Sign In
             </a>
             <a
-              href="https://g3robotics.com"
+              href={rootUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="block w-full px-6 py-3 rounded-lg bg-gray-300 hover:bg-gray-400 text-gray-900 font-semibold transition-colors"
@@ -165,7 +167,7 @@ export function HomePage() {
       <div className="max-w-2xl mx-auto">
         <div className="mb-10">
           <p className="text-red-600 text-sm font-semibold uppercase tracking-widest mb-1">
-            Team 1648
+            Team {team.number}
           </p>
           <h1 className="text-4xl font-bold text-gray-900">Member Apps</h1>
         </div>

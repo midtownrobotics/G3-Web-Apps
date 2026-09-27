@@ -13,7 +13,7 @@
     "db:migrate:remote": "wrangler d1 migrations apply SKILL_DB --env production --remote"
   },
   "dependencies": {
-    "@g3/auth": "workspace:*",
+    "@g3/config": "workspace:*",
     "drizzle-orm": "^0.44.0",
     "hono": "^4.7.0"
   },

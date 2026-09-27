@@ -1,11 +1,8 @@
+import { linkTo, loginUrl } from "@g3/config/client";
 import { api } from "./api";
 
 /** localStorage flag marking this browser as a dedicated shop kiosk device. */
 const KIOSK_FLAG = "shop_kiosk_mode";
-
-export function g3idUrl(): string {
-  return import.meta.env.VITE_G3ID_URL || "http://localhost:5173";
-}
 
 /** True when this device has been marked as a kiosk from the Admin page. */
 export function isKioskDevice(): boolean {
@@ -19,7 +16,7 @@ export function isKioskDevice(): boolean {
 /** Send this device to the g3id kiosk flow (activate → PIN pad), returning here after. */
 export function redirectToKioskLogin(): void {
   const redirect = encodeURIComponent(window.location.origin);
-  window.location.href = `${g3idUrl()}/kiosk/login?redirect=${redirect}`;
+  window.location.href = `${linkTo("g3id")}/kiosk/login?redirect=${redirect}`;
 }
 
 /** Mark this device as a kiosk, end the current session, and start the g3id kiosk flow. */
@@ -41,8 +38,7 @@ export async function exitKioskMode(): Promise<void> {
   } catch {
     // Ignore — we're leaving anyway.
   }
-  const redirect = encodeURIComponent(window.location.origin);
-  window.location.href = `${g3idUrl()}/login?redirect=${redirect}`;
+  window.location.href = loginUrl(window.location.origin);
 }
 
 /** Log the current user out of the kiosk and pull the PIN pad back up. */

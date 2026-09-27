@@ -1,3 +1,4 @@
+import { apiBase as apiBaseFor } from "@g3/config/client";
 import { useEffect, useState } from "react";
 import { api } from "../../shared/api";
 import { getErrorMessage } from "../../shared/api-error";
@@ -5,6 +6,8 @@ import type { Process, Subsystem } from "../../shared/types";
 import { ErrorBanner, PageLoading } from "../../shared/ui";
 import { useShopData } from "../../shared/use-shop-data";
 import { useTouchDevice } from "../../shared/use-touch";
+
+const apiBase = apiBaseFor("shop");
 
 type PendingPart = {
   id: number;
@@ -70,7 +73,6 @@ function DrawingStatusCell({
         return;
       }
 
-      const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:5174/api";
       const res = await fetch(`${apiBase}/parts/${part.partNumber}/${revision}/drawing`);
 
       // Check if we got an error response or can't parse as JSON
@@ -107,7 +109,6 @@ function DrawingStatusCell({
       <button
         type="button"
         onClick={() => {
-          const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:5174/api";
           window.open(`${apiBase}/parts/${part.partNumber}/${revision}/drawing`, "_blank");
         }}
         className="text-emerald-600 hover:text-emerald-700 font-semibold cursor-pointer"
@@ -878,7 +879,6 @@ function PartIngestCard({
       }
       const exists = await checkDrawingExists();
       if (exists) {
-        const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:5174/api";
         const drawingUrl = `${apiBase}/parts/${part.partNumber}/${revision}/drawing`;
         setForm((prev) => ({ ...prev, partDrawingUrl: drawingUrl }));
         setDrawingSuccess(true);
@@ -890,7 +890,6 @@ function PartIngestCard({
 
   async function checkDrawingExists() {
     try {
-      const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:5174/api";
       const revision = part.revision || form.revision;
       const res = await fetch(`${apiBase}/parts/${part.partNumber}/${revision}/drawing`);
 
@@ -942,7 +941,6 @@ function PartIngestCard({
         return;
       }
 
-      const apiBase = import.meta.env.VITE_API_BASE_URL || "http://localhost:5174/api";
       const drawingUrl = `${apiBase}/parts/${part.partNumber}/${revision}/drawing`;
       setForm((prev) => ({ ...prev, partDrawingUrl: drawingUrl }));
       setDrawingSuccess(true);

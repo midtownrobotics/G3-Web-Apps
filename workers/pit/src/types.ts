@@ -1,7 +1,6 @@
 export type AppEnv = {
   Bindings: {
     FRONTEND_URL: string;
-    TEAM_NUMBER: string;
     EVENT_KEY: string;
     TBA_AUTH_KEY: string;
     NEXUS_API_KEY: string;

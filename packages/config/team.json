@@ -1,0 +1,49 @@
+{
+  "team": {
+    "number": 1648,
+    "name": "G3 Robotics",
+    "website": "https://www.g3robotics.com",
+    "slack": "https://g3robotics.slack.com",
+    "github": "https://github.com/midtownrobotics",
+    "instagram": "https://www.instagram.com/g3robotics1648/"
+  },
+  "rootDomain": "g3robotics.com",
+  "apps": {
+    "g3id": { "name": "G3ID Authentication", "host": "g3id", "devPort": 5173 },
+    "shop": { "name": "Shop App", "host": "shop", "devPort": 5174 },
+    "pit": { "name": "Pit App", "host": "pit", "devPort": 5175 },
+    "web": { "name": "Web (Members Portal)", "host": "web", "devPort": 5178 },
+    "skillTree": { "name": "Skill Tree", "host": "skilltree", "devPort": 5180 },
+    "attendance": { "name": "Attendance", "host": "signin.attendance", "devPort": 5181 },
+    "scouting": { "name": "Strategy Tools", "host": "scouting", "devPort": 5182 }
+  },
+  "workers": {
+    "g3id": { "name": "G3ID Worker", "host": "api.g3id", "devPort": 8787, "inspectorPort": 9229 },
+    "shop": { "name": "Shop Worker", "host": "api.shop", "devPort": 8788, "inspectorPort": 9230 },
+    "pit": { "name": "Pit Worker", "host": "api.pit", "devPort": 8789, "inspectorPort": 9231 },
+    "skillTree": {
+      "name": "Skill Tree Worker",
+      "host": "api.skilltree",
+      "devPort": 8790,
+      "inspectorPort": 9232
+    },
+    "attendance": {
+      "name": "Attendance Worker",
+      "host": "api.attendance",
+      "devPort": 8791,
+      "inspectorPort": 9233
+    },
+    "scouting": {
+      "name": "Scouting Worker",
+      "host": "api.scouting",
+      "devPort": 8792,
+      "inspectorPort": 9234
+    }
+  },
+  "external": {
+    "printServer": "https://shoppi-print.g3robotics.com"
+  },
+  "dev": {
+    "allowedHosts": [".grayjn.com"]
+  }
+}

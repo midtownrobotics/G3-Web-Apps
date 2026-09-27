@@ -5,66 +5,61 @@
 One monorepo, pnpm workspaces, no build orchestrator. Each app and Worker is independently deployable.
 
 ```
-apps/
-  web/       → Cloudflare Pages (public site)
-  admin/     → Cloudflare Pages + Access (internal dashboard)
-  scouting/  → Cloudflare Pages (offline-first PWA)
-workers/
-  api/       → Cloudflare Worker, Hono (single Worker, module-mounted)
+apps/          → Cloudflare Pages (Vite + React, except skill-tree which is vanilla JS)
+  g3id/          login, account, admin, kiosk
+  shop/          Shop SW — parts, processes, kiosk (PWA)
+  pit/           pit checklists + monitor (PWA)
+  web/           members portal / app launcher
+  skill-tree/    skill trees
+  attendance/    attendance sign-in
+  scouting/      strategy + scouting
+workers/       → Cloudflare Workers (Hono), one per app
+  g3id/          auth + sessions; every other worker validates sessions through it
+  shop/ pit/ skill-tree/ attendance/ scouting/
 packages/
-  db/        → Drizzle schema + D1 client factory
-  ui/        → shared React components
-  auth/      → Cloudflare Access JWT helpers
+  config/        team config (domain, hosts, ports, links) + URL/CORS/cookie helpers
+  auth/          session-cookie → user id lookup (KV)
+  slack/         Slack API + signature verification
+  ui/            shared React components + Tailwind theme
 ```
+
+## Team configuration
+
+Everything team- or domain-specific lives in `packages/config/team.json`: team number/name/links, root
+domain, each app's and worker's subdomain and dev port, and external URLs. Code never hardcodes these;
+it uses the helpers in `@g3/config`:
+
+- Workers: `allowedOrigin()` (CORS), `cookieDomain()`, `isTeamHostname()`, `appUrl()` / `apiUrl()`
+- Apps: `@g3/config/client` → `apiBase()`, `linkTo()`, `workerUrl()`, `loginUrl()`
+- Vite configs: `packages/config/src/vite` → `devServer()`, `apiRequestMatcher()`, `teamHtml()`
+  (imported by relative path because Vite loads its config with plain Node, which can't import `.ts` from a package)
+
+Per-environment Cloudflare values (D1/KV IDs, `FRONTEND_URL`, OAuth redirect URIs) are still in each
+worker's `wrangler.toml`.
 
 ## Frontend: plugin pattern
 
-Every app uses the same plugin pattern. A plugin is a folder:
+The React apps use a plugin pattern. A plugin is a folder:
 
 ```
 plugins/{name}/
   index.tsx      ← exports Plugin { name, routes, navItems }
-  README.md
   ...page components
 ```
 
-`plugins.config.ts` holds the ordered list of registered plugins.
-`app.tsx` flatMaps `routes` and `navItems` from all plugins — it never changes for feature work.
-
-Adding a feature: create a folder, add one line to `plugins.config.ts`.
-
-## Backend: module pattern
-
-`workers/api` is a single Hono Worker. Features are modules:
-
-```
-modules/{name}/
-  index.ts       ← exports ApiModule { name, basePath, router }
-  service.ts
-  schema/        ← append-only SQL migrations
-  README.md
-```
-
-`modules.config.ts` holds the ordered list. `index.ts` mounts them via `app.route()`.
-
-Modules do not import from each other.
-
-## Data layer
-
-- **D1** — single relational database, table-prefix namespaced per module
-- **R2** — media, CAD exports, large binaries
-- **KV** — sessions, TBA cache, feature flags
+`plugins.config.ts` holds the ordered list of registered plugins; `app.tsx` flatMaps their `routes` and
+`navItems`. Adding a feature: create a folder, add one line to `plugins.config.ts`.
 
 ## Auth
 
-Cloudflare Access guards `admin.*` and private API routes. The scouting submission flow is anonymous by design (arena WiFi is unreliable).
+G3ID owns users and sessions. The session cookie (`g3_session`) is set on the root domain so every
+subdomain sends it. Other workers validate it through a service binding to the g3id worker
+(`c.env.G3ID.fetch("http://g3id/auth/me")` — the hostname is ignored; the binding routes by worker name).
+Shop kiosks use PIN sessions, which are blocked from admin routes.
 
-## Cloudflare resource naming
+## Data layer
 
-```
-Workers:  1648-{purpose}-{env}     e.g. 1648-api-prod
-Pages:    1648-{app}               e.g. 1648-web
-D1:       1648-team-{env}
-R2:       1648-{purpose}-{env}
-KV:       1648-{purpose}-{env}
-```
+- **D1** — one database per worker (auth, shop, pit, skill-tree, scouting)
+- **KV** — `SESSIONS` (shared by g3id, shop, pit, skill-tree), `RATE_LIMIT`
+- **R2** — shop drawings, scouting field maps
+- **Queues** — shop BOM fetch jobs

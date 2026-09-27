@@ -1,3 +1,4 @@
+import { apiBase } from "@g3/config/client";
 import { api } from "./api";
 import type {
   Action,
@@ -105,8 +106,7 @@ export async function fetchAllInstanceProcesses(
 
 /** URL of the released drawing PDF for a part revision, served from R2 by the shop worker. */
 export function drawingUrl(partNumber: string, revision: string): string {
-  const base = import.meta.env.VITE_API_BASE_URL ?? "";
-  return `${base}/parts/${encodeURIComponent(partNumber)}/${encodeURIComponent(revision)}/drawing`;
+  return `${apiBase("shop")}/parts/${encodeURIComponent(partNumber)}/${encodeURIComponent(revision)}/drawing`;
 }
 
 /**

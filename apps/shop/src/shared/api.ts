@@ -1,6 +1,7 @@
+import { apiBase } from "@g3/config/client";
 import type { ShopApp } from "@g3/worker-shop";
 import { hc } from "hono/client";
 
-export const api = hc<ShopApp>(import.meta.env.VITE_API_BASE_URL ?? "", {
+export const api = hc<ShopApp>(apiBase("shop"), {
   init: { credentials: "include" },
 });

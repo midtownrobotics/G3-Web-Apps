@@ -11,6 +11,7 @@
     "test": "exit 0"
   },
   "dependencies": {
+    "@g3/config": "workspace:*",
     "hono": "^4.7.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -21,7 +22,6 @@
     "@cloudflare/workers-types": "^4.20250516.0",
     "@g3/ui": "workspace:*",
     "@g3/worker-g3id": "workspace:*",
-    "@g3/worker-shop": "workspace:*",
     "@tailwindcss/vite": "^4.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

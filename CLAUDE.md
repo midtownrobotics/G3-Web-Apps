@@ -22,9 +22,13 @@ pnpm -r --if-present typecheck  # Ensure no type errors
 
 **Monorepo using pnpm workspaces with three categories:**
 
-- `apps/` — React frontends (g3id, web, shop, pit, attendance)
-- `workers/` — Cloudflare Workers backends (g3id, shop, pit, skill-tree, attendance)
-- `packages/` — Shared libraries (auth, ui)
+- `apps/` — Frontends (g3id, web, shop, pit, skill-tree, attendance, scouting)
+- `workers/` — Cloudflare Workers backends (g3id, shop, pit, skill-tree, attendance, scouting)
+- `packages/` — Shared libraries (config, auth, slack, ui)
+
+## Team Config
+
+All team/domain-specific values (team number, root domain, subdomains, dev ports, external links) live in `packages/config/team.json`. **Never hardcode domains, URLs, ports, or the team number** — use `@g3/config` (workers + shared), `@g3/config/client` (apps), or `packages/config/src/vite` (Vite configs, imported by relative path). See `packages/config/README.md`.
 
 ## Architecture Overview
 
@@ -154,7 +158,7 @@ pnpm -r --if-present test    # Run available tests
 
 ## Development Servers
 
-**Port assignments** (configured in `.dev-ports.json` and individual vite/wrangler configs):
+**Port assignments** (`packages/config/team.json`; wrangler ports are also passed via `--port` in each worker's `dev` script):
 
 Apps:
 - `apps/g3id` → 5173
@@ -184,8 +188,8 @@ killall -9 workerd wrangler node
 ```
 
 **Adding a new port:**
-1. Update the app/worker vite.config.ts or wrangler.toml with the new port
-2. Add entry to `.dev-ports.json` in the appropriate section (apps or workers)
+1. Add the entry to `packages/config/team.json` (apps or workers)
+2. Apps pick it up via `devServer()`; for workers, also set `--port` in the worker's `dev` script
 3. The port printer will automatically pick it up on next `pnpm dev`
 
 ## Adding New Apps and Workers
@@ -193,10 +197,9 @@ killall -9 workerd wrangler node
 **Add a new app (React frontend):**
 1. Create directory: `apps/<app-name>/`
 2. Copy structure from an existing app (e.g., `apps/web/`)
-3. Add unique port to `apps/<app-name>/vite.config.ts` (check `.dev-ports.json` for available ports)
+3. Add the app (host + unique dev port) to `packages/config/team.json` and use `server: devServer("<app>")` in `vite.config.ts`
 4. Create `apps/<app-name>/package.json` with at minimum: `name`, `type: "module"`, `dev` script
-5. Update `.dev-ports.json` with the new app and port
-6. Add to root `pnpm-workspace.yaml` if not already globbed
+5. Add to root `pnpm-workspace.yaml` if not already globbed
 
 **Add a new worker (Cloudflare backend):**
 1. Create directory: `workers/<worker-name>/`
@@ -204,7 +207,7 @@ killall -9 workerd wrangler node
 3. Add unique port and inspector-port to `workers/<worker-name>/wrangler.toml`
 4. Set up D1 database bindings and KV namespace bindings in wrangler.toml
 5. Create `workers/<worker-name>/package.json` with `name` and `dev` script
-6. Update `.dev-ports.json` with the new worker, port, and inspectorPort
+6. Add the worker (host, port, inspectorPort) to `packages/config/team.json`; use `allowedOrigin()` from `@g3/config` for CORS
 7. Add to root `pnpm-workspace.yaml` if not already globbed
 8. If the worker needs to call other services, add service bindings in wrangler.toml
 

@@ -160,8 +160,7 @@ export async function handleSlackCode(opts: {
   const slackUser = await getUserInfo(slackUserId, env);
 
   if (!slackUser.email) {
-    const msg =
-      "Your Slack account has no email. Please sign up at g3id.g3robotics.com with email first, then link Slack from your account settings.";
+    const msg = `Your Slack account has no email. Please sign up at ${env.FRONTEND_URL} with email first, then link Slack from your account settings.`;
     await updateStatus("failed", msg);
     return { success: false, message: `❌ ${msg}` };
   }

@@ -1,7 +1,3 @@
 # @g3/auth
 
-Cloudflare Access JWT verification helpers for use in Workers.
-
-Verifies the `Cf-Access-Jwt-Assertion` header against the team's Access public keys. Used by `workers/api` route middleware.
-
-Not yet implemented.
+Resolves a user id from the `g3_session` cookie by looking the session up in the shared `SESSIONS` KV namespace.
