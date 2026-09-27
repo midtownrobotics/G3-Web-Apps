@@ -50,6 +50,22 @@ const addBlueprintValidator = validator(
   },
 );
 
+const replaceBlueprintValidator = validator("json", (value, c): { processIds: number[] } => {
+  const v = (value ?? {}) as { processIds?: unknown };
+  if (
+    !Array.isArray(v.processIds) ||
+    // 25 rows × 4 columns stays under D1's 100 bound-parameter cap for the single insert.
+    v.processIds.length > 25 ||
+    v.processIds.some((p) => !Number.isInteger(p) || p < 1)
+  ) {
+    return c.json(
+      { error: "processIds must be an array of up to 25 positive integers." },
+      400,
+    ) as never;
+  }
+  return { processIds: v.processIds as number[] };
+});
+
 const reorderBlueprintValidator = validator("json", (value, c): { processIds: number[] } => {
   const v = (value ?? {}) as { processIds?: unknown };
   if (!Array.isArray(v.processIds) || v.processIds.some((p) => !Number.isInteger(p)))
@@ -210,6 +226,49 @@ export const partDefinitionsRouter = new Hono<AppEnv>()
   .get("/:id/processes", requireAuth, async (c) => {
     const partDefinitionId = Number(c.req.param("id"));
     const db = createShopDb(c.env.SHOP_DB);
+    const rows = await db
+      .select()
+      .from(partDefinitionProcessBlueprints)
+      .where(eq(partDefinitionProcessBlueprints.partDefinitionId, partDefinitionId))
+      .orderBy(asc(partDefinitionProcessBlueprints.index))
+      .all();
+    return c.json(rows);
+  })
+  // Replaces the whole blueprint (processes may be added, removed, or reordered). Existing
+  // instances keep their own pipelines; only instances created afterwards use the new one.
+  .put("/:id/processes", requireAuth, replaceBlueprintValidator, async (c) => {
+    const partDefinitionId = Number(c.req.param("id"));
+    const { processIds } = c.req.valid("json");
+    const db = createShopDb(c.env.SHOP_DB);
+
+    const def = await db
+      .select({ id: partDefinitions.id })
+      .from(partDefinitions)
+      .where(eq(partDefinitions.id, partDefinitionId))
+      .get();
+    if (!def) return c.json({ error: "Part definition not found." }, 404);
+
+    const now = Date.now();
+    const remove = db
+      .delete(partDefinitionProcessBlueprints)
+      .where(eq(partDefinitionProcessBlueprints.partDefinitionId, partDefinitionId));
+    if (processIds.length === 0) {
+      await remove;
+    } else {
+      // Delete + reinsert in one batch so the (partDefinitionId, index) constraint never trips.
+      await db.batch([
+        remove,
+        db.insert(partDefinitionProcessBlueprints).values(
+          processIds.map((processId, index) => ({
+            partDefinitionId,
+            processId,
+            index,
+            createdAt: now,
+          })),
+        ),
+      ]);
+    }
+
     const rows = await db
       .select()
       .from(partDefinitionProcessBlueprints)
