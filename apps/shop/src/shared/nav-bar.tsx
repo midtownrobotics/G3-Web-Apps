@@ -137,6 +137,14 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
   );
 }
 
+function confirmExitKioskMode() {
+  const answer = window.prompt(
+    'Exiting kiosk mode is for admins only. You will need an admin login to exit.\n\nType "I understand" to continue.',
+  );
+  if (answer?.trim().toLowerCase() !== "i understand") return;
+  exitKioskMode();
+}
+
 function KioskBadge({ machineName }: { machineName: string | null }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -169,7 +177,7 @@ function KioskBadge({ machineName }: { machineName: string | null }) {
           </div>
           <button
             type="button"
-            onClick={() => exitKioskMode()}
+            onClick={confirmExitKioskMode}
             className="w-full text-sm font-semibold text-crimson border border-crimson/50 hover:bg-crimson-tint rounded-lg px-3 py-2 transition-colors"
           >
             Exit Kiosk Mode
