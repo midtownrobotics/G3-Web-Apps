@@ -16,7 +16,7 @@ import { processPath } from "../../shared/nav";
 import type { KioskPresence } from "../../shared/types";
 import { ErrorBanner, PageLoading } from "../../shared/ui";
 import { useKiosk } from "../../shared/use-auth";
-import { useShopData } from "../../shared/use-shop-data";
+import { useShopData, type ShopData } from "../../shared/use-shop-data";
 import { useTouchDevice } from "../../shared/use-touch";
 import { useUserNames } from "../../shared/use-user-names";
 import { PartCard } from "../parts/part-card";
@@ -148,7 +148,7 @@ export function BoardPage() {
         )}
 
         <div className="flex items-start justify-between gap-4">
-          {kiosk.active ? (
+          {kiosk.active && matchMachineProcess(data!.processes, kiosk.machineName) ? (
             <h1 className="font-display text-4xl text-ink">
               {view === "overview" ? "Shop Floor" : processName(view)}
             </h1>
@@ -163,7 +163,7 @@ export function BoardPage() {
               className="font-display text-4xl text-ink bg-paper border border-steel/40 focus:outline-none focus:ring-2 focus:ring-crimson rounded-lg px-1"
             >
               <option value="overview">Shop Floor</option>
-              {data?.processes.map((p) => (
+              {data!.processes.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
                 </option>
@@ -185,7 +185,7 @@ export function BoardPage() {
         {error && <ErrorBanner message={error} />}
         {banner && <ErrorBanner message={banner} />}
 
-        {view === "overview" ? (
+        {view === "overview" && data ? (
           <OverviewView
             rows={rows}
             loads={loads}
@@ -194,10 +194,11 @@ export function BoardPage() {
             navigate={navigate}
             presence={presence}
             kiosk={kiosk}
+            data={data}
           />
         ) : (
           <ProcessView
-            processId={view}
+            processId={view as number}
             rows={rows}
             processName={processName}
             onAdvance={advance}
@@ -289,6 +290,7 @@ function OverviewView({
   navigate,
   presence,
   kiosk,
+  data,
 }: {
   rows: InstanceRow[];
   loads: ReturnType<typeof processLoads>;
@@ -297,6 +299,7 @@ function OverviewView({
   navigate: (path: string) => void;
   presence: KioskPresence[];
   kiosk: ReturnType<typeof useKiosk>;
+  data: ShopData;
 }) {
   const mood = shopMood(loads);
   const inProgress = rows.filter((r) => r.state === "doing");
@@ -310,6 +313,8 @@ function OverviewView({
     presence
       .filter((p) => p.deviceName.trim().toLowerCase() === processName.trim().toLowerCase())
       .map((p) => resolveName(p.userId));
+
+  if (!data) return null;
 
   return (
     <div className="space-y-6">
