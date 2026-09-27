@@ -6,6 +6,7 @@ import type { InstanceRow } from "../../shared/derive";
 import { processPath } from "../../shared/nav";
 import type { ShopData } from "../../shared/use-shop-data";
 import { useUserNames } from "../../shared/use-user-names";
+import { PartFilesPanel } from "../files/part-files-panel";
 import { DrawingPreview } from "./drawing-preview";
 
 /** Advance a revision by one for convenience (A→B, Z→AA, 1→2). */
@@ -234,6 +235,13 @@ export function PartCard({
                 </label>
               </dd>
             </dl>
+          </Section>
+
+          <Section title="Files">
+            <PartFilesPanel
+              partNumber={row.definition.onshapePartNumber}
+              revision={row.definition.revision ?? ""}
+            />
           </Section>
 
           {/* Status */}

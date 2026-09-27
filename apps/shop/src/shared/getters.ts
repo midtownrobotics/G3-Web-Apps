@@ -1,9 +1,11 @@
 import { api } from "./api";
+import { getErrorMessage } from "./api-error";
 import type {
   Action,
   Blueprint,
   KioskPresence,
   PartDefinition,
+  PartFile,
   PartInstance,
   PartInstanceProcess,
   Process,
@@ -130,4 +132,69 @@ export async function fetchDrawingObjectUrl(
   const blob = await res.blob();
   if (!blob.type.includes("pdf")) return null;
   return URL.createObjectURL(blob);
+}
+
+/** Files attached to part revisions. Omit both args to list every file. */
+export async function fetchPartFiles(partNumber?: string, revision?: string): Promise<PartFile[]> {
+  const query: { partNumber?: string; revision?: string } = {};
+  if (partNumber !== undefined) query.partNumber = partNumber;
+  if (revision !== undefined) query.revision = revision;
+  const res = await api["part-files"].$get({ query });
+  if (!res.ok) throw new Error(await getErrorMessage(res as unknown as Response));
+  return res.json() as Promise<PartFile[]>;
+}
+
+/** Multipart upload; the typed client can't build FormData bodies for untyped routes. */
+export async function uploadPartFile(
+  file: File,
+  partNumber: string,
+  revision: string,
+): Promise<PartFile> {
+  const body = new FormData();
+  body.append("file", file);
+  body.append("partNumber", partNumber);
+  body.append("revision", revision);
+  const res = await fetch(`${import.meta.env.VITE_API_BASE_URL ?? ""}/part-files`, {
+    method: "POST",
+    body,
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error(await getErrorMessage(res));
+  return res.json() as Promise<PartFile>;
+}
+
+/** Deletes the file from every part it's linked to. */
+export async function deletePartFile(id: number): Promise<void> {
+  const res = await api["part-files"][":id"].$delete({ param: { id: String(id) } });
+  if (!res.ok) throw new Error(await getErrorMessage(res as unknown as Response));
+}
+
+export async function linkPartFile(
+  id: number,
+  partNumber: string,
+  revision: string,
+): Promise<void> {
+  const res = await api["part-files"][":id"].links.$post({
+    param: { id: String(id) },
+    json: { partNumber, revision },
+  });
+  if (!res.ok) throw new Error(await getErrorMessage(res as unknown as Response));
+}
+
+/** Unlinks one part revision. Resolves true if that was the last link and the file was deleted. */
+export async function unlinkPartFile(
+  id: number,
+  partNumber: string,
+  revision: string,
+): Promise<boolean> {
+  const res = await api["part-files"][":id"].links.$delete({
+    param: { id: String(id) },
+    json: { partNumber, revision },
+  });
+  if (!res.ok) throw new Error(await getErrorMessage(res as unknown as Response));
+  return ((await res.json()) as { deleted: boolean }).deleted;
+}
+
+export function partFileDownloadUrl(id: number): string {
+  return `${import.meta.env.VITE_API_BASE_URL ?? ""}/part-files/${id}/download`;
 }

@@ -137,6 +137,31 @@ export const drawings = sqliteTable("drawings", {
   createdAt: integer("created_at").notNull(),
 });
 
+export const files = sqliteTable("files", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  filename: text("filename").notNull(),
+  r2Key: text("r2_key").notNull().unique(),
+  contentType: text("content_type").notNull(),
+  fileSize: integer("file_size").notNull(),
+  uploadedBy: text("uploaded_by").notNull(),
+  createdAt: integer("created_at").notNull(),
+});
+
+export const partFileLinks = sqliteTable(
+  "part_file_links",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    fileId: integer("file_id")
+      .notNull()
+      .references(() => files.id, { onDelete: "cascade" }),
+    partNumber: text("part_number").notNull(),
+    revision: text("revision").notNull(),
+    linkedBy: text("linked_by").notNull(),
+    createdAt: integer("created_at").notNull(),
+  },
+  (t) => [unique().on(t.fileId, t.partNumber, t.revision)],
+);
+
 export const adminSettings = sqliteTable(
   "admin_settings",
   {

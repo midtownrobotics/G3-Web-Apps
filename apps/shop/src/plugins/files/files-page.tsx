@@ -3,6 +3,7 @@ import { api } from "../../shared/api";
 import { getErrorMessage } from "../../shared/api-error";
 import { ErrorBanner, PageLoading } from "../../shared/ui";
 import { useAuthUser } from "../../shared/use-auth";
+import { PartFilesSection } from "./part-files-section";
 
 type Drawing = {
   id: number;
@@ -170,6 +171,10 @@ export function FilesPage() {
         </div>
 
         {error && <ErrorBanner message={error} />}
+
+        <PartFilesSection />
+
+        <h2 className="font-display text-2xl text-ink pt-4">Drawings</h2>
 
         {stats && (
           <div className="grid grid-cols-3 gap-4">

@@ -12,6 +12,7 @@ import { clearPresence, kioskPresenceRouter } from "./routes/kiosk-presence";
 import { onshapeExportRouter } from "./routes/onshape-export";
 import { onshapeWebhooksRouter } from "./routes/onshape-webhooks";
 import { partDefinitionsRouter } from "./routes/part-definitions";
+import { partFilesRouter } from "./routes/part-files";
 import { partInstanceProcessesRouter } from "./routes/part-instance-processes";
 import { partInstancesRouter } from "./routes/part-instances";
 import { partViewerRouter } from "./routes/part-viewer";
@@ -95,6 +96,7 @@ const app = base
   .route("/part-definitions", partDefinitionsRouter)
   .route("/part-instances", partInstancesRouter)
   .route("/part-instance-processes", partInstanceProcessesRouter)
+  .route("/part-files", partFilesRouter)
   .route("/actions", actionsRouter)
   .route("/kiosk-presence", kioskPresenceRouter)
   .route("/admin", adminPartsRouter)

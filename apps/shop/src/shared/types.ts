@@ -70,3 +70,16 @@ export type PartInstanceProcess = {
   completedAt: number | null;
   createdAt: number;
 };
+
+export type PartFileLink = { partNumber: string; revision: string };
+
+/** A stored file and every part revision it's linked to (always at least one). */
+export type PartFile = {
+  id: number;
+  filename: string;
+  contentType: string;
+  fileSize: number;
+  uploadedBy: string;
+  createdAt: number;
+  links: PartFileLink[];
+};

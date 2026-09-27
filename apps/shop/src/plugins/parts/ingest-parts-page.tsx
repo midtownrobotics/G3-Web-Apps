@@ -5,6 +5,7 @@ import type { Process, Subsystem } from "../../shared/types";
 import { ErrorBanner, PageLoading } from "../../shared/ui";
 import { useShopData } from "../../shared/use-shop-data";
 import { useTouchDevice } from "../../shared/use-touch";
+import { PartFilesPanel } from "../files/part-files-panel";
 
 type PendingPart = {
   id: number;
@@ -1278,6 +1279,18 @@ function PartIngestCard({
           </div>
         )}
         {drawingError && <p className="text-xs text-crimson-dark">{drawingError}</p>}
+      </div>
+
+      <div className="space-y-2">
+        <FieldLabel label="Files" />
+        <p className="text-xs text-steel">
+          Attached to Rev {form.revision.trim() || "—"}. Changing the revision above shows that
+          revision's files instead.
+        </p>
+        <PartFilesPanel
+          partNumber={form.onshapePartNumber.trim()}
+          revision={form.revision.trim()}
+        />
       </div>
 
       <label className="flex items-center gap-2 cursor-pointer select-none text-sm text-ink">
