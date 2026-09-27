@@ -17,7 +17,7 @@ import { PartCard } from "./part-card";
 type SortKey = "newest" | "oldest" | "alpha" | "alpha-rev" | "number" | "number-rev" | "revision" | "revision-rev" | "instance" | "instance-rev" | "process" | "process-rev" | "progress" | "progress-rev" | "priority" | "status" | "subsystem";
 
 /** Sorts that order whole blueprints — instances stay grouped with a connector line. */
-const GROUPED_SORTS: SortKey[] = ["newest", "oldest", "alpha", "alpha-rev", "number", "number-rev", "revision", "revision-rev", "instance", "instance-rev", "process", "process-rev", "progress", "progress-rev", "priority", "subsystem"];
+const GROUPED_SORTS: SortKey[] = ["newest", "oldest", "alpha", "alpha-rev", "number", "number-rev", "revision", "revision-rev", "instance", "instance-rev", "process", "process-rev", "priority", "subsystem"];
 
 const STATE_ORDER: Record<InstanceState, number> = {
   doing: 0,
@@ -274,6 +274,7 @@ function PartsTable({
   // ── Sort + group ────────────────────────────────────────────────────────
   // biome-ignore lint/correctness/useExhaustiveDependencies: processName/subsystemName derive from data, which filtered already depends on
   const groups = useMemo(() => {
+    console.log(`[Sort] Current sort: ${sort}, is grouped: ${GROUPED_SORTS.includes(sort)}`);
     if (!GROUPED_SORTS.includes(sort)) {
       const flat = [...filtered];
       if (sort === "process") {
@@ -281,6 +282,51 @@ function PartsTable({
           const an = a.current ? processName(a.current.processId) : "￿";
           const bn = b.current ? processName(b.current.processId) : "￿";
           return an.localeCompare(bn) || a.definition.name.localeCompare(b.definition.name);
+        });
+      } else if (sort === "progress") {
+        console.log(`[Progress] Sorting ${flat.length} items by progress`);
+        flat.sort((a, b) => {
+          const totalProcesses = a.instance.processes?.length ?? 0;
+          const totalProcessesB = b.instance.processes?.length ?? 0;
+          if (totalProcesses === 0 && totalProcessesB === 0) return 0;
+          const aCompleted = a.instance.processes?.filter((p) => p.status === "done").length ?? 0;
+          const aInProgress = a.instance.processes?.filter((p) => p.status === "doing").length ?? 0;
+          const bCompleted = b.instance.processes?.filter((p) => p.status === "done").length ?? 0;
+          const bInProgress = b.instance.processes?.filter((p) => p.status === "doing").length ?? 0;
+          const aPercent = totalProcesses > 0 ? ((aCompleted + aInProgress * 0.5) / totalProcesses) * 100 : 0;
+          const bPercent = totalProcessesB > 0 ? ((bCompleted + bInProgress * 0.5) / totalProcessesB) * 100 : 0;
+          console.log(`[Progress Compare] ${a.definition.name} #${a.instance.instanceNumber}: ${aPercent.toFixed(1)}% | ${b.definition.name} #${b.instance.instanceNumber}: ${bPercent.toFixed(1)}%`);
+          return bPercent - aPercent || b.instance.createdAt - a.instance.createdAt;
+        });
+      } else if (sort === "progress-rev") {
+        console.log(`[Progress-Rev] Sorting ${flat.length} items by progress (reverse)`);
+
+        flat.sort((a, b) => {
+          const totalProcesses = a.instance.processes?.length ?? 0;
+          if (totalProcesses === 0) return 0;
+          const aCompleted = a.instance.processes?.filter((p) => p.status === "done").length ?? 0;
+          const aInProgress = a.instance.processes?.filter((p) => p.status === "doing").length ?? 0;
+          const bCompleted = b.instance.processes?.filter((p) => p.status === "done").length ?? 0;
+          const bInProgress = b.instance.processes?.filter((p) => p.status === "doing").length ?? 0;
+          const aPercent = ((aCompleted + aInProgress * 0.5) / totalProcesses) * 100;
+          const bPercent = ((bCompleted + bInProgress * 0.5) / totalProcesses) * 100;
+          return aPercent - bPercent || a.instance.createdAt - b.instance.createdAt;
+        });
+      } else if (sort === "instance") {
+        flat.sort((a, b) => a.instance.instanceNumber - b.instance.instanceNumber);
+      } else if (sort === "instance-rev") {
+        flat.sort((a, b) => b.instance.instanceNumber - a.instance.instanceNumber);
+      } else if (sort === "process") {
+        flat.sort((a, b) => {
+          const an = a.current ? processName(a.current.processId) : "￿";
+          const bn = b.current ? processName(b.current.processId) : "￿";
+          return an.localeCompare(bn) || a.definition.name.localeCompare(b.definition.name);
+        });
+      } else if (sort === "process-rev") {
+        flat.sort((a, b) => {
+          const an = b.current ? processName(b.current.processId) : "￿";
+          const bn = a.current ? processName(a.current.processId) : "￿";
+          return an.localeCompare(bn) || b.definition.name.localeCompare(a.definition.name);
         });
       } else {
         flat.sort(
@@ -336,25 +382,6 @@ function PartsTable({
           const an = b[0].current ? processName(b[0].current.processId) : "￿";
           const bn = a[0].current ? processName(a[0].current.processId) : "￿";
           return an.localeCompare(bn) || def(b).name.localeCompare(def(a).name);
-        });
-        break;
-      case "progress":
-        grouped.sort((a, b) => {
-          const aComplete = a.filter((r) => r.state === "complete").length;
-          const bComplete = b.filter((r) => r.state === "complete").length;
-          const aPercent = (aComplete / a.length) * 100;
-          const bPercent = (bComplete / b.length) * 100;
-          console.log(`[Progress Sort] ${def(a).name}: ${aPercent.toFixed(1)}% | ${def(b).name}: ${bPercent.toFixed(1)}%`);
-          return bPercent - aPercent || def(b).createdAt - def(a).createdAt;
-        });
-        break;
-      case "progress-rev":
-        grouped.sort((a, b) => {
-          const aComplete = a.filter((r) => r.state === "complete").length;
-          const bComplete = b.filter((r) => r.state === "complete").length;
-          const aPercent = (aComplete / a.length) * 100;
-          const bPercent = (bComplete / b.length) * 100;
-          return aPercent - bPercent || def(a).createdAt - def(b).createdAt;
         });
         break;
       case "priority":
