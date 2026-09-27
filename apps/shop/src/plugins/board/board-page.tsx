@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, matchPath, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../../shared/api";
 import { getErrorMessage } from "../../shared/api-error";
 import {
@@ -16,7 +16,7 @@ import { processPath } from "../../shared/nav";
 import type { KioskPresence } from "../../shared/types";
 import { ErrorBanner, PageLoading } from "../../shared/ui";
 import { useKiosk } from "../../shared/use-auth";
-import { useShopData, type ShopData } from "../../shared/use-shop-data";
+import { useShopData } from "../../shared/use-shop-data";
 import { useTouchDevice } from "../../shared/use-touch";
 import { useUserNames } from "../../shared/use-user-names";
 import { PartCard } from "../parts/part-card";
@@ -40,19 +40,22 @@ const LOAD_STYLES = {
 export function BoardPage() {
   const { data, loading, error, refresh } = useShopData();
   const navigate = useNavigate();
-  const params = useParams();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const kiosk = useKiosk();
   // Kiosks are tablets — always use the finger-friendly layout there.
   const touch = useTouchDevice() || kiosk.active;
 
-  // The active view comes from the URL: /board = overview, /board/process/:id.
-  // For kiosks, override to match machine if available, otherwise force overview.
-  let view: number | "overview" = params.processId ? Number(params.processId) : "overview";
-  if (kiosk.active && data) {
-    const machine = matchMachineProcess(data.processes, kiosk.machineName);
-    view = machine ? machine.id : "overview";
-  }
+  // A kiosk named after a machine is locked to that machine's queue.
+  const kioskMachine =
+    kiosk.active && data ? matchMachineProcess(data.processes, kiosk.machineName) : null;
+  // Parsed from the pathname, not useParams: kiosk mode renders no <Routes>.
+  const urlProcessId = matchPath("/board/process/:processId", location.pathname)?.params.processId;
+  const view: number | "overview" = kioskMachine
+    ? kioskMachine.id
+    : urlProcessId
+      ? Number(urlProcessId)
+      : "overview";
 
   const [banner, setBanner] = useState<string | null>(null);
   const [selectedInstanceId, setSelectedInstanceId] = useState<number | null>(null);
@@ -77,7 +80,6 @@ export function BoardPage() {
       setSelectedInstanceId(Number(instanceParam));
     }
   }, [searchParams]);
-
 
   // Who is logged in at each kiosk, refreshed alongside the heartbeat cadence.
   useEffect(() => {
@@ -131,7 +133,7 @@ export function BoardPage() {
   return (
     <main className="min-h-screen bg-mist">
       <div className="max-w-5xl mx-auto px-6 py-8 space-y-5">
-        {view !== "overview" && !kiosk.active && (
+        {view !== "overview" && !kioskMachine && (
           <Link
             to="/board"
             className={`inline-flex items-center gap-1.5 text-sm text-steel hover:text-ink transition-colors ${
@@ -143,10 +145,8 @@ export function BoardPage() {
         )}
 
         <div className="flex items-start justify-between gap-4">
-          {kiosk.active ? (
-            <h1 className="font-display text-4xl text-ink">
-              {view === "overview" ? "Shop Floor" : processName(view)}
-            </h1>
+          {kioskMachine ? (
+            <h1 className="font-display text-4xl text-ink">{kioskMachine.name}</h1>
           ) : (
             <select
               value={view === "overview" ? "overview" : String(view)}
@@ -188,8 +188,6 @@ export function BoardPage() {
             touch={touch}
             navigate={navigate}
             presence={presence}
-            kiosk={kiosk}
-            data={data}
           />
         ) : (
           <ProcessView
@@ -284,8 +282,6 @@ function OverviewView({
   touch,
   navigate,
   presence,
-  kiosk,
-  data,
 }: {
   rows: InstanceRow[];
   loads: ReturnType<typeof processLoads>;
@@ -293,8 +289,6 @@ function OverviewView({
   touch: boolean;
   navigate: (path: string) => void;
   presence: KioskPresence[];
-  kiosk: ReturnType<typeof useKiosk>;
-  data: ShopData;
 }) {
   const mood = shopMood(loads);
   const inProgress = rows.filter((r) => r.state === "doing");
@@ -309,8 +303,6 @@ function OverviewView({
       .filter((p) => p.deviceName.trim().toLowerCase() === processName.trim().toLowerCase())
       .map((p) => resolveName(p.userId));
 
-  if (!data) return null;
-
   return (
     <div className="space-y-6">
       {/* Shop status */}
@@ -324,44 +316,37 @@ function OverviewView({
         <p className="text-steel text-sm">No processes defined yet — add some on the Admin page.</p>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-          {loads
-            .filter((load) => {
-              if (!kiosk.active) return true;
-              return (
-                load.process.name.trim().toLowerCase() === kiosk.machineName?.trim().toLowerCase()
-              );
-            })
-            .map((load) => (
-              <Link
-                key={load.process.id}
-                to={processPath(load.process.id)}
-                title={`${load.doing} in progress, ${load.todo} to do — click to open`}
-                className={`rounded-xl border text-left transition-transform hover:-translate-y-0.5 ${LOAD_STYLES[load.level]} ${
-                  touch ? "p-5" : "p-4"
-                }`}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-semibold text-ink truncate">{load.process.name}</span>
-                  <span
-                    title={load.doing > 0 ? "Running" : "Idle"}
-                    className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                      load.doing > 0 ? "bg-emerald-500 animate-pulse" : "bg-steel/40"
-                    }`}
-                  />
-                </div>
-                <p className="text-xs text-steel-dark mt-2">
-                  {load.doing} running · {load.todo} to do
+          {loads.map((load) => (
+            <Link
+              key={load.process.id}
+              to={processPath(load.process.id)}
+              title={`${load.doing} in progress, ${load.todo} to do — click to open`}
+              className={`rounded-xl border text-left transition-transform hover:-translate-y-0.5 ${LOAD_STYLES[load.level]} ${
+                touch ? "p-5" : "p-4"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold text-ink truncate">{load.process.name}</span>
+                <span
+                  title={load.doing > 0 ? "Running" : "Idle"}
+                  className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                    load.doing > 0 ? "bg-emerald-500 animate-pulse" : "bg-steel/40"
+                  }`}
+                />
+              </div>
+              <p className="text-xs text-steel-dark mt-2">
+                {load.doing} running · {load.todo} to do
+              </p>
+              {peopleAt(load.process.name).length > 0 && (
+                <p
+                  className="text-xs text-emerald-700 mt-1.5 truncate"
+                  title={`At this machine: ${peopleAt(load.process.name).join(", ")}`}
+                >
+                  👤 {peopleAt(load.process.name).join(", ")}
                 </p>
-                {peopleAt(load.process.name).length > 0 && (
-                  <p
-                    className="text-xs text-emerald-700 mt-1.5 truncate"
-                    title={`At this machine: ${peopleAt(load.process.name).join(", ")}`}
-                  >
-                    👤 {peopleAt(load.process.name).join(", ")}
-                  </p>
-                )}
-              </Link>
-            ))}
+              )}
+            </Link>
+          ))}
         </div>
       )}
 
