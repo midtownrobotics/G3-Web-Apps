@@ -20,6 +20,7 @@ import { useShopData } from "../../shared/use-shop-data";
 import { useTouchDevice } from "../../shared/use-touch";
 import { useUserNames } from "../../shared/use-user-names";
 import { PartCard } from "../parts/part-card";
+import { PartDetailsView } from "./part-details-view";
 import { PartWorkView } from "./part-work-view";
 import { ScanDialog } from "./scan-dialog";
 
@@ -54,6 +55,7 @@ export function BoardPage() {
   const [banner, setBanner] = useState<string | null>(null);
   const [selectedInstanceId, setSelectedInstanceId] = useState<number | null>(null);
   const [workingPartInstanceId, setWorkingPartInstanceId] = useState<number | null>(null);
+  const [viewingPartInstanceId, setViewingPartInstanceId] = useState<number | null>(null);
   const [presence, setPresence] = useState<KioskPresence[]>([]);
   const [scanOpen, setScanOpen] = useState(false);
 
@@ -201,6 +203,7 @@ export function BoardPage() {
             onAdvance={advance}
             touch={touch}
             onOpenWorkView={setWorkingPartInstanceId}
+            onViewPart={setViewingPartInstanceId}
           />
         )}
       </div>
@@ -233,6 +236,24 @@ export function BoardPage() {
                 }
               }}
               onChanged={refresh}
+            />
+          ) : null;
+        })()}
+
+      {viewingPartInstanceId &&
+        data &&
+        (() => {
+          const viewingRow = rows.find((r) => r.instance.id === viewingPartInstanceId);
+          return viewingRow ? (
+            <PartDetailsView
+              row={viewingRow}
+              data={data}
+              onClose={() => setViewingPartInstanceId(null)}
+              onStartPart={async () => {
+                if (viewingRow.current) {
+                  await advance(viewingRow, "doing");
+                }
+              }}
             />
           ) : null;
         })()}
@@ -417,6 +438,7 @@ function ProcessView({
   onAdvance,
   touch,
   onOpenWorkView,
+  onViewPart,
 }: {
   processId: number;
   rows: InstanceRow[];
@@ -424,6 +446,7 @@ function ProcessView({
   onAdvance: (row: InstanceRow, to: "doing" | "done") => Promise<void>;
   touch: boolean;
   onOpenWorkView: (instanceId: number) => void;
+  onViewPart: (instanceId: number) => void;
 }) {
   // Parts whose pipeline includes this process and haven't finished it yet.
   const here = rows.filter((r) => r.procs.some((p) => p.processId === processId));
@@ -492,7 +515,7 @@ function ProcessView({
         ) : (
           <div className="bg-paper border border-steel/30 rounded-xl divide-y divide-steel/15">
             {todo.map((row) => (
-              <PartLine key={row.instance.id} row={row} touch={touch}>
+              <PartLine key={row.instance.id} row={row} touch={touch} onViewPart={onViewPart}>
                 <button
                   type="button"
                   onClick={(e) => {
@@ -563,6 +586,7 @@ function PartLine({
   touch,
   navigate,
   onOpen,
+  onViewPart,
   children,
 }: {
   row: InstanceRow;
@@ -570,6 +594,7 @@ function PartLine({
   touch?: boolean;
   navigate?: (path: string) => void;
   onOpen?: () => void;
+  onViewPart?: (instanceId: number) => void;
   children?: React.ReactNode;
 }) {
   const handleClick = () => {
@@ -602,6 +627,18 @@ function PartLine({
         </p>
         <p className="text-xs font-mono text-steel truncate">{partLabel(row)}</p>
       </div>
+      {onViewPart && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onViewPart(row.instance.id);
+          }}
+          className="text-xs bg-crimson hover:bg-crimson-dark text-paper rounded-lg font-semibold transition-colors shrink-0 px-3 py-1.5"
+        >
+          Open
+        </button>
+      )}
       {children}
     </div>
   );
