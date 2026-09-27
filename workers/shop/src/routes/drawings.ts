@@ -2,9 +2,27 @@ import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { Hono } from "hono";
 import * as schema from "../db/schema";
+import { requireAuth } from "../middleware/auth";
 import type { AppEnv } from "../types";
 
 export const drawingsRouter = new Hono<AppEnv>()
+  // Deletes a released drawing (the same object /parts/:partNumber/:revision/drawing serves).
+  .delete("/:partNumber/:revision", requireAuth, async (c) => {
+    if (c.get("sessionType") === "pin") {
+      return c.json({ error: "Kiosks can't delete drawings." }, 403);
+    }
+    const partNumber = c.req.param("partNumber");
+    const revision = c.req.param("revision");
+    const r2Key = `drawings/${partNumber}/${revision}/drawing.pdf`;
+
+    const existing = await c.env.DRAWINGS.head(r2Key);
+    if (!existing) return c.json({ error: "Drawing not found." }, 404);
+
+    await c.env.DRAWINGS.delete(r2Key);
+    const db = drizzle(c.env.SHOP_DB, { schema });
+    await db.delete(schema.drawings).where(eq(schema.drawings.r2Key, r2Key));
+    return c.json({ ok: true });
+  })
   .get("/", async (c) => {
     try {
       const db = drizzle(c.env.SHOP_DB, { schema });

@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { InstanceRow } from "../../shared/derive";
 import {
+  deletePartFile,
   fetchPartFiles,
-  linkPartFile,
   partFileDownloadUrl,
-  unlinkPartFile,
+  setFileAssignmentCount,
+  unassignFileInstance,
   uploadPartFile,
 } from "../../shared/getters";
-import type { PartFile, PartFileLink } from "../../shared/types";
+import type { PartDefinition, PartFile, PartInstance } from "../../shared/types";
 import { useKiosk } from "../../shared/use-auth";
 import { useUserNames } from "../../shared/use-user-names";
 
@@ -20,198 +22,437 @@ export function formatBytes(bytes: number): string {
   return `${Math.round((bytes / k ** i) * 10) / 10} ${sizes[i]}`;
 }
 
-export const linkLabel = (l: PartFileLink) => `${l.partNumber} · Rev ${l.revision}`;
+/** [1,2,3,4,6] → "#1–4, #6" */
+export function formatInstanceRanges(numbers: number[]): string {
+  const sorted = [...numbers].sort((a, b) => a - b);
+  const parts: string[] = [];
+  let i = 0;
+  while (i < sorted.length) {
+    let j = i;
+    while (j + 1 < sorted.length && sorted[j + 1] === sorted[j] + 1) j++;
+    parts.push(j > i ? `#${sorted[i]}–${sorted[j]}` : `#${sorted[i]}`);
+    i = j + 1;
+  }
+  return parts.join(", ");
+}
 
-const sameLink = (a: PartFileLink, b: PartFileLink) =>
-  a.partNumber === b.partNumber && a.revision === b.revision;
+export const partLabelOf = (d: Pick<PartDefinition, "onshapePartNumber" | "revision">) =>
+  `${d.onshapePartNumber} · Rev ${d.revision}`;
 
-/** Uploads files one at a time; returns the error for the first failure, if any. */
-export async function uploadFiles(
-  selected: File[],
-  partNumber: string,
-  revision: string,
+/** Active (non-obsolete) instance ids of each part definition that no file covers yet. */
+export function freeInstancesByPart(
+  instances: PartInstance[],
+  files: PartFile[],
+): Map<number, number> {
+  const covered = new Set(files.flatMap((f) => f.assignments.map((a) => a.partInstanceId)));
+  const free = new Map<number, number>();
+  for (const inst of instances) {
+    if (inst.isStale || covered.has(inst.id)) continue;
+    free.set(inst.partDefinitionId, (free.get(inst.partDefinitionId) ?? 0) + 1);
+  }
+  return free;
+}
+
+/** Sets a file's count on one part; returns a notice when fewer instances were free than asked. */
+export async function assignCount(
+  fileId: number,
+  definition: PartDefinition,
+  count: number,
 ): Promise<string | null> {
+  const { requested, assigned } = await setFileAssignmentCount(fileId, definition.id, count);
+  if (assigned >= requested) return null;
+  return `Not enough instances of ${partLabelOf(definition)} without a file — assigned ${assigned} of the ${requested} requested.`;
+}
+
+/** Uploads to the library one at a time, then assigns `count` instances of `definition` to each. */
+export async function uploadAndAssign(
+  selected: File[],
+  definition: PartDefinition | null,
+  count: number,
+): Promise<{ error: string | null; notices: string[] }> {
+  const notices: string[] = [];
   for (const file of selected) {
-    if (file.size > MAX_FILE_BYTES) return `${file.name} is over the 100 MB limit.`;
+    if (file.size > MAX_FILE_BYTES) {
+      return { error: `${file.name} is over the 100 MB limit.`, notices };
+    }
     try {
-      await uploadPartFile(file, partNumber, revision);
+      const uploaded = await uploadPartFile(file);
+      if (definition && count > 0) {
+        const notice = await assignCount(uploaded.id, definition, count);
+        if (notice) notices.push(`${file.name}: ${notice}`);
+      }
     } catch (err) {
-      return `${file.name}: ${err instanceof Error ? err.message : "upload failed"}`;
+      return {
+        error: `${file.name}: ${err instanceof Error ? err.message : "upload failed"}`,
+        notices,
+      };
     }
   }
-  return null;
+  return { error: null, notices };
 }
 
-/** Unlinks a file from one part revision after confirming; warns when that deletes the file. */
-export async function confirmAndUnlink(file: PartFile, link: PartFileLink): Promise<boolean> {
-  const others = file.links.filter((l) => !sameLink(l, link)).length;
-  const message =
-    others === 0
-      ? `${file.filename} is only linked to ${linkLabel(link)}. Removing it will delete the file. Continue?`
-      : `Remove ${file.filename} from ${linkLabel(link)}? It stays linked to ${others} other part${others === 1 ? "" : "s"}.`;
-  if (!window.confirm(message)) return false;
-  await unlinkPartFile(file.id, link.partNumber, link.revision);
-  return true;
+/** Instances still being made: active, not complete, and on a non-obsolete part revision. */
+export function productionRows(rows: InstanceRow[]): InstanceRow[] {
+  return rows.filter(
+    (r) => !r.instance.isStale && !r.definition.isObsolete && r.state !== "complete",
+  );
 }
 
-/** Files linked to one part revision: upload, attach an existing file, or remove. */
-export function PartFilesPanel({ partNumber, revision }: { partNumber: string; revision: string }) {
+/** Summarises which in-production instances something covers, e.g. "Main Shaft (P-1 · Rev A) #1–3". */
+export function describeUsage(rows: InstanceRow[]): string {
+  const byPart = new Map<number, InstanceRow[]>();
+  for (const r of rows) byPart.set(r.definition.id, [...(byPart.get(r.definition.id) ?? []), r]);
+  return [...byPart.values()]
+    .map(
+      (list) =>
+        `${list[0].definition.name || partLabelOf(list[0].definition)} (${partLabelOf(list[0].definition)}) ${formatInstanceRanges(list.map((r) => r.instance.instanceNumber))}`,
+    )
+    .join("; ");
+}
+
+export function InProductionBadge({ rows }: { rows: InstanceRow[] }) {
+  if (rows.length === 0) return null;
+  return (
+    <span
+      title={`Used by ${rows.length} instance${rows.length === 1 ? "" : "s"} in production: ${describeUsage(rows)}`}
+      className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 bg-emerald-50 border border-emerald-300 rounded-full px-2 py-0.5 shrink-0"
+    >
+      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" aria-hidden />
+      In production · {rows.length}
+    </span>
+  );
+}
+
+/** Confirms deleting something, warning loudly when production instances still use it. */
+export function confirmDelete(name: string, inProduction: InstanceRow[], extra = ""): boolean {
+  const warning =
+    inProduction.length > 0
+      ? `⚠ ${inProduction.length} instance${inProduction.length === 1 ? " that's" : "s that are"} still in production use${inProduction.length === 1 ? "s" : ""} it: ${describeUsage(inProduction)}.\n\n`
+      : "";
+  return window.confirm(`${warning}Delete ${name}? ${extra}This can't be undone.`);
+}
+
+export function confirmDeleteFile(file: PartFile, inProduction: InstanceRow[] = []): boolean {
+  const n = file.assignments.length;
+  return confirmDelete(
+    file.filename,
+    inProduction,
+    n > 0 ? `It will be unassigned from ${n} instance${n === 1 ? "" : "s"}. ` : "",
+  );
+}
+
+/**
+ * Files covering instances of one part definition. Upload or pick an existing file and say how
+ * many instances it covers; they're taken from instances that don't have a file yet.
+ */
+export function PartFilesPanel({
+  definition,
+  definitions,
+  instances,
+  currentInstanceId,
+}: {
+  definition: PartDefinition;
+  definitions: PartDefinition[];
+  instances: PartInstance[];
+  currentInstanceId?: number;
+}) {
   const kiosk = useKiosk();
   const [files, setFiles] = useState<PartFile[]>([]);
+  const [library, setLibrary] = useState<PartFile[] | null>(null);
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [busyId, setBusyId] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notices, setNotices] = useState<string[]>([]);
+  const [addCount, setAddCount] = useState("");
+  const [existingId, setExistingId] = useState("");
   const resolveName = useUserNames(files.map((f) => f.uploadedBy));
-  const here: PartFileLink = { partNumber, revision };
+
+  const active = instances.filter((i) => i.partDefinitionId === definition.id && !i.isStale);
+  const free = freeInstancesByPart(active, files).get(definition.id) ?? 0;
+  const currentNumber = instances.find((i) => i.id === currentInstanceId)?.instanceNumber;
+  const currentFile = files.find((f) =>
+    f.assignments.some((a) => a.partInstanceId === currentInstanceId),
+  );
 
   const load = useCallback(async () => {
     try {
-      setFiles(await fetchPartFiles(partNumber, revision));
+      setFiles(await fetchPartFiles(definition.id));
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load files.");
     } finally {
       setLoading(false);
     }
-  }, [partNumber, revision]);
+  }, [definition.id]);
 
   useEffect(() => {
-    if (!partNumber || !revision) return;
     setLoading(true);
     load();
-  }, [load, partNumber, revision]);
+  }, [load]);
 
-  async function handleUpload(selected: File[]) {
-    if (selected.length === 0) return;
-    setUploading(true);
-    setError(await uploadFiles(selected, partNumber, revision));
-    await load();
-    setUploading(false);
-  }
+  // Default the "how many" box to every instance that's still free.
+  useEffect(() => {
+    if (!loading) setAddCount(String(free));
+  }, [free, loading]);
 
-  async function handleAttach(fileId: number) {
+  async function run(action: () => Promise<string[] | string | null | undefined>) {
+    setBusy(true);
+    setError(null);
+    setNotices([]);
     try {
-      await linkPartFile(fileId, partNumber, revision);
+      const result = await action();
+      if (typeof result === "string") setNotices([result]);
+      else if (Array.isArray(result)) setNotices(result);
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to attach file.");
-    }
-  }
-
-  async function handleRemove(file: PartFile) {
-    setBusyId(file.id);
-    try {
-      if (await confirmAndUnlink(file, here)) await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to remove file.");
+      setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
-      setBusyId(null);
+      setBusy(false);
     }
   }
 
-  if (!partNumber || !revision) {
-    return <p className="text-sm text-steel">Enter a part number and revision to attach files.</p>;
+  const count = Number(addCount) || 0;
+
+  function handleUpload(selected: File[]) {
+    if (selected.length === 0) return;
+    run(async () => {
+      const { error: uploadError, notices: n } = await uploadAndAssign(selected, definition, count);
+      if (uploadError) throw new Error(uploadError);
+      return n;
+    });
+  }
+
+  function handleAttachExisting() {
+    const id = Number(existingId);
+    if (!id || count < 1) return;
+    const existing = files.find((f) => f.id === id);
+    const already = existing?.assignments.filter((a) => a.partDefinitionId === definition.id);
+    run(async () => {
+      const notice = await assignCount(id, definition, (already?.length ?? 0) + count);
+      setExistingId("");
+      setLibrary(null);
+      return notice;
+    });
+  }
+
+  function loadLibrary() {
+    if (library) return;
+    fetchPartFiles()
+      .then(setLibrary)
+      .catch(() => setLibrary([]));
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
+      <p className="text-sm text-steel-dark">
+        {active.length - free} of {active.length} active instance{active.length === 1 ? "" : "s"}{" "}
+        have a file · <span className="font-semibold text-ink">{free} without</span>
+        {currentNumber !== undefined && (
+          <>
+            {" "}
+            · This instance (#{currentNumber}):{" "}
+            <span className="font-semibold text-ink">{currentFile?.filename ?? "no file"}</span>
+          </>
+        )}
+      </p>
+
       {error && <ErrorText message={error} />}
+      {notices.map((n) => (
+        <NoticeText key={n} message={n} />
+      ))}
+
       {loading ? (
         <p className="text-sm text-steel">Loading files…</p>
       ) : files.length === 0 ? (
-        <p className="text-sm text-steel">No files attached.</p>
+        <p className="text-sm text-steel">No files assigned to this part.</p>
       ) : (
         <ul className="divide-y divide-steel/20 border border-steel/25 rounded-lg">
           {files.map((file) => {
-            const others = file.links.filter((l) => !sameLink(l, here));
+            const otherParts = [
+              ...new Set(
+                file.assignments
+                  .filter((a) => a.partDefinitionId !== definition.id)
+                  .map((a) => a.partDefinitionId),
+              ),
+            ]
+              .map((id) => definitions.find((d) => d.id === id))
+              .filter((d): d is PartDefinition => !!d);
             return (
-              <li key={file.id} className="flex items-center gap-3 px-3 py-2">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-ink truncate" title={file.filename}>
-                    {file.filename}
-                  </p>
-                  <FileMeta file={file} uploader={resolveName(file.uploadedBy)} />
-                  {others.length > 0 && (
-                    <p className="text-xs text-steel-dark mt-0.5 truncate">
-                      Also on: {others.map(linkLabel).join(", ")}
+              <li key={file.id} className="px-3 py-2.5 space-y-2">
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-ink truncate" title={file.filename}>
+                      {file.filename}
                     </p>
+                    <FileMeta file={file} uploader={resolveName(file.uploadedBy)} />
+                  </div>
+                  <DownloadLink file={file} />
+                  {!kiosk.active && (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => {
+                        if (confirmDeleteFile(file))
+                          run(() => deletePartFile(file.id).then(() => null));
+                      }}
+                      className="px-2.5 py-1 text-xs font-medium border border-crimson/40 text-crimson hover:bg-crimson-tint rounded transition-colors disabled:opacity-50 shrink-0"
+                    >
+                      Delete
+                    </button>
                   )}
                 </div>
-                <DownloadLink file={file} />
-                {!kiosk.active && (
-                  <button
-                    type="button"
-                    onClick={() => handleRemove(file)}
-                    disabled={busyId === file.id}
-                    className="px-2.5 py-1 text-xs font-medium border border-crimson/40 text-crimson hover:bg-crimson-tint rounded transition-colors disabled:opacity-50 shrink-0"
-                  >
-                    {busyId === file.id ? "Removing…" : "Remove"}
-                  </button>
+                <AssignmentGroup
+                  file={file}
+                  definition={definition}
+                  canEdit={!kiosk.active}
+                  busy={busy}
+                  highlightInstanceId={currentInstanceId}
+                  run={run}
+                />
+                {otherParts.length > 0 && (
+                  <p className="text-xs text-steel-dark">
+                    Also covers:{" "}
+                    {otherParts
+                      .map(
+                        (d) =>
+                          `${partLabelOf(d)} ${formatInstanceRanges(
+                            file.assignments
+                              .filter((a) => a.partDefinitionId === d.id)
+                              .map((a) => a.instanceNumber),
+                          )}`,
+                      )
+                      .join("; ")}
+                  </p>
                 )}
               </li>
             );
           })}
         </ul>
       )}
+
       {!kiosk.active && (
-        <div className="flex flex-wrap items-center gap-2">
-          <UploadButton busy={uploading} onFiles={handleUpload} />
-          <AttachExistingSelect exclude={files.map((f) => f.id)} onPick={handleAttach} />
+        <div className="flex flex-wrap items-center gap-2 p-2.5 bg-mist border border-steel/25 rounded-lg">
+          <span className="text-xs font-medium text-steel-dark">Assign</span>
+          <CountInput value={addCount} onChange={setAddCount} />
+          <span className="text-xs text-steel-dark">instance{count === 1 ? "" : "s"} to</span>
+          <UploadButton busy={busy} onFiles={handleUpload} label="new upload" />
+          <span className="text-xs text-steel">or</span>
+          <select
+            value={existingId}
+            onFocus={loadLibrary}
+            onPointerDown={loadLibrary}
+            onChange={(e) => setExistingId(e.target.value)}
+            className="bg-paper border border-steel/40 rounded-lg px-2.5 py-1.5 text-xs text-steel-dark focus:outline-none focus:border-crimson max-w-[14rem]"
+          >
+            <option value="">existing file…</option>
+            {library === null ? (
+              <option disabled>Loading…</option>
+            ) : (
+              [...library]
+                .sort((a, b) => a.filename.localeCompare(b.filename))
+                .map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.filename}
+                  </option>
+                ))
+            )}
+          </select>
+          <button
+            type="button"
+            onClick={handleAttachExisting}
+            disabled={busy || !existingId || count < 1}
+            className="px-3 py-1.5 text-xs font-semibold bg-crimson hover:bg-crimson-dark text-paper rounded-lg transition-colors disabled:opacity-50"
+          >
+            Assign
+          </button>
         </div>
       )}
     </div>
   );
 }
 
-/** Picks from every stored file (loaded on first focus) to link here. */
-function AttachExistingSelect({
-  exclude,
-  onPick,
+/** One file's instances on one part: a chip per instance (× to unassign) and a count setter. */
+export function AssignmentGroup({
+  file,
+  definition,
+  canEdit,
+  busy,
+  highlightInstanceId,
+  run,
 }: {
-  exclude: number[];
-  onPick: (fileId: number) => void;
+  file: PartFile;
+  definition: PartDefinition;
+  canEdit: boolean;
+  busy: boolean;
+  highlightInstanceId?: number;
+  run: (action: () => Promise<string | null>) => void;
 }) {
-  const [all, setAll] = useState<PartFile[] | null>(null);
+  const mine = file.assignments.filter((a) => a.partDefinitionId === definition.id);
+  const [draft, setDraft] = useState(String(mine.length));
 
-  function loadAll() {
-    if (all) return;
-    fetchPartFiles()
-      .then(setAll)
-      .catch(() => setAll([]));
-  }
+  useEffect(() => setDraft(String(mine.length)), [mine.length]);
 
-  const options = (all ?? [])
-    .filter((f) => !exclude.includes(f.id))
-    .sort((a, b) => a.filename.localeCompare(b.filename));
+  const next = Number(draft);
+  const changed = draft !== "" && next !== mine.length;
 
   return (
-    <select
-      value=""
-      onFocus={loadAll}
-      onPointerDown={loadAll}
-      onChange={(e) => {
-        const id = Number(e.target.value);
-        if (id) {
-          onPick(id);
-          setAll(null);
-        }
-      }}
-      className="bg-paper border border-steel/40 rounded-lg px-2.5 py-1.5 text-xs text-steel-dark focus:outline-none focus:border-crimson max-w-[16rem]"
-    >
-      <option value="">Attach existing file…</option>
-      {all === null ? (
-        <option disabled>Loading…</option>
-      ) : options.length === 0 ? (
-        <option disabled>No other files</option>
-      ) : (
-        options.map((f) => (
-          <option key={f.id} value={f.id}>
-            {f.filename} ({f.links.map(linkLabel).join(", ")})
-          </option>
-        ))
+    <div className="flex flex-wrap items-center gap-1.5">
+      {mine.length === 0 && <span className="text-xs text-steel">No instances of this part.</span>}
+      {mine.map((a) => (
+        <span
+          key={a.partInstanceId}
+          className={`inline-flex items-center gap-0.5 text-xs font-mono rounded-full pl-2 pr-1 py-0.5 border ${
+            a.partInstanceId === highlightInstanceId
+              ? "bg-crimson-tint border-crimson/40 text-crimson-dark"
+              : "bg-steel-tint border-steel/30 text-steel-dark"
+          }`}
+        >
+          #{a.instanceNumber}
+          {canEdit && (
+            <button
+              type="button"
+              title={`Unassign #${a.instanceNumber}`}
+              disabled={busy}
+              onClick={() =>
+                run(() => unassignFileInstance(file.id, a.partInstanceId).then(() => null))
+              }
+              className="w-4 h-4 leading-none rounded-full text-steel hover:text-crimson hover:bg-crimson-tint disabled:opacity-50"
+            >
+              ×
+            </button>
+          )}
+        </span>
+      ))}
+      {canEdit && (
+        <span className="inline-flex items-center gap-1 ml-1">
+          <span className="text-xs text-steel">Count</span>
+          <CountInput value={draft} onChange={setDraft} />
+          <button
+            type="button"
+            disabled={busy || !changed}
+            onClick={() => run(() => assignCount(file.id, definition, next))}
+            className="px-2 py-0.5 text-xs font-semibold border border-steel/40 text-steel-dark hover:text-ink hover:border-crimson/50 rounded transition-colors disabled:opacity-40"
+          >
+            Set
+          </button>
+        </span>
       )}
-    </select>
+    </div>
+  );
+}
+
+/** Digits-only text input so the field can be cleared while typing. */
+export function CountInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      value={value}
+      onChange={(e) => {
+        if (/^\d{0,4}$/.test(e.target.value)) onChange(e.target.value);
+      }}
+      className="w-14 bg-paper border border-steel/40 rounded px-2 py-0.5 text-xs text-ink text-center focus:outline-none focus:border-crimson"
+    />
   );
 }
 
@@ -219,10 +460,16 @@ export function UploadButton({
   busy,
   disabled,
   onFiles,
+  label = "+ Upload Files",
+  multiple = true,
+  className,
 }: {
   busy: boolean;
   disabled?: boolean;
   onFiles: (files: File[]) => void;
+  label?: string;
+  multiple?: boolean;
+  className?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   return (
@@ -230,7 +477,7 @@ export function UploadButton({
       <input
         ref={inputRef}
         type="file"
-        multiple
+        multiple={multiple}
         className="hidden"
         onChange={(e) => {
           const picked = Array.from(e.target.files ?? []);
@@ -243,9 +490,12 @@ export function UploadButton({
         type="button"
         onClick={() => inputRef.current?.click()}
         disabled={busy || disabled}
-        className="px-3 py-1.5 text-xs font-semibold border border-steel/40 text-steel-dark hover:text-ink hover:border-crimson/50 rounded-lg transition-colors disabled:opacity-50"
+        className={
+          className ??
+          "px-3 py-1.5 text-xs font-semibold border border-steel/40 bg-paper text-steel-dark hover:text-ink hover:border-crimson/50 rounded-lg transition-colors disabled:opacity-50"
+        }
       >
-        {busy ? "Uploading…" : "+ Upload Files"}
+        {busy ? "Working…" : label}
       </button>
     </>
   );
@@ -274,6 +524,14 @@ export function DownloadLink({ file }: { file: PartFile }) {
 export function ErrorText({ message }: { message: string }) {
   return (
     <p className="text-sm text-crimson-dark bg-crimson-tint border border-crimson/30 rounded-lg px-3 py-2">
+      {message}
+    </p>
+  );
+}
+
+export function NoticeText({ message }: { message: string }) {
+  return (
+    <p className="text-sm text-amber-800 bg-amber-50 border border-amber-300 rounded-lg px-3 py-2">
       {message}
     </p>
   );

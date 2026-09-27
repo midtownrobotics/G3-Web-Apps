@@ -18,6 +18,7 @@ import { partInstancesRouter } from "./routes/part-instances";
 import { partViewerRouter } from "./routes/part-viewer";
 import { printRouter } from "./routes/print";
 import { processesRouter } from "./routes/processes";
+import { stagingBatchesRouter } from "./routes/staging-batches";
 import { subsystemsRouter } from "./routes/subsystems";
 import type { AppEnv } from "./types";
 
@@ -97,6 +98,7 @@ const app = base
   .route("/part-instances", partInstancesRouter)
   .route("/part-instance-processes", partInstanceProcessesRouter)
   .route("/part-files", partFilesRouter)
+  .route("/staging-batches", stagingBatchesRouter)
   .route("/actions", actionsRouter)
   .route("/kiosk-presence", kioskPresenceRouter)
   .route("/admin", adminPartsRouter)

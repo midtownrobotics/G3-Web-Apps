@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../../shared/api";
 import { getErrorMessage } from "../../shared/api-error";
 import { enableKioskMode } from "../../shared/kiosk";
+import { PROCESS_TYPE_LABELS, type Process, type ProcessType } from "../../shared/types";
 import { ErrorBanner, PageLoading } from "../../shared/ui";
 import { useShopData } from "../../shared/use-shop-data";
 import { ActionsLog } from "./actions-log";
@@ -13,6 +14,7 @@ export function AdminPage() {
 
   const [newSubsystem, setNewSubsystem] = useState("");
   const [newProcess, setNewProcess] = useState("");
+  const [newProcessType, setNewProcessType] = useState<ProcessType>("regular");
 
   async function addSubsystem() {
     if (!newSubsystem.trim()) return;
@@ -28,14 +30,41 @@ export function AdminPage() {
 
   async function addProcess() {
     if (!newProcess.trim()) return;
-    const res = await api.processes.$post({ json: { name: newProcess.trim() } });
+    const res = await api.processes.$post({
+      json: { name: newProcess.trim(), type: newProcessType },
+    });
     if (!res.ok) {
       setBanner(await getErrorMessage(res as unknown as Response));
       return;
     }
     setNewProcess("");
+    setNewProcessType("regular");
     setBanner(null);
     await refresh();
+  }
+
+  // Show a type change immediately; the shop-data refresh behind it is slow, and until it
+  // lands the controlled <select> would otherwise snap back to the old value.
+  const [pendingTypes, setPendingTypes] = useState<Record<number, ProcessType>>({});
+
+  function clearPending(id: number, type: ProcessType) {
+    // Only clear if a newer change hasn't replaced this one in the meantime.
+    setPendingTypes(({ [id]: current, ...rest }) =>
+      current === type ? rest : { ...rest, [id]: current },
+    );
+  }
+
+  async function setProcessType(id: number, type: ProcessType) {
+    setPendingTypes((prev) => ({ ...prev, [id]: type }));
+    const res = await api.processes[":id"].$patch({ param: { id: String(id) }, json: { type } });
+    if (!res.ok) {
+      setBanner(await getErrorMessage(res as unknown as Response));
+      clearPending(id, type);
+      return;
+    }
+    setBanner(null);
+    await refresh();
+    clearPending(id, type);
   }
 
   async function deleteObsoleteInstances() {
@@ -82,16 +111,17 @@ export function AdminPage() {
               onAdd={addSubsystem}
               placeholder="New subsystem"
             />
-            <NameList
-              title="Processes"
-              items={(data?.processes ?? []).map((p) => ({
-                id: p.id,
-                name: p.name,
+            <ProcessList
+              processes={(data?.processes ?? []).map((p) => ({
+                ...p,
+                type: pendingTypes[p.id] ?? p.type,
               }))}
               draft={newProcess}
               setDraft={setNewProcess}
+              draftType={newProcessType}
+              setDraftType={setNewProcessType}
               onAdd={addProcess}
-              placeholder="New process (e.g. Welding)"
+              onChangeType={setProcessType}
             />
           </div>
         </Section>
@@ -264,6 +294,95 @@ function NameList({
             >
               ✕
             </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const PROCESS_TYPE_OPTIONS = Object.entries(PROCESS_TYPE_LABELS) as [ProcessType, string][];
+
+function ProcessTypeSelect({
+  value,
+  onChange,
+  label,
+}: {
+  value: ProcessType;
+  onChange: (type: ProcessType) => void;
+  label: string;
+}) {
+  return (
+    <select
+      value={value}
+      aria-label={label}
+      onChange={(e) => onChange(e.target.value as ProcessType)}
+      className="bg-paper border border-steel/40 rounded-lg px-2 py-1 text-xs text-steel-dark focus:outline-none focus:border-crimson"
+    >
+      {PROCESS_TYPE_OPTIONS.map(([type, typeLabel]) => (
+        <option key={type} value={type}>
+          {typeLabel}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function ProcessList({
+  processes,
+  draft,
+  setDraft,
+  draftType,
+  setDraftType,
+  onAdd,
+  onChangeType,
+}: {
+  processes: Process[];
+  draft: string;
+  setDraft: (v: string) => void;
+  draftType: ProcessType;
+  setDraftType: (t: ProcessType) => void;
+  onAdd: () => void;
+  onChangeType: (id: number, type: ProcessType) => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <h3 className="text-sm font-bold uppercase tracking-wider text-steel-dark">
+        Processes <span className="text-steel font-normal">({processes.length})</span>
+      </h3>
+      <div className="flex gap-2">
+        <input
+          type="text"
+          placeholder="New process (e.g. Welding)"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") onAdd();
+          }}
+          className="flex-1 min-w-0 bg-paper border border-steel/40 rounded-lg px-3 py-2 text-sm text-ink placeholder-steel focus:outline-none focus:border-crimson"
+        />
+        <ProcessTypeSelect value={draftType} onChange={setDraftType} label="New process type" />
+        <button
+          type="button"
+          onClick={onAdd}
+          className="px-3.5 py-2 bg-crimson hover:bg-crimson-dark text-paper text-sm font-semibold rounded-lg transition-colors"
+        >
+          Add
+        </button>
+      </div>
+      <div className="space-y-1.5">
+        {processes.length === 0 && <p className="text-steel text-sm">None yet.</p>}
+        {processes.map((p) => (
+          <div
+            key={p.id}
+            className="flex items-center gap-2 bg-mist border border-steel/20 rounded-lg px-3.5 py-2 text-sm text-ink"
+          >
+            <span className="flex-1 truncate">{p.name}</span>
+            <ProcessTypeSelect
+              value={p.type}
+              onChange={(type) => onChangeType(p.id, type)}
+              label={`Type for ${p.name}`}
+            />
           </div>
         ))}
       </div>

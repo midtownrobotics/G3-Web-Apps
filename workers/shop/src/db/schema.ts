@@ -36,9 +36,13 @@ export const partInstances = sqliteTable(
   (t) => [unique().on(t.partDefinitionId, t.instanceNumber)],
 );
 
+export const PROCESS_TYPES = ["regular", "file_producer", "file_consumer"] as const;
+export type ProcessType = (typeof PROCESS_TYPES)[number];
+
 export const processes = sqliteTable("processes", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull(),
+  type: text("type", { enum: PROCESS_TYPES }).notNull().default("regular"),
   createdAt: integer("created_at").notNull(),
 });
 
@@ -74,6 +78,8 @@ export const partInstanceProcesses = sqliteTable(
       .default("waiting"),
     completedAt: integer("completed_at"),
     createdAt: integer("created_at").notNull(),
+    // Set while (and after) this step is produced as part of a File Producer staging batch.
+    batchId: integer("batch_id").references(() => stagingBatches.id, { onDelete: "set null" }),
   },
   (t) => [unique().on(t.partInstanceId, t.index)],
 );
@@ -147,20 +153,30 @@ export const files = sqliteTable("files", {
   createdAt: integer("created_at").notNull(),
 });
 
-export const partFileLinks = sqliteTable(
-  "part_file_links",
-  {
-    id: integer("id").primaryKey({ autoIncrement: true }),
-    fileId: integer("file_id")
-      .notNull()
-      .references(() => files.id, { onDelete: "cascade" }),
-    partNumber: text("part_number").notNull(),
-    revision: text("revision").notNull(),
-    linkedBy: text("linked_by").notNull(),
-    createdAt: integer("created_at").notNull(),
-  },
-  (t) => [unique().on(t.fileId, t.partNumber, t.revision)],
-);
+// One file per instance at most; a file can cover many instances across parts.
+export const partInstanceFiles = sqliteTable("part_instance_files", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  fileId: integer("file_id")
+    .notNull()
+    .references(() => files.id, { onDelete: "cascade" }),
+  partInstanceId: integer("part_instance_id")
+    .notNull()
+    .unique()
+    .references(() => partInstances.id, { onDelete: "cascade" }),
+  assignedBy: text("assigned_by").notNull(),
+  createdAt: integer("created_at").notNull(),
+});
+
+export const stagingBatches = sqliteTable("staging_batches", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  processId: integer("process_id")
+    .notNull()
+    .references(() => processes.id),
+  fileId: integer("file_id").references(() => files.id, { onDelete: "set null" }),
+  createdBy: text("created_by").notNull(),
+  createdAt: integer("created_at").notNull(),
+  closedAt: integer("closed_at"),
+});
 
 export const adminSettings = sqliteTable(
   "admin_settings",

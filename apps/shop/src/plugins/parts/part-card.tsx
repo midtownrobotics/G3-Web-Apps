@@ -239,8 +239,10 @@ export function PartCard({
 
           <Section title="Files">
             <PartFilesPanel
-              partNumber={row.definition.onshapePartNumber}
-              revision={row.definition.revision ?? ""}
+              definition={row.definition}
+              definitions={data.definitions}
+              instances={data.instances}
+              currentInstanceId={row.instance.id}
             />
           </Section>
 

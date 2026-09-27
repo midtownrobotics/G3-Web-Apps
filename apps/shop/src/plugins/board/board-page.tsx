@@ -13,7 +13,7 @@ import {
 } from "../../shared/derive";
 import { fetchKioskPresence } from "../../shared/getters";
 import { processPath } from "../../shared/nav";
-import type { KioskPresence } from "../../shared/types";
+import type { KioskPresence, PartDefinition, ProcessType } from "../../shared/types";
 import { ErrorBanner, PageLoading } from "../../shared/ui";
 import { useKiosk } from "../../shared/use-auth";
 import { useShopData } from "../../shared/use-shop-data";
@@ -22,6 +22,7 @@ import { useUserNames } from "../../shared/use-user-names";
 import { PartCard } from "../parts/part-card";
 import { PartDetailsView } from "./part-details-view";
 import { PartWorkView } from "./part-work-view";
+import { ProducerSections } from "./producer-process-view";
 import { ScanDialog } from "./scan-dialog";
 
 const MOOD_TONES: Record<ShopMood["tone"], string> = {
@@ -198,6 +199,9 @@ export function BoardPage() {
             touch={touch}
             onOpenWorkView={setWorkingPartInstanceId}
             onViewPart={setViewingPartInstanceId}
+            processType={data?.processes.find((p) => p.id === view)?.type ?? "regular"}
+            definitions={data?.definitions ?? []}
+            onChanged={refresh}
           />
         )}
       </div>
@@ -424,6 +428,9 @@ function ProcessView({
   touch,
   onOpenWorkView,
   onViewPart,
+  processType,
+  definitions,
+  onChanged,
 }: {
   processId: number;
   rows: InstanceRow[];
@@ -432,6 +439,9 @@ function ProcessView({
   touch: boolean;
   onOpenWorkView: (instanceId: number) => void;
   onViewPart: (instanceId: number) => void;
+  processType: ProcessType;
+  definitions: PartDefinition[];
+  onChanged: () => Promise<void>;
 }) {
   // Parts whose pipeline includes this process and haven't finished it yet.
   const here = rows.filter((r) => r.procs.some((p) => p.processId === processId));
@@ -450,87 +460,99 @@ function ProcessView({
 
   return (
     <div className="space-y-6">
-      <section className="space-y-2">
-        <h2 className="text-xs font-bold uppercase tracking-widest text-steel">
-          In Progress <span className="text-crimson">{inProgress.length}</span>
-        </h2>
-        {inProgress.length === 0 ? (
-          <p className="text-steel text-sm">Nothing in progress here.</p>
-        ) : (
-          <div className="bg-paper border border-steel/30 rounded-xl divide-y divide-steel/15">
-            {inProgress.map((row) => (
-              <PartLine key={row.instance.id} row={row} touch={touch}>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onOpenWorkView(row.instance.id);
-                  }}
-                  className={`text-xs bg-crimson hover:bg-crimson-dark text-paper rounded-lg font-semibold transition-colors shrink-0 ${btnSize}`}
-                >
-                  Open
-                </button>
-                <span className="relative group shrink-0">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onAdvance(row, "done");
-                    }}
-                    className={`text-xs bg-emerald-600 hover:bg-emerald-700 text-paper rounded-lg font-semibold transition-colors ${btnSize}`}
-                  >
-                    Mark as Complete
-                  </button>
-                  <span className="pointer-events-none absolute bottom-full right-0 mb-1.5 hidden group-hover:block whitespace-nowrap bg-ink text-paper text-xs rounded-md px-2.5 py-1.5 shadow-lg">
-                    Do a quality check before marking this complete!
-                  </span>
-                </span>
-              </PartLine>
-            ))}
-          </div>
-        )}
-      </section>
+      {processType === "file_producer" ? (
+        <ProducerSections
+          processId={processId}
+          rows={here}
+          touch={touch}
+          definitions={definitions}
+          onChanged={onChanged}
+        />
+      ) : (
+        <>
+          <section className="space-y-2">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-steel">
+              In Progress <span className="text-crimson">{inProgress.length}</span>
+            </h2>
+            {inProgress.length === 0 ? (
+              <p className="text-steel text-sm">Nothing in progress here.</p>
+            ) : (
+              <div className="bg-paper border border-steel/30 rounded-xl divide-y divide-steel/15">
+                {inProgress.map((row) => (
+                  <PartLine key={row.instance.id} row={row} touch={touch}>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpenWorkView(row.instance.id);
+                      }}
+                      className={`text-xs bg-crimson hover:bg-crimson-dark text-paper rounded-lg font-semibold transition-colors shrink-0 ${btnSize}`}
+                    >
+                      Open
+                    </button>
+                    <span className="relative group shrink-0">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onAdvance(row, "done");
+                        }}
+                        className={`text-xs bg-emerald-600 hover:bg-emerald-700 text-paper rounded-lg font-semibold transition-colors ${btnSize}`}
+                      >
+                        Mark as Complete
+                      </button>
+                      <span className="pointer-events-none absolute bottom-full right-0 mb-1.5 hidden group-hover:block whitespace-nowrap bg-ink text-paper text-xs rounded-md px-2.5 py-1.5 shadow-lg">
+                        Do a quality check before marking this complete!
+                      </span>
+                    </span>
+                  </PartLine>
+                ))}
+              </div>
+            )}
+          </section>
 
-      <section className="space-y-2">
-        <h2 className="text-xs font-bold uppercase tracking-widest text-steel">
-          To Do <span className="text-crimson">{todo.length}</span>
-        </h2>
-        {todo.length === 0 ? (
-          <p className="text-steel text-sm">Nothing ready to start.</p>
-        ) : (
-          <div className="bg-paper border border-steel/30 rounded-xl divide-y divide-steel/15">
-            {todo.map((row) => (
-              <PartLine key={row.instance.id} row={row} touch={touch} onViewPart={onViewPart}>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onAdvance(row, "doing");
-                  }}
-                  className={`text-xs bg-crimson hover:bg-crimson-dark text-paper rounded-lg font-semibold transition-colors shrink-0 ${btnSize}`}
-                >
-                  Start Part
-                </button>
-                <span className="relative group shrink-0">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onAdvance(row, "done");
-                    }}
-                    className={`text-xs bg-emerald-600 hover:bg-emerald-700 text-paper rounded-lg font-semibold transition-colors ${btnSize}`}
-                  >
-                    Mark as Complete
-                  </button>
-                  <span className="pointer-events-none absolute bottom-full right-0 mb-1.5 hidden group-hover:block whitespace-nowrap bg-ink text-paper text-xs rounded-md px-2.5 py-1.5 shadow-lg">
-                    Do a quality check before marking this complete!
-                  </span>
-                </span>
-              </PartLine>
-            ))}
-          </div>
-        )}
-      </section>
+          <section className="space-y-2">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-steel">
+              To Do <span className="text-crimson">{todo.length}</span>
+            </h2>
+            {todo.length === 0 ? (
+              <p className="text-steel text-sm">Nothing ready to start.</p>
+            ) : (
+              <div className="bg-paper border border-steel/30 rounded-xl divide-y divide-steel/15">
+                {todo.map((row) => (
+                  <PartLine key={row.instance.id} row={row} touch={touch} onViewPart={onViewPart}>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onAdvance(row, "doing");
+                      }}
+                      className={`text-xs bg-crimson hover:bg-crimson-dark text-paper rounded-lg font-semibold transition-colors shrink-0 ${btnSize}`}
+                    >
+                      Start Part
+                    </button>
+                    <span className="relative group shrink-0">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onAdvance(row, "done");
+                        }}
+                        className={`text-xs bg-emerald-600 hover:bg-emerald-700 text-paper rounded-lg font-semibold transition-colors ${btnSize}`}
+                      >
+                        Mark as Complete
+                      </button>
+                      <span className="pointer-events-none absolute bottom-full right-0 mb-1.5 hidden group-hover:block whitespace-nowrap bg-ink text-paper text-xs rounded-md px-2.5 py-1.5 shadow-lg">
+                        Do a quality check before marking this complete!
+                      </span>
+                    </span>
+                  </PartLine>
+                ))}
+              </div>
+            )}
+          </section>
+        </>
+      )}
 
       <section className="space-y-2">
         <h2 className="text-xs font-bold uppercase tracking-widest text-steel">

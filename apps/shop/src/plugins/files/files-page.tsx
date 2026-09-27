@@ -1,8 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "../../shared/api";
 import { getErrorMessage } from "../../shared/api-error";
+import { buildInstanceRows } from "../../shared/derive";
+import { deleteDrawing } from "../../shared/getters";
 import { ErrorBanner, PageLoading } from "../../shared/ui";
 import { useAuthUser } from "../../shared/use-auth";
+import { useKiosk } from "../../shared/use-auth";
+import { useShopData } from "../../shared/use-shop-data";
+import { InProductionBadge, confirmDelete, formatBytes, productionRows } from "./part-files-panel";
 import { PartFilesSection } from "./part-files-section";
 
 type Drawing = {
@@ -16,16 +21,44 @@ type Drawing = {
   createdAt: number;
 };
 
-type Stats = {
-  totalDrawings: number;
-  totalSize: number;
-  uniqueParts: number;
-};
-
 export function FilesPage() {
   const user = useAuthUser();
   const [drawings, setDrawings] = useState<Drawing[]>([]);
-  const [stats, setStats] = useState<Stats | null>(null);
+  const [search, setSearch] = useState("");
+  const [deletingKey, setDeletingKey] = useState<string | null>(null);
+  const kiosk = useKiosk();
+  const { data } = useShopData();
+  const inProduction = useMemo(() => (data ? productionRows(buildInstanceRows(data)) : []), [data]);
+  const drawingUsage = useMemo(() => {
+    const map = new Map<string, typeof inProduction>();
+    for (const r of inProduction) {
+      const key = `${r.definition.onshapePartNumber}\u0000${r.definition.revision}`;
+      map.set(key, [...(map.get(key) ?? []), r]);
+    }
+    return map;
+  }, [inProduction]);
+  const usageOfDrawing = (d: Drawing) =>
+    drawingUsage.get(`${d.partNumber}\u0000${d.revision}`) ?? [];
+
+  async function handleDeleteDrawing(drawing: Drawing) {
+    if (
+      !confirmDelete(
+        `the drawing for ${drawing.partNumber} Rev ${drawing.revision}`,
+        usageOfDrawing(drawing),
+      )
+    ) {
+      return;
+    }
+    setDeletingKey(drawing.r2Key);
+    try {
+      await deleteDrawing(drawing.partNumber, drawing.revision);
+      setDrawings((prev) => prev.filter((d) => d.r2Key !== drawing.r2Key));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete drawing");
+    } finally {
+      setDeletingKey(null);
+    }
+  }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [printingId, setPrintingId] = useState<number | null>(null);
@@ -44,9 +77,8 @@ export function FilesPage() {
         setError(await getErrorMessage(res as unknown as Response));
         return;
       }
-      const data = (await res.json()) as { drawings: Drawing[]; stats: Stats };
+      const data = (await res.json()) as { drawings: Drawing[] };
       setDrawings(data.drawings);
-      setStats(data.stats);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load drawings");
     } finally {
@@ -129,29 +161,20 @@ export function FilesPage() {
     }
   }
 
+  const visibleDrawings = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const sorted = [...drawings].sort(
+      (a, b) => a.partNumber.localeCompare(b.partNumber) || a.revision.localeCompare(b.revision),
+    );
+    if (!q) return sorted;
+    return sorted.filter(
+      (d) => d.filename.toLowerCase().includes(q) || d.partNumber.toLowerCase().includes(q),
+    );
+  }, [drawings, search]);
+
   if (loading) return <PageLoading />;
 
-  const groupedByPart = new Map<string, Drawing[]>();
-  for (const drawing of drawings) {
-    if (!groupedByPart.has(drawing.partNumber)) {
-      groupedByPart.set(drawing.partNumber, []);
-    }
-    groupedByPart.get(drawing.partNumber)?.push(drawing);
-  }
-
-  const sortedParts = Array.from(groupedByPart.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-
-  const formatBytes = (bytes: number) => {
-    if (bytes === 0) return "0 B";
-    const k = 1024;
-    const sizes = ["B", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${Math.round((bytes / k ** i) * 100) / 100} ${sizes[i]}`;
-  };
-
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp * 1000).toLocaleDateString();
-  };
+  const totalSize = drawings.reduce((sum, d) => sum + (d.fileSize || 0), 0);
 
   return (
     <main className="min-h-screen bg-mist">
@@ -172,84 +195,79 @@ export function FilesPage() {
 
         {error && <ErrorBanner message={error} />}
 
-        <PartFilesSection />
+        <PartFilesSection data={data} inProduction={inProduction} />
 
-        <h2 className="font-display text-2xl text-ink pt-4">Drawings</h2>
-
-        {stats && (
-          <div className="grid grid-cols-3 gap-4">
-            <div className="bg-paper border border-steel/30 rounded-lg p-6">
-              <div className="text-sm text-steel-dark mb-2">Total Drawings</div>
-              <div className="text-3xl font-semibold text-ink">{stats.totalDrawings}</div>
-            </div>
-            <div className="bg-paper border border-steel/30 rounded-lg p-6">
-              <div className="text-sm text-steel-dark mb-2">Total Storage</div>
-              <div className="text-3xl font-semibold text-ink">{formatBytes(stats.totalSize)}</div>
-            </div>
-            <div className="bg-paper border border-steel/30 rounded-lg p-6">
-              <div className="text-sm text-steel-dark mb-2">Unique Parts</div>
-              <div className="text-3xl font-semibold text-ink">{stats.uniqueParts}</div>
-            </div>
+        <section className="space-y-3 pt-4">
+          <div>
+            <h2 className="font-display text-2xl text-ink">Drawings</h2>
+            <p className="text-xs text-steel">
+              {drawings.length} drawing{drawings.length === 1 ? "" : "s"} · {formatBytes(totalSize)}
+            </p>
           </div>
-        )}
 
-        <div className="space-y-4">
-          {sortedParts.map(([partNumber, partDrawings]) => (
-            <div
-              key={partNumber}
-              className="bg-paper border border-steel/30 rounded-lg overflow-hidden"
-            >
-              <div className="bg-mist border-b border-steel/25 px-6 py-4">
-                <h2 className="font-semibold text-ink">{partNumber}</h2>
-                <p className="text-xs text-steel mt-1">
-                  {partDrawings.length} file{partDrawings.length !== 1 ? "s" : ""} •{" "}
-                  {formatBytes(partDrawings.reduce((sum, d) => sum + (d.fileSize || 0), 0))}
-                </p>
-              </div>
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by filename or part number…"
+            className="w-full bg-paper border border-steel/40 rounded-lg px-3 py-2 text-sm text-ink placeholder-steel focus:outline-none focus:border-crimson"
+          />
 
-              <div className="divide-y divide-steel/25">
-                {partDrawings.map((drawing) => (
-                  <div
-                    key={drawing.id}
-                    className="px-6 py-4 flex items-center justify-between hover:bg-mist transition-colors"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-ink truncate">{drawing.filename}</p>
-                      <p className="text-xs text-steel mt-1">
-                        {formatBytes(drawing.fileSize || 0)} • {formatDate(drawing.createdAt)} •{" "}
-                        {drawing.uploadedBy || "unknown"}
-                      </p>
-                    </div>
-
-                    <div className="ml-4 flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handlePrint(drawing)}
-                        disabled={printingId === drawing.id}
-                        className="px-3 py-1.5 text-xs font-medium bg-crimson text-paper hover:bg-crimson-dark disabled:bg-steel/30 disabled:cursor-not-allowed rounded transition-colors"
-                      >
-                        {printingId === drawing.id ? "Printing…" : "Print"}
-                      </button>
-                      <a
-                        href={`${import.meta.env.VITE_API_BASE_URL ?? ""}/parts/${drawing.partNumber}/${drawing.revision}/drawing`}
-                        download={drawing.filename}
-                        className="px-3 py-1.5 text-xs font-medium border border-steel/40 text-steel hover:text-ink rounded transition-colors"
-                      >
-                        Download
-                      </a>
-                    </div>
+          {visibleDrawings.length === 0 ? (
+            <div className="bg-paper border border-steel/30 rounded-lg p-6 text-center">
+              <p className="text-steel text-sm">
+                {drawings.length === 0
+                  ? "No drawings stored yet."
+                  : "No drawings match your search."}
+              </p>
+            </div>
+          ) : (
+            <ul className="bg-paper border border-steel/30 rounded-lg divide-y divide-steel/20">
+              {visibleDrawings.map((drawing) => (
+                <li key={drawing.r2Key} className="px-4 py-3 flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-ink truncate" title={drawing.filename}>
+                      {drawing.filename}
+                    </p>
+                    <p className="text-xs text-steel">
+                      <span className="font-mono text-steel-dark">
+                        {drawing.partNumber} · Rev {drawing.revision}
+                      </span>{" "}
+                      · {formatBytes(drawing.fileSize || 0)} ·{" "}
+                      {new Date(drawing.createdAt * 1000).toLocaleDateString()}
+                    </p>
                   </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {drawings.length === 0 && (
-          <div className="bg-paper border border-steel/30 rounded-lg p-8 text-center">
-            <p className="text-steel">No drawings stored yet.</p>
-          </div>
-        )}
+                  <InProductionBadge rows={usageOfDrawing(drawing)} />
+                  <button
+                    type="button"
+                    onClick={() => handlePrint(drawing)}
+                    disabled={printingId === drawing.id}
+                    className="px-2.5 py-1 text-xs font-medium bg-crimson text-paper hover:bg-crimson-dark disabled:bg-steel/30 disabled:cursor-not-allowed rounded transition-colors shrink-0"
+                  >
+                    {printingId === drawing.id ? "Printing…" : "Print"}
+                  </button>
+                  <a
+                    href={`${import.meta.env.VITE_API_BASE_URL ?? ""}/parts/${drawing.partNumber}/${drawing.revision}/drawing`}
+                    download={drawing.filename}
+                    className="px-2.5 py-1 text-xs font-medium border border-steel/40 text-steel hover:text-ink rounded transition-colors shrink-0"
+                  >
+                    Download
+                  </a>
+                  {!kiosk.active && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteDrawing(drawing)}
+                      disabled={deletingKey === drawing.r2Key}
+                      className="px-2.5 py-1 text-xs font-medium border border-crimson/40 text-crimson hover:bg-crimson-tint rounded transition-colors disabled:opacity-50 shrink-0"
+                    >
+                      {deletingKey === drawing.r2Key ? "Deleting…" : "Delete"}
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       </div>
     </main>
   );
