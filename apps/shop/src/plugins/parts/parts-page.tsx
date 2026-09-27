@@ -14,7 +14,7 @@ import { useShopData } from "../../shared/use-shop-data";
 import { useTouchDevice } from "../../shared/use-touch";
 import { PartCard } from "./part-card";
 
-type SortKey = "newest" | "oldest" | "alpha" | "alpha-rev" | "number" | "number-rev" | "revision" | "revision-rev" | "instance" | "instance-rev" | "process" | "process-rev" | "priority" | "status" | "subsystem";
+type SortKey = "newest" | "oldest" | "alpha" | "alpha-rev" | "number" | "number-rev" | "revision" | "revision-rev" | "instance" | "instance-rev" | "process" | "process-rev" | "progress" | "progress-rev" | "priority" | "status" | "subsystem";
 
 /** Sorts that order whole blueprints — instances stay grouped with a connector line. */
 const GROUPED_SORTS: SortKey[] = ["newest", "oldest", "alpha", "priority", "subsystem"];
@@ -304,6 +304,22 @@ function PartsTable({
         const bn = a.current ? processName(a.current.processId) : "￿";
         return an.localeCompare(bn);
       });
+    } else if (sort === "progress") {
+      flat.sort((a, b) => {
+        const aProcs = a.procs ?? [];
+        const bProcs = b.procs ?? [];
+        const aPercent = aProcs.length > 0 ? ((aProcs.filter((p) => p.status === "done").length + aProcs.filter((p) => p.status === "doing").length * 0.5) / aProcs.length) * 100 : -1;
+        const bPercent = bProcs.length > 0 ? ((bProcs.filter((p) => p.status === "done").length + bProcs.filter((p) => p.status === "doing").length * 0.5) / bProcs.length) * 100 : -1;
+        return bPercent - aPercent;
+      });
+    } else if (sort === "progress-rev") {
+      flat.sort((a, b) => {
+        const aProcs = a.procs ?? [];
+        const bProcs = b.procs ?? [];
+        const aPercent = aProcs.length > 0 ? ((aProcs.filter((p) => p.status === "done").length + aProcs.filter((p) => p.status === "doing").length * 0.5) / aProcs.length) * 100 : -1;
+        const bPercent = bProcs.length > 0 ? ((bProcs.filter((p) => p.status === "done").length + bProcs.filter((p) => p.status === "doing").length * 0.5) / bProcs.length) * 100 : -1;
+        return aPercent - bPercent;
+      });
     } else if (sort === "priority" || sort === "subsystem" || !GROUPED_SORTS.includes(sort)) {
       // For non-column sorts, still use grouped sorting
       const byDef = new Map<number, InstanceRow[]>();
@@ -349,9 +365,13 @@ function PartsTable({
 
     const byDef = new Map<number, InstanceRow[]>();
     for (const r of filtered) {
-      const list = byDef.get(r.definition.id);
-      if (list) list.push(r);
-      else byDef.set(r.definition.id, [r]);
+      // biome-ignore lint/correctness/useExhaustiveDependencies: existing is checked in if
+      const existing = byDef.get(r.definition.id);
+      if (existing) {
+        existing.push(r);
+      } else {
+        byDef.set(r.definition.id, [r]);
+      }
     }
     const grouped = [...byDef.values()];
     for (const g of grouped)
@@ -561,7 +581,13 @@ function PartsTable({
           >
             Proc {sort === "process" ? "↓" : sort === "process-rev" ? "↑" : ""}
           </button>
-          <span className="w-20 shrink-0 text-center">Progress</span>
+          <button
+            type="button"
+            onClick={() => setSort(sort === "progress" ? "progress-rev" : "progress")}
+            className="w-20 shrink-0 text-center hover:text-ink transition-colors cursor-pointer"
+          >
+            Progress {sort === "progress" ? "↓" : sort === "progress-rev" ? "↑" : ""}
+          </button>
         </div>
 
         {groups.length === 0 && (
