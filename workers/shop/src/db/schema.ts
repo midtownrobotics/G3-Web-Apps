@@ -19,6 +19,9 @@ export const partDefinitions = sqliteTable("part_definitions", {
   partDrawingUrl: text("part_drawing_url"),
   isObsolete: integer("is_obsolete").notNull().default(0),
   createdAt: integer("created_at").notNull(),
+  // Free text (e.g. "4140", "0.25\""); required when a process in the blueprint asks for it.
+  material: text("material"),
+  thickness: text("thickness"),
 });
 
 export const partInstances = sqliteTable(
@@ -36,9 +39,15 @@ export const partInstances = sqliteTable(
   (t) => [unique().on(t.partDefinitionId, t.instanceNumber)],
 );
 
+export const PROCESS_TYPES = ["regular", "file_producer", "file_consumer"] as const;
+export type ProcessType = (typeof PROCESS_TYPES)[number];
+
 export const processes = sqliteTable("processes", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull(),
+  type: text("type", { enum: PROCESS_TYPES }).notNull().default("regular"),
+  // Parts using this process must record material + thickness at ingest.
+  requiresPartInfo: integer("requires_part_info").notNull().default(0),
   createdAt: integer("created_at").notNull(),
 });
 
@@ -74,6 +83,8 @@ export const partInstanceProcesses = sqliteTable(
       .default("waiting"),
     completedAt: integer("completed_at"),
     createdAt: integer("created_at").notNull(),
+    // Set while (and after) this step is produced as part of a File Producer staging batch.
+    batchId: integer("batch_id").references(() => stagingBatches.id, { onDelete: "set null" }),
   },
   (t) => [unique().on(t.partInstanceId, t.index)],
 );
@@ -135,6 +146,41 @@ export const drawings = sqliteTable("drawings", {
   fileSize: integer("file_size"),
   uploadedBy: text("uploaded_by"),
   createdAt: integer("created_at").notNull(),
+});
+
+export const files = sqliteTable("files", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  filename: text("filename").notNull(),
+  r2Key: text("r2_key").notNull().unique(),
+  contentType: text("content_type").notNull(),
+  fileSize: integer("file_size").notNull(),
+  uploadedBy: text("uploaded_by").notNull(),
+  createdAt: integer("created_at").notNull(),
+});
+
+// One file per instance at most; a file can cover many instances across parts.
+export const partInstanceFiles = sqliteTable("part_instance_files", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  fileId: integer("file_id")
+    .notNull()
+    .references(() => files.id, { onDelete: "cascade" }),
+  partInstanceId: integer("part_instance_id")
+    .notNull()
+    .unique()
+    .references(() => partInstances.id, { onDelete: "cascade" }),
+  assignedBy: text("assigned_by").notNull(),
+  createdAt: integer("created_at").notNull(),
+});
+
+export const stagingBatches = sqliteTable("staging_batches", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  processId: integer("process_id")
+    .notNull()
+    .references(() => processes.id),
+  fileId: integer("file_id").references(() => files.id, { onDelete: "set null" }),
+  createdBy: text("created_by").notNull(),
+  createdAt: integer("created_at").notNull(),
+  closedAt: integer("closed_at"),
 });
 
 export const adminSettings = sqliteTable(

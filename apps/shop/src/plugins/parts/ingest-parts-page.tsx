@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../../shared/api";
 import { getErrorMessage } from "../../shared/api-error";
+import { partInfoRequiredBy } from "../../shared/derive";
 import type { Process, Subsystem } from "../../shared/types";
 import { ErrorBanner, PageLoading } from "../../shared/ui";
 import { useShopData } from "../../shared/use-shop-data";
@@ -36,6 +37,8 @@ type PartForm = {
   partDrawingUrl: string;
   isPriority: boolean;
   processIds: number[];
+  material: string;
+  thickness: string;
 };
 
 type LocalPartData = {
@@ -43,7 +46,10 @@ type LocalPartData = {
   processIds: number[];
   revision?: string;
   name?: string;
-  quantity?: number;
+  /** Undefined = untouched (use the Onshape quantity); null = cleared while typing. */
+  quantity?: number | null;
+  material?: string;
+  thickness?: string;
 };
 
 function DrawingStatusCell({
@@ -305,6 +311,19 @@ export function IngestPartsPage() {
   const [currentIndex, setCurrentIndex] = useState<number | null>(null);
   const [deletingPartNumber, setDeletingPartNumber] = useState<string | null>(null);
   const [localPartData, setLocalPartData] = useState<Record<string, LocalPartData>>({});
+
+  /** Merges edits into one part's local ingest data. */
+  function updateLocal(partNumber: string, patch: Partial<LocalPartData>) {
+    setLocalPartData((prev) => ({
+      ...prev,
+      [partNumber]: {
+        ...prev[partNumber],
+        subsystemId: prev[partNumber]?.subsystemId ?? 0,
+        processIds: prev[partNumber]?.processIds ?? [],
+        ...patch,
+      },
+    }));
+  }
   const [editingProcessPartIdx, setEditingProcessPartIdx] = useState<number | null>(null);
   const [ingestingAll, setIngestingAll] = useState(false);
 
@@ -454,6 +473,9 @@ export function IngestPartsPage() {
                     <th className="px-4 py-3 text-left font-semibold text-steel-dark">Qty</th>
                     <th className="px-4 py-3 text-left font-semibold text-steel-dark">Subsystem</th>
                     <th className="px-4 py-3 text-left font-semibold text-steel-dark">Processes</th>
+                    <th className="px-4 py-3 text-left font-semibold text-steel-dark">
+                      Material / Thickness
+                    </th>
                     <th className="px-4 py-3 text-center font-semibold text-steel-dark">Drawing</th>
                     <th className="px-4 py-3 text-right font-semibold text-steel-dark">Actions</th>
                   </tr>
@@ -478,9 +500,9 @@ export function IngestPartsPage() {
                           type="text"
                           inputMode="numeric"
                           value={
-                            part.partNumber in localPartData
-                              ? (localPartData[part.partNumber]?.quantity ?? "")
-                              : (part.quantity ?? "")
+                            localPartData[part.partNumber]?.quantity === null
+                              ? ""
+                              : (localPartData[part.partNumber]?.quantity ?? part.quantity ?? "")
                           }
                           onChange={(e) => {
                             const val = e.target.value;
@@ -493,7 +515,7 @@ export function IngestPartsPage() {
                                   processIds: localPartData[part.partNumber]?.processIds || [],
                                   revision: localPartData[part.partNumber]?.revision,
                                   name: localPartData[part.partNumber]?.name,
-                                  quantity: val === "" ? undefined : Number(val),
+                                  quantity: val === "" ? null : Number(val),
                                 },
                               });
                             }
@@ -508,7 +530,7 @@ export function IngestPartsPage() {
                                   processIds: localPartData[part.partNumber]?.processIds || [],
                                   revision: localPartData[part.partNumber]?.revision,
                                   name: localPartData[part.partNumber]?.name,
-                                  quantity: 0,
+                                  quantity: 1,
                                 },
                               });
                             }
@@ -599,6 +621,38 @@ export function IngestPartsPage() {
                           />
                         )}
                       </td>
+                      <td className="px-4 py-3 text-steel text-xs">
+                        {data &&
+                        partInfoRequiredBy(
+                          localPartData[part.partNumber]?.processIds ?? [],
+                          data.processes,
+                        ).length > 0 ? (
+                          <div className="flex gap-1.5">
+                            <input
+                              type="text"
+                              value={localPartData[part.partNumber]?.material ?? ""}
+                              onChange={(e) =>
+                                updateLocal(part.partNumber, { material: e.target.value })
+                              }
+                              placeholder="Material"
+                              aria-label={`Material for ${part.partNumber}`}
+                              className="w-24 bg-paper border border-steel/40 rounded px-2 py-1 text-xs text-ink placeholder-steel focus:outline-none focus:border-crimson"
+                            />
+                            <input
+                              type="text"
+                              value={localPartData[part.partNumber]?.thickness ?? ""}
+                              onChange={(e) =>
+                                updateLocal(part.partNumber, { thickness: e.target.value })
+                              }
+                              placeholder='0.25"'
+                              aria-label={`Thickness for ${part.partNumber}`}
+                              className="w-16 bg-paper border border-steel/40 rounded px-2 py-1 text-xs text-ink placeholder-steel focus:outline-none focus:border-crimson"
+                            />
+                          </div>
+                        ) : (
+                          <span className="text-steel/60">—</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-steel text-center">
                         <DrawingStatusCell part={part} localPartData={localPartData} />
                       </td>
@@ -636,7 +690,11 @@ export function IngestPartsPage() {
                     const partData = localPartData[p.partNumber];
                     const revision = partData?.revision ?? p.revision;
                     const name = partData?.name ?? p.name;
-                    return partData?.subsystemId && revision && name;
+                    const infoOk =
+                      !data ||
+                      partInfoRequiredBy(partData?.processIds ?? [], data.processes).length === 0 ||
+                      (!!partData?.material?.trim() && !!partData?.thickness?.trim());
+                    return partData?.subsystemId && revision && name && infoOk;
                   })
                 }
                 onClick={async () => {
@@ -658,6 +716,8 @@ export function IngestPartsPage() {
                           notes: part.description || undefined,
                           partDrawingUrl: "",
                           processIds: partData.processIds || [],
+                          material: partData.material?.trim() || undefined,
+                          thickness: partData.thickness?.trim() || undefined,
                         },
                       });
 
@@ -774,12 +834,7 @@ export function IngestPartsPage() {
             subsystems={pendingData.subsystems}
             processes={data.processes}
             localPartData={localPartData[currentPart.partNumber]}
-            onUpdateLocalPartData={(partData) => {
-              setLocalPartData({
-                ...localPartData,
-                [currentPart.partNumber]: partData,
-              });
-            }}
+            onUpdateLocalPartData={(partData) => updateLocal(currentPart.partNumber, partData)}
             onRemoveFromLocal={() => {
               const newLocalData = { ...localPartData };
               delete newLocalData[currentPart.partNumber];
@@ -818,7 +873,7 @@ function PartIngestCard({
   subsystems: Subsystem[];
   processes: Process[];
   localPartData?: LocalPartData;
-  onUpdateLocalPartData: (partData: LocalPartData) => void;
+  onUpdateLocalPartData: (partData: Partial<LocalPartData>) => void;
   onRemoveFromLocal: () => void;
   onNext: () => void;
   onRefresh: () => void;
@@ -835,7 +890,10 @@ function PartIngestCard({
     partDrawingUrl: "",
     isPriority: false,
     processIds: localPartData?.processIds ?? [],
+    material: localPartData?.material ?? "",
+    thickness: localPartData?.thickness ?? "",
   });
+  const infoRequiredBy = partInfoRequiredBy(form.processIds, processes);
   const [quantityInput, setQuantityInput] = useState<string>(
     String(localPartData?.quantity ?? part.quantity ?? 1),
   );
@@ -1001,6 +1059,10 @@ function PartIngestCard({
       setFormError("Quantity must be a whole number of at least 1.");
       return;
     }
+    if (infoRequiredBy.length > 0 && (!form.material.trim() || !form.thickness.trim())) {
+      setFormError(`Material and thickness are required for ${infoRequiredBy.join(", ")}.`);
+      return;
+    }
 
     // Check for existing parts with same number
     const revisions = await checkForDuplicates();
@@ -1027,6 +1089,8 @@ function PartIngestCard({
         partDrawingUrl: form.partDrawingUrl.trim() || undefined,
         processIds: form.processIds,
         obsoleteExisting: obsolete,
+        material: form.material.trim() || undefined,
+        thickness: form.thickness.trim() || undefined,
       };
 
       const defRes = await api["part-definitions"].$post({
@@ -1220,6 +1284,31 @@ function PartIngestCard({
           onChange={(v) => setForm({ ...form, notes: v })}
           placeholder="Optional"
         />
+        {infoRequiredBy.length > 0 && (
+          <>
+            <Field
+              label="Material"
+              required
+              value={form.material}
+              onChange={(v) => {
+                setForm({ ...form, material: v });
+                onUpdateLocalPartData({ material: v });
+              }}
+              placeholder="e.g. 4140"
+              hint={`Required by ${infoRequiredBy.join(", ")}`}
+            />
+            <Field
+              label="Thickness"
+              required
+              value={form.thickness}
+              onChange={(v) => {
+                setForm({ ...form, thickness: v });
+                onUpdateLocalPartData({ thickness: v });
+              }}
+              placeholder='e.g. 0.25"'
+            />
+          </>
+        )}
         <div className="sm:col-span-2 space-y-1">
           <div className="flex items-center justify-between">
             <FieldLabel label="Part Drawing URL" />

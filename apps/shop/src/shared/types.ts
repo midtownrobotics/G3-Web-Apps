@@ -4,9 +4,20 @@ export type Subsystem = {
   createdAt: number;
 };
 
+export type ProcessType = "regular" | "file_producer" | "file_consumer";
+
+export const PROCESS_TYPE_LABELS: Record<ProcessType, string> = {
+  regular: "Regular",
+  file_producer: "File Producer",
+  file_consumer: "File Consumer",
+};
+
 export type Process = {
   id: number;
   name: string;
+  type: ProcessType;
+  /** 1 when parts using this process must record material + thickness at ingest. */
+  requiresPartInfo: number;
   createdAt: number;
 };
 
@@ -21,6 +32,8 @@ export type PartDefinition = {
   partDrawingUrl: string | null;
   isObsolete: number;
   createdAt: number;
+  material: string | null;
+  thickness: string | null;
 };
 
 export type PartInstance = {
@@ -69,4 +82,32 @@ export type PartInstanceProcess = {
   status: ProcessStatus;
   completedAt: number | null;
   createdAt: number;
+  batchId: number | null;
+};
+
+/** An open staging batch at a File Producer process and the instances staged in it. */
+export type StagingBatch = {
+  id: number;
+  processId: number;
+  fileId: number | null;
+  createdBy: string;
+  createdAt: number;
+  partInstanceIds: number[];
+};
+
+export type FileAssignment = {
+  partInstanceId: number;
+  partDefinitionId: number;
+  instanceNumber: number;
+};
+
+/** A stored file and the instances it covers (possibly none, across any parts). */
+export type PartFile = {
+  id: number;
+  filename: string;
+  contentType: string;
+  fileSize: number;
+  uploadedBy: string;
+  createdAt: number;
+  assignments: FileAssignment[];
 };

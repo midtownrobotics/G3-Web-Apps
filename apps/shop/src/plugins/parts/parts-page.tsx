@@ -14,18 +14,27 @@ import { useShopData } from "../../shared/use-shop-data";
 import { useTouchDevice } from "../../shared/use-touch";
 import { PartCard } from "./part-card";
 
-type SortKey = "newest" | "oldest" | "alpha" | "priority" | "process" | "status" | "subsystem";
+type SortKey =
+  | "newest"
+  | "oldest"
+  | "alpha"
+  | "alpha-rev"
+  | "number"
+  | "number-rev"
+  | "revision"
+  | "revision-rev"
+  | "instance"
+  | "instance-rev"
+  | "process"
+  | "process-rev"
+  | "progress"
+  | "progress-rev"
+  | "priority"
+  | "status"
+  | "subsystem";
 
 /** Sorts that order whole blueprints — instances stay grouped with a connector line. */
 const GROUPED_SORTS: SortKey[] = ["newest", "oldest", "alpha", "priority", "subsystem"];
-
-const STATE_ORDER: Record<InstanceState, number> = {
-  doing: 0,
-  todo: 1,
-  waiting: 2,
-  "no-processes": 3,
-  complete: 4,
-};
 
 type Filters = {
   priority: "all" | "priority" | "standard";
@@ -274,43 +283,94 @@ function PartsTable({
   // ── Sort + group ────────────────────────────────────────────────────────
   // biome-ignore lint/correctness/useExhaustiveDependencies: processName/subsystemName derive from data, which filtered already depends on
   const groups = useMemo(() => {
-    if (!GROUPED_SORTS.includes(sort)) {
-      const flat = [...filtered];
-      if (sort === "process") {
-        flat.sort((a, b) => {
-          const an = a.current ? processName(a.current.processId) : "￿";
-          const bn = b.current ? processName(b.current.processId) : "￿";
-          return an.localeCompare(bn) || a.definition.name.localeCompare(b.definition.name);
-        });
-      } else {
-        flat.sort(
-          (a, b) =>
-            STATE_ORDER[a.state] - STATE_ORDER[b.state] ||
-            a.definition.name.localeCompare(b.definition.name),
-        );
+    const flat = [...filtered];
+
+    if (sort === "alpha") {
+      flat.sort((a, b) => a.definition.name.localeCompare(b.definition.name));
+    } else if (sort === "alpha-rev") {
+      flat.sort((a, b) => b.definition.name.localeCompare(a.definition.name));
+    } else if (sort === "number") {
+      flat.sort((a, b) =>
+        a.definition.onshapePartNumber.localeCompare(b.definition.onshapePartNumber),
+      );
+    } else if (sort === "number-rev") {
+      flat.sort((a, b) =>
+        b.definition.onshapePartNumber.localeCompare(a.definition.onshapePartNumber),
+      );
+    } else if (sort === "revision") {
+      flat.sort((a, b) => a.definition.revision.localeCompare(b.definition.revision));
+    } else if (sort === "revision-rev") {
+      flat.sort((a, b) => b.definition.revision.localeCompare(a.definition.revision));
+    } else if (sort === "instance") {
+      flat.sort((a, b) => a.instance.instanceNumber - b.instance.instanceNumber);
+    } else if (sort === "instance-rev") {
+      flat.sort((a, b) => b.instance.instanceNumber - a.instance.instanceNumber);
+    } else if (sort === "process") {
+      flat.sort((a, b) => {
+        const an = a.current ? processName(a.current.processId) : "￿";
+        const bn = b.current ? processName(b.current.processId) : "￿";
+        return an.localeCompare(bn);
+      });
+    } else if (sort === "process-rev") {
+      flat.sort((a, b) => {
+        const an = b.current ? processName(b.current.processId) : "￿";
+        const bn = a.current ? processName(a.current.processId) : "￿";
+        return an.localeCompare(bn);
+      });
+    } else if (sort === "progress") {
+      flat.sort((a, b) => {
+        const aProcs = a.procs ?? [];
+        const bProcs = b.procs ?? [];
+        const aPercent =
+          aProcs.length > 0
+            ? ((aProcs.filter((p) => p.status === "done").length +
+                aProcs.filter((p) => p.status === "doing").length * 0.5) /
+                aProcs.length) *
+              100
+            : -1;
+        const bPercent =
+          bProcs.length > 0
+            ? ((bProcs.filter((p) => p.status === "done").length +
+                bProcs.filter((p) => p.status === "doing").length * 0.5) /
+                bProcs.length) *
+              100
+            : -1;
+        return bPercent - aPercent;
+      });
+    } else if (sort === "progress-rev") {
+      flat.sort((a, b) => {
+        const aProcs = a.procs ?? [];
+        const bProcs = b.procs ?? [];
+        const aPercent =
+          aProcs.length > 0
+            ? ((aProcs.filter((p) => p.status === "done").length +
+                aProcs.filter((p) => p.status === "doing").length * 0.5) /
+                aProcs.length) *
+              100
+            : -1;
+        const bPercent =
+          bProcs.length > 0
+            ? ((bProcs.filter((p) => p.status === "done").length +
+                bProcs.filter((p) => p.status === "doing").length * 0.5) /
+                bProcs.length) *
+              100
+            : -1;
+        return aPercent - bPercent;
+      });
+    } else if (sort === "priority" || sort === "subsystem" || !GROUPED_SORTS.includes(sort)) {
+      // For non-column sorts, still use grouped sorting
+      const byDef = new Map<number, InstanceRow[]>();
+      for (const r of flat) {
+        const list = byDef.get(r.definition.id);
+        if (list) list.push(r);
+        else byDef.set(r.definition.id, [r]);
       }
-      return flat.map((r) => [r]);
-    }
+      const grouped = [...byDef.values()];
+      for (const g of grouped)
+        g.sort((a, b) => a.instance.instanceNumber - b.instance.instanceNumber);
 
-    const byDef = new Map<number, InstanceRow[]>();
-    for (const r of filtered) {
-      const list = byDef.get(r.definition.id);
-      if (list) list.push(r);
-      else byDef.set(r.definition.id, [r]);
-    }
-    const grouped = [...byDef.values()];
-    for (const g of grouped)
-      g.sort((a, b) => a.instance.instanceNumber - b.instance.instanceNumber);
-
-    const def = (g: InstanceRow[]) => g[0].definition;
-    switch (sort) {
-      case "oldest":
-        grouped.sort((a, b) => def(a).createdAt - def(b).createdAt);
-        break;
-      case "alpha":
-        grouped.sort((a, b) => def(a).name.localeCompare(def(b).name));
-        break;
-      case "priority":
+      const def = (g: InstanceRow[]) => g[0].definition;
+      if (sort === "priority") {
         for (const g of grouped)
           g.sort(
             (a, b) =>
@@ -323,18 +383,22 @@ function PartsTable({
               Math.max(...a.map((r) => r.instance.isPriority)) ||
             def(b).createdAt - def(a).createdAt,
         );
-        break;
-      case "subsystem":
+      } else if (sort === "subsystem") {
         grouped.sort(
           (a, b) =>
             subsystemName(def(a).subsystemId).localeCompare(subsystemName(def(b).subsystemId)) ||
             def(a).name.localeCompare(def(b).name),
         );
-        break;
-      default: // newest
+      } else if (sort === "oldest") {
+        grouped.sort((a, b) => def(a).createdAt - def(b).createdAt);
+      } else {
+        // newest, status, default
         grouped.sort((a, b) => def(b).createdAt - def(a).createdAt);
+      }
+      return grouped;
     }
-    return grouped;
+
+    return flat.map((r) => [r]);
   }, [filtered, sort]);
 
   const activeFilterCount =
@@ -471,12 +535,48 @@ function PartsTable({
       <div className="bg-paper border border-steel/30 rounded-xl overflow-hidden">
         <div className="flex items-center gap-3 px-3 py-2 border-b border-steel/25 bg-mist text-xs font-semibold uppercase tracking-wider text-steel">
           <span className="w-3.5 shrink-0" />
-          <span className="flex-1 min-w-0 text-center">Part</span>
-          <span className="w-44 shrink-0 hidden sm:block text-center">Number</span>
-          <span className="w-12 shrink-0 hidden sm:block text-center">Rev</span>
-          <span className="w-16 shrink-0 hidden sm:block text-center">Instance</span>
-          <span className="w-40 shrink-0 hidden md:block text-center">Process</span>
-          <span className="w-20 shrink-0 text-center">Progress</span>
+          <button
+            type="button"
+            onClick={() => setSort(sort === "alpha" ? "alpha-rev" : "alpha")}
+            className="flex-1 min-w-0 text-left hover:text-ink transition-colors cursor-pointer"
+          >
+            Part {sort === "alpha" ? "↓" : sort === "alpha-rev" ? "↑" : ""}
+          </button>
+          <button
+            type="button"
+            onClick={() => setSort(sort === "number" ? "number-rev" : "number")}
+            className="w-44 shrink-0 hidden sm:block text-left hover:text-ink transition-colors cursor-pointer"
+          >
+            Number {sort === "number" ? "↓" : sort === "number-rev" ? "↑" : ""}
+          </button>
+          <button
+            type="button"
+            onClick={() => setSort(sort === "revision" ? "revision-rev" : "revision")}
+            className="w-12 shrink-0 hidden sm:block text-center hover:text-ink transition-colors cursor-pointer"
+          >
+            Rev {sort === "revision" ? "↓" : sort === "revision-rev" ? "↑" : ""}
+          </button>
+          <button
+            type="button"
+            onClick={() => setSort(sort === "instance" ? "instance-rev" : "instance")}
+            className="w-16 shrink-0 hidden sm:block text-center hover:text-ink transition-colors cursor-pointer"
+          >
+            Inst {sort === "instance" ? "↓" : sort === "instance-rev" ? "↑" : ""}
+          </button>
+          <button
+            type="button"
+            onClick={() => setSort(sort === "process" ? "process-rev" : "process")}
+            className="w-40 shrink-0 hidden md:block text-center hover:text-ink transition-colors cursor-pointer"
+          >
+            Proc {sort === "process" ? "↓" : sort === "process-rev" ? "↑" : ""}
+          </button>
+          <button
+            type="button"
+            onClick={() => setSort(sort === "progress" ? "progress-rev" : "progress")}
+            className="w-20 shrink-0 text-center hover:text-ink transition-colors cursor-pointer"
+          >
+            Progress {sort === "progress" ? "↓" : sort === "progress-rev" ? "↑" : ""}
+          </button>
         </div>
 
         {groups.length === 0 && (

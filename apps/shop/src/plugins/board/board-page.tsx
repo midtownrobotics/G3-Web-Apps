@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, matchPath, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../../shared/api";
 import { getErrorMessage } from "../../shared/api-error";
 import {
@@ -13,14 +13,17 @@ import {
 } from "../../shared/derive";
 import { fetchKioskPresence } from "../../shared/getters";
 import { processPath } from "../../shared/nav";
-import type { KioskPresence } from "../../shared/types";
+import type { KioskPresence, PartDefinition, ProcessType } from "../../shared/types";
 import { ErrorBanner, PageLoading } from "../../shared/ui";
 import { useKiosk } from "../../shared/use-auth";
 import { useShopData } from "../../shared/use-shop-data";
 import { useTouchDevice } from "../../shared/use-touch";
 import { useUserNames } from "../../shared/use-user-names";
 import { PartCard } from "../parts/part-card";
+import { ConsumerSections } from "./consumer-process-view";
+import { PartDetailsView } from "./part-details-view";
 import { PartWorkView } from "./part-work-view";
+import { ProducerSections } from "./producer-process-view";
 import { ScanDialog } from "./scan-dialog";
 
 const MOOD_TONES: Record<ShopMood["tone"], string> = {
@@ -36,24 +39,30 @@ const LOAD_STYLES = {
   high: "bg-crimson-tint border-crimson/40",
 };
 
-// Auto-open the kiosk's machine only once per app load, so the overview stays reachable.
-let kioskAutoOpened = false;
-
 export function BoardPage() {
   const { data, loading, error, refresh } = useShopData();
   const navigate = useNavigate();
-  const params = useParams();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const kiosk = useKiosk();
   // Kiosks are tablets — always use the finger-friendly layout there.
   const touch = useTouchDevice() || kiosk.active;
 
-  // The active view comes from the URL: /board = overview, /board/process/:id.
-  const view: number | "overview" = params.processId ? Number(params.processId) : "overview";
+  // A kiosk named after a machine is locked to that machine's queue.
+  const kioskMachine =
+    kiosk.active && data ? matchMachineProcess(data.processes, kiosk.machineName) : null;
+  // Parsed from the pathname, not useParams: kiosk mode renders no <Routes>.
+  const urlProcessId = matchPath("/board/process/:processId", location.pathname)?.params.processId;
+  const view: number | "overview" = kioskMachine
+    ? kioskMachine.id
+    : urlProcessId
+      ? Number(urlProcessId)
+      : "overview";
 
   const [banner, setBanner] = useState<string | null>(null);
   const [selectedInstanceId, setSelectedInstanceId] = useState<number | null>(null);
   const [workingPartInstanceId, setWorkingPartInstanceId] = useState<number | null>(null);
+  const [viewingPartInstanceId, setViewingPartInstanceId] = useState<number | null>(null);
   const [presence, setPresence] = useState<KioskPresence[]>([]);
   const [scanOpen, setScanOpen] = useState(false);
 
@@ -73,14 +82,6 @@ export function BoardPage() {
       setSelectedInstanceId(Number(instanceParam));
     }
   }, [searchParams]);
-
-  // A kiosk named after a machine opens straight to that machine's queue.
-  useEffect(() => {
-    if (!kiosk.active || kioskAutoOpened || !data || params.processId) return;
-    const machine = matchMachineProcess(data.processes, kiosk.machineName);
-    kioskAutoOpened = true;
-    if (machine) navigate(processPath(machine.id), { replace: true });
-  }, [kiosk.active, kiosk.machineName, data, params.processId, navigate]);
 
   // Who is logged in at each kiosk, refreshed alongside the heartbeat cadence.
   useEffect(() => {
@@ -134,7 +135,7 @@ export function BoardPage() {
   return (
     <main className="min-h-screen bg-mist">
       <div className="max-w-5xl mx-auto px-6 py-8 space-y-5">
-        {view !== "overview" && !kiosk.active && (
+        {view !== "overview" && !kioskMachine && (
           <Link
             to="/board"
             className={`inline-flex items-center gap-1.5 text-sm text-steel hover:text-ink transition-colors ${
@@ -146,10 +147,8 @@ export function BoardPage() {
         )}
 
         <div className="flex items-start justify-between gap-4">
-          {kiosk.active ? (
-            <h1 className="font-display text-4xl text-ink">
-              {view === "overview" ? "Shop Floor" : processName(view)}
-            </h1>
+          {kioskMachine ? (
+            <h1 className="font-display text-4xl text-ink">{kioskMachine.name}</h1>
           ) : (
             <select
               value={view === "overview" ? "overview" : String(view)}
@@ -183,7 +182,7 @@ export function BoardPage() {
         {error && <ErrorBanner message={error} />}
         {banner && <ErrorBanner message={banner} />}
 
-        {view === "overview" ? (
+        {view === "overview" && data ? (
           <OverviewView
             rows={rows}
             loads={loads}
@@ -191,16 +190,20 @@ export function BoardPage() {
             touch={touch}
             navigate={navigate}
             presence={presence}
-            kiosk={kiosk}
           />
         ) : (
           <ProcessView
-            processId={view}
+            processId={view as number}
             rows={rows}
             processName={processName}
             onAdvance={advance}
             touch={touch}
             onOpenWorkView={setWorkingPartInstanceId}
+            onViewPart={setViewingPartInstanceId}
+            processType={data?.processes.find((p) => p.id === view)?.type ?? "regular"}
+            requiresPartInfo={!!data?.processes.find((p) => p.id === view)?.requiresPartInfo}
+            definitions={data?.definitions ?? []}
+            onChanged={refresh}
           />
         )}
       </div>
@@ -237,6 +240,24 @@ export function BoardPage() {
           ) : null;
         })()}
 
+      {viewingPartInstanceId &&
+        data &&
+        (() => {
+          const viewingRow = rows.find((r) => r.instance.id === viewingPartInstanceId);
+          return viewingRow ? (
+            <PartDetailsView
+              row={viewingRow}
+              data={data}
+              onClose={() => setViewingPartInstanceId(null)}
+              onStartPart={async () => {
+                if (viewingRow.current) {
+                  await advance(viewingRow, "doing");
+                }
+              }}
+            />
+          ) : null;
+        })()}
+
       {selectedRow && data && (
         <PartCard
           row={selectedRow}
@@ -267,7 +288,6 @@ function OverviewView({
   touch,
   navigate,
   presence,
-  kiosk,
 }: {
   rows: InstanceRow[];
   loads: ReturnType<typeof processLoads>;
@@ -275,7 +295,6 @@ function OverviewView({
   touch: boolean;
   navigate: (path: string) => void;
   presence: KioskPresence[];
-  kiosk: ReturnType<typeof useKiosk>;
 }) {
   const mood = shopMood(loads);
   const inProgress = rows.filter((r) => r.state === "doing");
@@ -303,44 +322,37 @@ function OverviewView({
         <p className="text-steel text-sm">No processes defined yet — add some on the Admin page.</p>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-          {loads
-            .filter((load) => {
-              if (!kiosk.active) return true;
-              return (
-                load.process.name.trim().toLowerCase() === kiosk.machineName?.trim().toLowerCase()
-              );
-            })
-            .map((load) => (
-              <Link
-                key={load.process.id}
-                to={processPath(load.process.id)}
-                title={`${load.doing} in progress, ${load.todo} to do — click to open`}
-                className={`rounded-xl border text-left transition-transform hover:-translate-y-0.5 ${LOAD_STYLES[load.level]} ${
-                  touch ? "p-5" : "p-4"
-                }`}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-semibold text-ink truncate">{load.process.name}</span>
-                  <span
-                    title={load.doing > 0 ? "Running" : "Idle"}
-                    className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                      load.doing > 0 ? "bg-emerald-500 animate-pulse" : "bg-steel/40"
-                    }`}
-                  />
-                </div>
-                <p className="text-xs text-steel-dark mt-2">
-                  {load.doing} running · {load.todo} to do
+          {loads.map((load) => (
+            <Link
+              key={load.process.id}
+              to={processPath(load.process.id)}
+              title={`${load.doing} in progress, ${load.todo} to do — click to open`}
+              className={`rounded-xl border text-left transition-transform hover:-translate-y-0.5 ${LOAD_STYLES[load.level]} ${
+                touch ? "p-5" : "p-4"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold text-ink truncate">{load.process.name}</span>
+                <span
+                  title={load.doing > 0 ? "Running" : "Idle"}
+                  className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                    load.doing > 0 ? "bg-emerald-500 animate-pulse" : "bg-steel/40"
+                  }`}
+                />
+              </div>
+              <p className="text-xs text-steel-dark mt-2">
+                {load.doing} running · {load.todo} to do
+              </p>
+              {peopleAt(load.process.name).length > 0 && (
+                <p
+                  className="text-xs text-emerald-700 mt-1.5 truncate"
+                  title={`At this machine: ${peopleAt(load.process.name).join(", ")}`}
+                >
+                  👤 {peopleAt(load.process.name).join(", ")}
                 </p>
-                {peopleAt(load.process.name).length > 0 && (
-                  <p
-                    className="text-xs text-emerald-700 mt-1.5 truncate"
-                    title={`At this machine: ${peopleAt(load.process.name).join(", ")}`}
-                  >
-                    👤 {peopleAt(load.process.name).join(", ")}
-                  </p>
-                )}
-              </Link>
-            ))}
+              )}
+            </Link>
+          ))}
         </div>
       )}
 
@@ -417,6 +429,11 @@ function ProcessView({
   onAdvance,
   touch,
   onOpenWorkView,
+  onViewPart,
+  processType,
+  requiresPartInfo,
+  definitions,
+  onChanged,
 }: {
   processId: number;
   rows: InstanceRow[];
@@ -424,6 +441,11 @@ function ProcessView({
   onAdvance: (row: InstanceRow, to: "doing" | "done") => Promise<void>;
   touch: boolean;
   onOpenWorkView: (instanceId: number) => void;
+  onViewPart: (instanceId: number) => void;
+  processType: ProcessType;
+  requiresPartInfo: boolean;
+  definitions: PartDefinition[];
+  onChanged: () => Promise<void>;
 }) {
   // Parts whose pipeline includes this process and haven't finished it yet.
   const here = rows.filter((r) => r.procs.some((p) => p.processId === processId));
@@ -442,87 +464,102 @@ function ProcessView({
 
   return (
     <div className="space-y-6">
-      <section className="space-y-2">
-        <h2 className="text-xs font-bold uppercase tracking-widest text-steel">
-          In Progress <span className="text-crimson">{inProgress.length}</span>
-        </h2>
-        {inProgress.length === 0 ? (
-          <p className="text-steel text-sm">Nothing in progress here.</p>
-        ) : (
-          <div className="bg-paper border border-steel/30 rounded-xl divide-y divide-steel/15">
-            {inProgress.map((row) => (
-              <PartLine key={row.instance.id} row={row} touch={touch}>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onOpenWorkView(row.instance.id);
-                  }}
-                  className={`text-xs bg-crimson hover:bg-crimson-dark text-paper rounded-lg font-semibold transition-colors shrink-0 ${btnSize}`}
-                >
-                  Open
-                </button>
-                <span className="relative group shrink-0">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onAdvance(row, "done");
-                    }}
-                    className={`text-xs bg-emerald-600 hover:bg-emerald-700 text-paper rounded-lg font-semibold transition-colors ${btnSize}`}
-                  >
-                    Mark as Complete
-                  </button>
-                  <span className="pointer-events-none absolute bottom-full right-0 mb-1.5 hidden group-hover:block whitespace-nowrap bg-ink text-paper text-xs rounded-md px-2.5 py-1.5 shadow-lg">
-                    Do a quality check before marking this complete!
-                  </span>
-                </span>
-              </PartLine>
-            ))}
-          </div>
-        )}
-      </section>
+      {processType === "file_consumer" ? (
+        <ConsumerSections processId={processId} rows={here} touch={touch} onChanged={onChanged} />
+      ) : processType === "file_producer" ? (
+        <ProducerSections
+          processId={processId}
+          rows={here}
+          touch={touch}
+          definitions={definitions}
+          showPartInfo={requiresPartInfo}
+          onChanged={onChanged}
+        />
+      ) : (
+        <>
+          <section className="space-y-2">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-steel">
+              In Progress <span className="text-crimson">{inProgress.length}</span>
+            </h2>
+            {inProgress.length === 0 ? (
+              <p className="text-steel text-sm">Nothing in progress here.</p>
+            ) : (
+              <div className="bg-paper border border-steel/30 rounded-xl divide-y divide-steel/15">
+                {inProgress.map((row) => (
+                  <PartLine key={row.instance.id} row={row} touch={touch}>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpenWorkView(row.instance.id);
+                      }}
+                      className={`text-xs bg-crimson hover:bg-crimson-dark text-paper rounded-lg font-semibold transition-colors shrink-0 ${btnSize}`}
+                    >
+                      Open
+                    </button>
+                    <span className="relative group shrink-0">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onAdvance(row, "done");
+                        }}
+                        className={`text-xs bg-emerald-600 hover:bg-emerald-700 text-paper rounded-lg font-semibold transition-colors ${btnSize}`}
+                      >
+                        Mark as Complete
+                      </button>
+                      <span className="pointer-events-none absolute bottom-full right-0 mb-1.5 hidden group-hover:block whitespace-nowrap bg-ink text-paper text-xs rounded-md px-2.5 py-1.5 shadow-lg">
+                        Do a quality check before marking this complete!
+                      </span>
+                    </span>
+                  </PartLine>
+                ))}
+              </div>
+            )}
+          </section>
 
-      <section className="space-y-2">
-        <h2 className="text-xs font-bold uppercase tracking-widest text-steel">
-          To Do <span className="text-crimson">{todo.length}</span>
-        </h2>
-        {todo.length === 0 ? (
-          <p className="text-steel text-sm">Nothing ready to start.</p>
-        ) : (
-          <div className="bg-paper border border-steel/30 rounded-xl divide-y divide-steel/15">
-            {todo.map((row) => (
-              <PartLine key={row.instance.id} row={row} touch={touch}>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onAdvance(row, "doing");
-                  }}
-                  className={`text-xs bg-crimson hover:bg-crimson-dark text-paper rounded-lg font-semibold transition-colors shrink-0 ${btnSize}`}
-                >
-                  Start Part
-                </button>
-                <span className="relative group shrink-0">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onAdvance(row, "done");
-                    }}
-                    className={`text-xs bg-emerald-600 hover:bg-emerald-700 text-paper rounded-lg font-semibold transition-colors ${btnSize}`}
-                  >
-                    Mark as Complete
-                  </button>
-                  <span className="pointer-events-none absolute bottom-full right-0 mb-1.5 hidden group-hover:block whitespace-nowrap bg-ink text-paper text-xs rounded-md px-2.5 py-1.5 shadow-lg">
-                    Do a quality check before marking this complete!
-                  </span>
-                </span>
-              </PartLine>
-            ))}
-          </div>
-        )}
-      </section>
+          <section className="space-y-2">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-steel">
+              To Do <span className="text-crimson">{todo.length}</span>
+            </h2>
+            {todo.length === 0 ? (
+              <p className="text-steel text-sm">Nothing ready to start.</p>
+            ) : (
+              <div className="bg-paper border border-steel/30 rounded-xl divide-y divide-steel/15">
+                {todo.map((row) => (
+                  <PartLine key={row.instance.id} row={row} touch={touch} onViewPart={onViewPart}>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onAdvance(row, "doing");
+                      }}
+                      className={`text-xs bg-crimson hover:bg-crimson-dark text-paper rounded-lg font-semibold transition-colors shrink-0 ${btnSize}`}
+                    >
+                      Start Part
+                    </button>
+                    <span className="relative group shrink-0">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onAdvance(row, "done");
+                        }}
+                        className={`text-xs bg-emerald-600 hover:bg-emerald-700 text-paper rounded-lg font-semibold transition-colors ${btnSize}`}
+                      >
+                        Mark as Complete
+                      </button>
+                      <span className="pointer-events-none absolute bottom-full right-0 mb-1.5 hidden group-hover:block whitespace-nowrap bg-ink text-paper text-xs rounded-md px-2.5 py-1.5 shadow-lg">
+                        Do a quality check before marking this complete!
+                      </span>
+                    </span>
+                  </PartLine>
+                ))}
+              </div>
+            )}
+          </section>
+        </>
+      )}
 
       <section className="space-y-2">
         <h2 className="text-xs font-bold uppercase tracking-widest text-steel">
@@ -563,6 +600,7 @@ function PartLine({
   touch,
   navigate,
   onOpen,
+  onViewPart,
   children,
 }: {
   row: InstanceRow;
@@ -570,6 +608,7 @@ function PartLine({
   touch?: boolean;
   navigate?: (path: string) => void;
   onOpen?: () => void;
+  onViewPart?: (instanceId: number) => void;
   children?: React.ReactNode;
 }) {
   const handleClick = () => {
@@ -602,6 +641,18 @@ function PartLine({
         </p>
         <p className="text-xs font-mono text-steel truncate">{partLabel(row)}</p>
       </div>
+      {onViewPart && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onViewPart(row.instance.id);
+          }}
+          className="text-xs bg-crimson hover:bg-crimson-dark text-paper rounded-lg font-semibold transition-colors shrink-0 px-3 py-1.5"
+        >
+          Open
+        </button>
+      )}
       {children}
     </div>
   );

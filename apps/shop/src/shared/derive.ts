@@ -232,3 +232,17 @@ export function shopMood(loads: ProcessLoad[]): ShopMood {
     tone: "steady",
   };
 }
+
+/** Names of the processes in `processIds` that require material + thickness on the part. */
+export function partInfoRequiredBy(
+  processIds: number[],
+  processes: { id: number; name: string; requiresPartInfo: number }[],
+): string[] {
+  const needed = new Set(processIds);
+  return processes.filter((p) => p.requiresPartInfo && needed.has(p.id)).map((p) => p.name);
+}
+
+/** "4140 — 0.25\"" style suffix for parts that carry material/thickness. */
+export function partInfoLabel(d: { material: string | null; thickness: string | null }): string {
+  return [d.material, d.thickness].filter(Boolean).join(" — ");
+}

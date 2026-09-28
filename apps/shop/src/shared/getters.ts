@@ -1,12 +1,15 @@
 import { api } from "./api";
+import { getErrorMessage } from "./api-error";
 import type {
   Action,
   Blueprint,
   KioskPresence,
   PartDefinition,
+  PartFile,
   PartInstance,
   PartInstanceProcess,
   Process,
+  StagingBatch,
   Subsystem,
 } from "./types";
 
@@ -130,4 +133,134 @@ export async function fetchDrawingObjectUrl(
   const blob = await res.blob();
   if (!blob.type.includes("pdf")) return null;
   return URL.createObjectURL(blob);
+}
+
+/** Every file, or only files covering some instance of one part definition. */
+export async function fetchPartFiles(partDefinitionId?: number): Promise<PartFile[]> {
+  const res = await api["part-files"].$get({
+    query: partDefinitionId === undefined ? {} : { partDefinitionId: String(partDefinitionId) },
+  });
+  if (!res.ok) throw new Error(await getErrorMessage(res as unknown as Response));
+  return res.json() as Promise<PartFile[]>;
+}
+
+/** Multipart upload into the library; the typed client can't build FormData bodies here. */
+export async function uploadPartFile(file: File): Promise<PartFile> {
+  const body = new FormData();
+  body.append("file", file);
+  const res = await fetch(`${import.meta.env.VITE_API_BASE_URL ?? ""}/part-files`, {
+    method: "POST",
+    body,
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error(await getErrorMessage(res));
+  return res.json() as Promise<PartFile>;
+}
+
+/** Deletes the file and unassigns every instance it covered. */
+export async function deletePartFile(id: number): Promise<void> {
+  const res = await api["part-files"][":id"].$delete({ param: { id: String(id) } });
+  if (!res.ok) throw new Error(await getErrorMessage(res as unknown as Response));
+}
+
+/**
+ * Sets how many instances of a part this file covers. Growing only takes instances that have
+ * no file yet, so `assigned` can come back lower than `requested`.
+ */
+export async function setFileAssignmentCount(
+  id: number,
+  partDefinitionId: number,
+  count: number,
+): Promise<{ requested: number; assigned: number }> {
+  const res = await api["part-files"][":id"].assignments.$put({
+    param: { id: String(id) },
+    json: { partDefinitionId, count },
+  });
+  if (!res.ok) throw new Error(await getErrorMessage(res as unknown as Response));
+  const body = (await res.json()) as { requested: number; assigned: number };
+  return { requested: body.requested, assigned: body.assigned };
+}
+
+export async function unassignFileInstance(id: number, partInstanceId: number): Promise<void> {
+  const res = await api["part-files"][":id"].assignments[":instanceId"].$delete({
+    param: { id: String(id), instanceId: String(partInstanceId) },
+  });
+  if (!res.ok) throw new Error(await getErrorMessage(res as unknown as Response));
+}
+
+export function partFileDownloadUrl(id: number): string {
+  return `${import.meta.env.VITE_API_BASE_URL ?? ""}/part-files/${id}/download`;
+}
+
+export async function fetchStagingBatches(processId: number): Promise<StagingBatch[]> {
+  const res = await api["staging-batches"].$get({ query: { processId: String(processId) } });
+  if (!res.ok) throw new Error(await getErrorMessage(res as unknown as Response));
+  return res.json() as Promise<StagingBatch[]>;
+}
+
+export async function createStagingBatch(processId: number): Promise<number> {
+  const res = await api["staging-batches"].$post({ json: { processId } });
+  if (!res.ok) throw new Error(await getErrorMessage(res as unknown as Response));
+  return ((await res.json()) as { id: number }).id;
+}
+
+/** Stages instances into a batch; they pick up the batch's file. */
+export async function stageIntoBatch(id: number, partInstanceIds: number[]): Promise<void> {
+  const res = await api["staging-batches"][":id"].stage.$post({
+    param: { id: String(id) },
+    json: { partInstanceIds },
+  });
+  if (!res.ok) throw new Error(await getErrorMessage(res as unknown as Response));
+}
+
+/** Sends instances back to To Do; they lose the batch's file. */
+export async function unstageFromBatch(id: number, partInstanceIds: number[]): Promise<void> {
+  const res = await api["staging-batches"][":id"].unstage.$post({
+    param: { id: String(id) },
+    json: { partInstanceIds },
+  });
+  if (!res.ok) throw new Error(await getErrorMessage(res as unknown as Response));
+}
+
+/** Sets (or clears, with null) a batch's file on every instance staged in it. */
+export async function setStagingBatchFile(id: number, fileId: number | null): Promise<void> {
+  const res = await api["staging-batches"][":id"].file.$put({
+    param: { id: String(id) },
+    json: { fileId },
+  });
+  if (!res.ok) throw new Error(await getErrorMessage(res as unknown as Response));
+}
+
+export async function completeStagingBatch(id: number): Promise<void> {
+  const res = await api["staging-batches"][":id"].complete.$post({ param: { id: String(id) } });
+  if (!res.ok) throw new Error(await getErrorMessage(res as unknown as Response));
+}
+
+export async function deleteStagingBatch(id: number): Promise<void> {
+  const res = await api["staging-batches"][":id"].$delete({ param: { id: String(id) } });
+  if (!res.ok) throw new Error(await getErrorMessage(res as unknown as Response));
+}
+
+/** Deletes the released drawing PDF for a part revision. */
+export async function deleteDrawing(partNumber: string, revision: string): Promise<void> {
+  const res = await api.drawings[":partNumber"][":revision"].$delete({
+    param: { partNumber, revision },
+  });
+  if (!res.ok) throw new Error(await getErrorMessage(res as unknown as Response));
+}
+
+/**
+ * Moves many instances' step at a process: "doing" starts To Do ones, "done" completes
+ * In Progress ones (unlocking each next step). Resolves to how many actually moved.
+ */
+export async function bulkMoveInstances(
+  processId: number,
+  partInstanceIds: number[],
+  to: "doing" | "done",
+): Promise<number> {
+  const res = await api["part-instance-processes"].bulk.$post({
+    json: { processId, partInstanceIds, to },
+  });
+  if (!res.ok) throw new Error(await getErrorMessage(res as unknown as Response));
+  return ((await res.json()) as { moved: number }).moved;
 }

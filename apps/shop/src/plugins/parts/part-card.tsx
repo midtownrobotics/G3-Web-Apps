@@ -6,6 +6,7 @@ import type { InstanceRow } from "../../shared/derive";
 import { processPath } from "../../shared/nav";
 import type { ShopData } from "../../shared/use-shop-data";
 import { useUserNames } from "../../shared/use-user-names";
+import { PartFilesPanel } from "../files/part-files-panel";
 import { DrawingPreview } from "./drawing-preview";
 
 /** Advance a revision by one for convenience (A→B, Z→AA, 1→2). */
@@ -149,6 +150,8 @@ export function PartCard({
           subsystemId: row.definition.subsystemId,
           name: row.definition.name,
           notes: row.definition.notes ?? "",
+          material: row.definition.material ?? "",
+          thickness: row.definition.thickness ?? "",
           isPriority: !!row.instance.isPriority,
           quantity: totalInstances,
           // Pipeline in order, flagged with whether each step was already done.
@@ -234,6 +237,15 @@ export function PartCard({
                 </label>
               </dd>
             </dl>
+          </Section>
+
+          <Section title="Files">
+            <PartFilesPanel
+              definition={row.definition}
+              definitions={data.definitions}
+              instances={data.instances}
+              currentInstanceId={row.instance.id}
+            />
           </Section>
 
           {/* Status */}

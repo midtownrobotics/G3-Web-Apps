@@ -12,11 +12,13 @@ import { clearPresence, kioskPresenceRouter } from "./routes/kiosk-presence";
 import { onshapeExportRouter } from "./routes/onshape-export";
 import { onshapeWebhooksRouter } from "./routes/onshape-webhooks";
 import { partDefinitionsRouter } from "./routes/part-definitions";
+import { partFilesRouter } from "./routes/part-files";
 import { partInstanceProcessesRouter } from "./routes/part-instance-processes";
 import { partInstancesRouter } from "./routes/part-instances";
 import { partViewerRouter } from "./routes/part-viewer";
 import { printRouter } from "./routes/print";
 import { processesRouter } from "./routes/processes";
+import { stagingBatchesRouter } from "./routes/staging-batches";
 import { subsystemsRouter } from "./routes/subsystems";
 import type { AppEnv } from "./types";
 
@@ -44,7 +46,7 @@ base.use(
 );
 
 const app = base
-  .get("/health", (c) => c.json({ status: "ok", service: "shop", version: "v1.1.2" }))
+  .get("/health", (c) => c.json({ status: "ok", service: "shop", version: "v1.2.0" }))
   .get("/me", requireAuth, (c) =>
     c.json({
       userId: c.get("userId"),
@@ -95,6 +97,8 @@ const app = base
   .route("/part-definitions", partDefinitionsRouter)
   .route("/part-instances", partInstancesRouter)
   .route("/part-instance-processes", partInstanceProcessesRouter)
+  .route("/part-files", partFilesRouter)
+  .route("/staging-batches", stagingBatchesRouter)
   .route("/actions", actionsRouter)
   .route("/kiosk-presence", kioskPresenceRouter)
   .route("/admin", adminPartsRouter)

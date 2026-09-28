@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../../shared/api";
 import { getErrorMessage } from "../../shared/api-error";
+import { partInfoRequiredBy } from "../../shared/derive";
 import type { PartDefinition, PartInstance } from "../../shared/types";
 import { ErrorBanner, PageLoading } from "../../shared/ui";
 import { useAuthUser } from "../../shared/use-auth";
@@ -16,6 +17,8 @@ type TransferFrom = {
   subsystemId: number;
   name: string;
   notes: string;
+  material: string;
+  thickness: string;
   isPriority: boolean;
   quantity: number;
   processes: { processId: number; done: boolean }[];
@@ -44,13 +47,14 @@ export function AddPartPage() {
     name: transfer?.name ?? "",
     quantity: transfer?.quantity ?? 1,
     notes: transfer?.notes ?? "",
+    material: transfer?.material ?? "",
+    thickness: transfer?.thickness ?? "",
     isPriority: transfer?.isPriority ?? false,
   });
-  // Normal mode: pipeline built from scratch.
-  const [processIds, setProcessIds] = useState<number[]>([]);
-  // Transfer mode: which transferred steps to keep (aligned with transfer.processes).
-  const [kept, setKept] = useState<boolean[]>(transfer ? transfer.processes.map(() => true) : []);
-  const [extraProcessIds, setExtraProcessIds] = useState<number[]>([]);
+  // Edit & Obsolete starts from the original pipeline (all steps restart); Add Part starts empty.
+  const [processIds, setProcessIds] = useState<number[]>(
+    transfer ? transfer.processes.map((p) => p.processId) : [],
+  );
   const [formError, setFormError] = useState("");
   const [banner, setBanner] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -66,14 +70,7 @@ export function AddPartPage() {
     });
   }
 
-  // Final ordered pipeline (transfer mode: use kept processes but reset all to todo).
-  function resolvePipeline(): { processIds: number[] } {
-    if (!transfer) return { processIds };
-    const keptSteps = transfer.processes.filter((_, i) => kept[i]);
-    return {
-      processIds: [...keptSteps.map((s) => s.processId), ...extraProcessIds],
-    };
-  }
+  const infoRequiredBy = partInfoRequiredBy(processIds, data?.processes ?? []);
 
   async function handleSubmit() {
     if (
@@ -89,28 +86,26 @@ export function AddPartPage() {
       setFormError("Quantity must be a whole number of at least 1.");
       return;
     }
+    if (infoRequiredBy.length > 0 && (!form.material.trim() || !form.thickness.trim())) {
+      setFormError(`Material and thickness are required for ${infoRequiredBy.join(", ")}.`);
+      return;
+    }
     setFormError("");
     setSubmitting(true);
 
     try {
-      // Obsolete all instances of the source part before creating new ones
-      if (transfer) {
-        const allInstances =
-          data?.instances.filter((i) => i.partDefinitionId === transfer.sourcePartDefinitionId) ??
-          [];
-        await Promise.all(
-          allInstances.map((inst) =>
-            api["part-instances"][":id"].$patch({
-              param: { id: String(inst.id) },
-              json: { isStale: true },
-            }),
-          ),
-        );
-      }
+      const pipeline = processIds;
+      const fields = {
+        subsystemId: form.subsystemId,
+        name: form.name.trim(),
+        notes: form.notes.trim() || null,
+        material: form.material.trim() || null,
+        thickness: form.thickness.trim() || null,
+      };
 
-      const { processIds: pipeline } = resolvePipeline();
-
-      // When editing & obsoleting, check if this part number + revision already exists
+      // Edit & Obsolete usually keeps the same part number + revision, which matches the
+      // original definition (only its instances are retired). Reuse it, but apply the edits:
+      // new instances copy the definition's blueprint, so it must be the edited pipeline.
       let definition: PartDefinition | undefined;
       if (transfer) {
         definition = data?.definitions.find(
@@ -121,15 +116,33 @@ export function AddPartPage() {
         );
       }
 
-      // If not found (or not in edit mode), create a new definition
-      if (!definition) {
+      if (definition) {
+        const [patchRes, blueprintRes] = await Promise.all([
+          api["part-definitions"][":id"].$patch({
+            param: { id: String(definition.id) },
+            json: fields,
+          }),
+          api["part-definitions"][":id"].processes.$put({
+            param: { id: String(definition.id) },
+            json: { processIds: pipeline },
+          }),
+        ]);
+        for (const res of [patchRes, blueprintRes]) {
+          if (!res.ok) {
+            setBanner(await getErrorMessage(res as unknown as Response));
+            return;
+          }
+        }
+      } else {
         const defRes = await api["part-definitions"].$post({
           json: {
             onshapePartNumber: form.onshapePartNumber.trim(),
             revision: form.revision.trim(),
             subsystemId: form.subsystemId,
-            name: form.name.trim(),
-            notes: form.notes.trim() || undefined,
+            name: fields.name,
+            notes: fields.notes ?? undefined,
+            material: fields.material ?? undefined,
+            thickness: fields.thickness ?? undefined,
             processIds: pipeline,
           },
         });
@@ -140,6 +153,7 @@ export function AddPartPage() {
         definition = (await defRes.json()) as PartDefinition;
       }
 
+      // New instances always start at the first process; nothing carries over.
       const instRes = await api["part-instances"].$post({
         json: { partDefinitionId: definition.id, quantity: form.quantity },
       });
@@ -160,6 +174,23 @@ export function AddPartPage() {
         );
       }
 
+      // Retire the original's instances only once the replacements exist, so a failure above
+      // never leaves the part with nothing active.
+      if (transfer) {
+        const originals =
+          data?.instances.filter(
+            (i) => i.partDefinitionId === transfer.sourcePartDefinitionId && !i.isStale,
+          ) ?? [];
+        await Promise.all(
+          originals.map((inst) =>
+            api["part-instances"][":id"].$patch({
+              param: { id: String(inst.id) },
+              json: { isStale: true },
+            }),
+          ),
+        );
+      }
+
       navigate("/parts");
     } finally {
       setSubmitting(false);
@@ -168,8 +199,6 @@ export function AddPartPage() {
 
   const subsystems = data?.subsystems ?? [];
   const processes = data?.processes ?? [];
-  const processName = (pid: number) =>
-    processes.find((p) => p.id === pid)?.name ?? `Process #${pid}`;
 
   return (
     <main className="min-h-screen bg-mist">
@@ -261,6 +290,25 @@ export function AddPartPage() {
                   onChange={(v) => setForm({ ...form, notes: v })}
                   placeholder="Optional"
                 />
+                {infoRequiredBy.length > 0 && (
+                  <>
+                    <Field
+                      label="Material"
+                      required
+                      value={form.material}
+                      onChange={(v) => setForm({ ...form, material: v })}
+                      placeholder="e.g. 4140"
+                      hint={`Required by ${infoRequiredBy.join(", ")}`}
+                    />
+                    <Field
+                      label="Thickness"
+                      required
+                      value={form.thickness}
+                      onChange={(v) => setForm({ ...form, thickness: v })}
+                      placeholder='e.g. 0.25"'
+                    />
+                  </>
+                )}
               </div>
 
               <label className="flex items-center gap-2 cursor-pointer select-none text-sm text-ink">
@@ -276,64 +324,32 @@ export function AddPartPage() {
               <hr className="border-steel/25" />
 
               {/* Processes */}
-              {transfer ? (
-                <TransferProcesses
-                  steps={transfer.processes}
-                  kept={kept}
-                  setKept={setKept}
-                  extraProcessIds={extraProcessIds}
-                  setExtraProcessIds={setExtraProcessIds}
-                  processes={processes}
-                  processName={processName}
-                />
-              ) : (
-                <div className="space-y-2">
-                  <FieldLabel label="Processes" />
-                  <p className="text-xs text-steel">
-                    The order here is the order the part moves through the shop.
+              <div className="space-y-2">
+                <FieldLabel label="Processes" />
+                <p className="text-xs text-steel">
+                  The order here is the order the part moves through the shop.
+                </p>
+                {processes.length === 0 ? (
+                  <p className="text-sm text-steel">
+                    No processes exist yet — add some on the Admin page.
                   </p>
-                  {processes.length === 0 ? (
-                    <p className="text-sm text-steel">
-                      No processes exist yet — add some on the Admin page.
-                    </p>
-                  ) : (
-                    <div className="space-y-2">
-                      {processIds.map((pid, i) => (
-                        <div
-                          // biome-ignore lint/suspicious/noArrayIndexKey: positional rows; duplicates of the same process are allowed
-                          key={i}
-                          className="flex items-center gap-2"
-                        >
-                          <span className="w-6 text-sm font-mono text-steel text-right shrink-0">
-                            {i + 1}.
-                          </span>
-                          <select
-                            value={pid}
-                            onChange={(e) => setProcessAt(i, Number(e.target.value))}
-                            className="flex-1 bg-paper border border-steel/40 rounded-lg px-3 py-2 text-sm text-ink focus:outline-none focus:border-crimson"
-                          >
-                            <option value={0}>Remove</option>
-                            {processes.map((p) => (
-                              <option key={p.id} value={p.id}>
-                                {p.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      ))}
-                      <div className="flex items-center gap-2">
+                ) : (
+                  <div className="space-y-2">
+                    {processIds.map((pid, i) => (
+                      <div
+                        // biome-ignore lint/suspicious/noArrayIndexKey: positional rows; duplicates of the same process are allowed
+                        key={i}
+                        className="flex items-center gap-2"
+                      >
                         <span className="w-6 text-sm font-mono text-steel text-right shrink-0">
-                          {processIds.length + 1}.
+                          {i + 1}.
                         </span>
                         <select
-                          value={0}
-                          onChange={(e) => {
-                            const pid = Number(e.target.value);
-                            if (pid) setProcessIds((prev) => [...prev, pid]);
-                          }}
-                          className="flex-1 bg-mist border border-dashed border-steel/40 rounded-lg px-3 py-2 text-sm text-steel-dark focus:outline-none focus:border-crimson"
+                          value={pid}
+                          onChange={(e) => setProcessAt(i, Number(e.target.value))}
+                          className="flex-1 bg-paper border border-steel/40 rounded-lg px-3 py-2 text-sm text-ink focus:outline-none focus:border-crimson"
                         >
-                          <option value={0}>Add a process…</option>
+                          <option value={0}>Remove</option>
                           {processes.map((p) => (
                             <option key={p.id} value={p.id}>
                               {p.name}
@@ -341,10 +357,30 @@ export function AddPartPage() {
                           ))}
                         </select>
                       </div>
+                    ))}
+                    <div className="flex items-center gap-2">
+                      <span className="w-6 text-sm font-mono text-steel text-right shrink-0">
+                        {processIds.length + 1}.
+                      </span>
+                      <select
+                        value={0}
+                        onChange={(e) => {
+                          const pid = Number(e.target.value);
+                          if (pid) setProcessIds((prev) => [...prev, pid]);
+                        }}
+                        className="flex-1 bg-mist border border-dashed border-steel/40 rounded-lg px-3 py-2 text-sm text-steel-dark focus:outline-none focus:border-crimson"
+                      >
+                        <option value={0}>Add a process…</option>
+                        {processes.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </select>
                     </div>
-                  )}
-                </div>
-              )}
+                  </div>
+                )}
+              </div>
 
               {formError && <p className="text-crimson-dark text-sm">{formError}</p>}
 
@@ -373,149 +409,6 @@ export function AddPartPage() {
         </div>
       </div>
     </main>
-  );
-}
-
-function TransferProcesses({
-  steps,
-  kept,
-  setKept,
-  extraProcessIds,
-  setExtraProcessIds,
-  processes,
-  processName,
-}: {
-  steps: { processId: number; done: boolean }[];
-  kept: boolean[];
-  setKept: (next: boolean[]) => void;
-  extraProcessIds: number[];
-  setExtraProcessIds: (updater: (prev: number[]) => number[]) => void;
-  processes: { id: number; name: string }[];
-  processName: (pid: number) => string;
-}) {
-  // Leading run of kept+done steps that the new part will start past.
-  let completedPrefix = 0;
-  for (const [i, step] of steps.entries()) {
-    if (kept[i] && step.done) completedPrefix += 1;
-    else if (kept[i]) break;
-  }
-  let seenKept = 0;
-
-  // Completed processes are only meaningful as a contiguous block from the start,
-  // so keeping a completed step pulls in every earlier completed step, and dropping
-  // one drops every later completed step.
-  function toggleStep(index: number, checked: boolean) {
-    const next = [...kept];
-    next[index] = checked;
-    if (steps[index].done) {
-      if (checked) {
-        for (let j = 0; j < index; j++) if (steps[j].done) next[j] = true;
-      } else {
-        for (let j = index + 1; j < steps.length; j++) if (steps[j].done) next[j] = false;
-      }
-    }
-    setKept(next);
-  }
-
-  return (
-    <div className="space-y-2">
-      <FieldLabel label="Processes" />
-      <p className="text-xs text-steel">
-        Choose which of the original part's processes to carry over. Completed steps you keep from
-        the start are marked done on the new part automatically.
-      </p>
-      <div className="space-y-2">
-        {steps.map((step, i) => {
-          const keep = kept[i];
-          const carriesComplete = keep && seenKept < completedPrefix;
-          if (keep) seenKept += 1;
-          return (
-            <div
-              // biome-ignore lint/suspicious/noArrayIndexKey: positional rows; duplicate processes are allowed
-              key={i}
-              className={`flex items-center gap-3 rounded-lg border px-3 py-2 ${
-                keep ? "bg-paper border-steel/40" : "bg-mist border-steel/20 opacity-60"
-              }`}
-            >
-              <label className="flex items-center gap-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={keep}
-                  onChange={(e) => toggleStep(i, e.target.checked)}
-                  className="accent-crimson w-4 h-4"
-                />
-                <span
-                  className={`text-sm font-medium ${keep ? "text-ink" : "text-steel line-through"}`}
-                >
-                  {processName(step.processId)}
-                </span>
-              </label>
-              <span className="ml-auto flex items-center gap-2">
-                {step.done && (
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-300 rounded-full px-2 py-0.5">
-                    Was complete
-                  </span>
-                )}
-                {carriesComplete && (
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-steel-dark bg-steel-tint border border-steel/40 rounded-full px-2 py-0.5">
-                    Starts done
-                  </span>
-                )}
-              </span>
-            </div>
-          );
-        })}
-
-        {/* Append extra processes not on the original. */}
-        {extraProcessIds.map((pid, i) => (
-          <div
-            // biome-ignore lint/suspicious/noArrayIndexKey: positional rows; duplicates allowed
-            key={`extra-${i}`}
-            className="flex items-center gap-2"
-          >
-            <span className="w-6 text-sm font-mono text-steel text-right shrink-0">+</span>
-            <select
-              value={pid}
-              onChange={(e) => {
-                const v = Number(e.target.value);
-                setExtraProcessIds((prev) => {
-                  const next = [...prev];
-                  if (v === 0) next.splice(i, 1);
-                  else next[i] = v;
-                  return next;
-                });
-              }}
-              className="flex-1 bg-paper border border-steel/40 rounded-lg px-3 py-2 text-sm text-ink focus:outline-none focus:border-crimson"
-            >
-              <option value={0}>Remove</option>
-              {processes.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        ))}
-        <div className="flex items-center gap-2">
-          <span className="w-6 text-sm font-mono text-steel text-right shrink-0">+</span>
-          <select
-            value={0}
-            onChange={(e) => {
-              const pid = Number(e.target.value);
-              if (pid) setExtraProcessIds((prev) => [...prev, pid]);
-            }}
-            className="flex-1 bg-mist border border-dashed border-steel/40 rounded-lg px-3 py-2 text-sm text-steel-dark focus:outline-none focus:border-crimson"
-          >
-            <option value={0}>Add another process…</option>
-            {processes.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-    </div>
   );
 }
 

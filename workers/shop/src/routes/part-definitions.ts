@@ -1,8 +1,8 @@
-import { and, asc, eq, ne, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { validator } from "hono/validator";
 import { createShopDb } from "../db";
-import { partDefinitionProcessBlueprints, partDefinitions } from "../db/schema";
+import { partDefinitionProcessBlueprints, partDefinitions, processes } from "../db/schema";
 import { requireAuth } from "../middleware/auth";
 import type { AppEnv } from "../types";
 
@@ -17,6 +17,8 @@ const updatePartValidator = validator(
     name?: string;
     notes?: string | null;
     partDrawingUrl?: string | null;
+    material?: string | null;
+    thickness?: string | null;
   } => {
     const v = (value ?? {}) as Record<string, unknown>;
     const out: {
@@ -26,6 +28,8 @@ const updatePartValidator = validator(
       name?: string;
       notes?: string | null;
       partDrawingUrl?: string | null;
+      material?: string | null;
+      thickness?: string | null;
     } = {};
     if (typeof v.onshapePartNumber === "string") out.onshapePartNumber = v.onshapePartNumber;
     if (typeof v.revision === "string") out.revision = v.revision;
@@ -34,6 +38,10 @@ const updatePartValidator = validator(
     if (v.notes === null || typeof v.notes === "string") out.notes = v.notes;
     if (v.partDrawingUrl === null || typeof v.partDrawingUrl === "string")
       out.partDrawingUrl = v.partDrawingUrl;
+    if (v.material === null || typeof v.material === "string")
+      out.material = v.material?.trim() || null;
+    if (v.thickness === null || typeof v.thickness === "string")
+      out.thickness = v.thickness?.trim() || null;
     return out;
   },
 );
@@ -49,6 +57,22 @@ const addBlueprintValidator = validator(
     return { index: v.index as number, processId: v.processId as number };
   },
 );
+
+const replaceBlueprintValidator = validator("json", (value, c): { processIds: number[] } => {
+  const v = (value ?? {}) as { processIds?: unknown };
+  if (
+    !Array.isArray(v.processIds) ||
+    // 25 rows × 4 columns stays under D1's 100 bound-parameter cap for the single insert.
+    v.processIds.length > 25 ||
+    v.processIds.some((p) => !Number.isInteger(p) || p < 1)
+  ) {
+    return c.json(
+      { error: "processIds must be an array of up to 25 positive integers." },
+      400,
+    ) as never;
+  }
+  return { processIds: v.processIds as number[] };
+});
 
 const reorderBlueprintValidator = validator("json", (value, c): { processIds: number[] } => {
   const v = (value ?? {}) as { processIds?: unknown };
@@ -84,6 +108,8 @@ export const partDefinitionsRouter = new Hono<AppEnv>()
       partDrawingUrl?: string;
       processIds?: number[];
       obsoleteExisting?: boolean;
+      material?: string;
+      thickness?: string;
     }>();
 
     const {
@@ -96,6 +122,8 @@ export const partDefinitionsRouter = new Hono<AppEnv>()
       processIds,
       obsoleteExisting,
     } = body;
+    const material = typeof body.material === "string" ? body.material.trim() || null : null;
+    const thickness = typeof body.thickness === "string" ? body.thickness.trim() || null : null;
     if (!onshapePartNumber || !revision || !subsystemId || !name) {
       return c.json(
         { error: "onshapePartNumber, revision, subsystemId, and name are required." },
@@ -105,6 +133,22 @@ export const partDefinitionsRouter = new Hono<AppEnv>()
 
     const db = createShopDb(c.env.SHOP_DB);
     const now = Date.now();
+
+    if (processIds && processIds.length > 0 && (!material || !thickness)) {
+      const needsInfo = await db
+        .select({ name: processes.name })
+        .from(processes)
+        .where(and(inArray(processes.id, processIds), eq(processes.requiresPartInfo, 1)))
+        .all();
+      if (needsInfo.length > 0) {
+        return c.json(
+          {
+            error: `Material and thickness are required for ${needsInfo.map((p) => p.name).join(", ")}.`,
+          },
+          400,
+        );
+      }
+    }
 
     // If obsoleteExisting is true, mark all existing parts with same number as obsolete
     // BUT exclude the new revision we're about to create
@@ -137,6 +181,8 @@ export const partDefinitionsRouter = new Hono<AppEnv>()
         name,
         notes,
         partDrawingUrl,
+        material,
+        thickness,
         creator: c.get("userId"),
         createdAt: now,
       })
@@ -167,6 +213,8 @@ export const partDefinitionsRouter = new Hono<AppEnv>()
       name: string;
       notes: string | null;
       partDrawingUrl: string | null;
+      material: string | null;
+      thickness: string | null;
     }> = {};
 
     // Required fields: if provided, must be non-empty.
@@ -191,6 +239,8 @@ export const partDefinitionsRouter = new Hono<AppEnv>()
     // Nullable fields: may be set to a value or cleared with null.
     if (body.notes !== undefined) updates.notes = body.notes;
     if (body.partDrawingUrl !== undefined) updates.partDrawingUrl = body.partDrawingUrl;
+    if (body.material !== undefined) updates.material = body.material;
+    if (body.thickness !== undefined) updates.thickness = body.thickness;
 
     if (Object.keys(updates).length === 0) {
       return c.json({ error: "No updatable fields provided." }, 400);
@@ -210,6 +260,49 @@ export const partDefinitionsRouter = new Hono<AppEnv>()
   .get("/:id/processes", requireAuth, async (c) => {
     const partDefinitionId = Number(c.req.param("id"));
     const db = createShopDb(c.env.SHOP_DB);
+    const rows = await db
+      .select()
+      .from(partDefinitionProcessBlueprints)
+      .where(eq(partDefinitionProcessBlueprints.partDefinitionId, partDefinitionId))
+      .orderBy(asc(partDefinitionProcessBlueprints.index))
+      .all();
+    return c.json(rows);
+  })
+  // Replaces the whole blueprint (processes may be added, removed, or reordered). Existing
+  // instances keep their own pipelines; only instances created afterwards use the new one.
+  .put("/:id/processes", requireAuth, replaceBlueprintValidator, async (c) => {
+    const partDefinitionId = Number(c.req.param("id"));
+    const { processIds } = c.req.valid("json");
+    const db = createShopDb(c.env.SHOP_DB);
+
+    const def = await db
+      .select({ id: partDefinitions.id })
+      .from(partDefinitions)
+      .where(eq(partDefinitions.id, partDefinitionId))
+      .get();
+    if (!def) return c.json({ error: "Part definition not found." }, 404);
+
+    const now = Date.now();
+    const remove = db
+      .delete(partDefinitionProcessBlueprints)
+      .where(eq(partDefinitionProcessBlueprints.partDefinitionId, partDefinitionId));
+    if (processIds.length === 0) {
+      await remove;
+    } else {
+      // Delete + reinsert in one batch so the (partDefinitionId, index) constraint never trips.
+      await db.batch([
+        remove,
+        db.insert(partDefinitionProcessBlueprints).values(
+          processIds.map((processId, index) => ({
+            partDefinitionId,
+            processId,
+            index,
+            createdAt: now,
+          })),
+        ),
+      ]);
+    }
+
     const rows = await db
       .select()
       .from(partDefinitionProcessBlueprints)
