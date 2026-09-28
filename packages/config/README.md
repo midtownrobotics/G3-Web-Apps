@@ -12,6 +12,11 @@ Slack bot's display name shown in login instructions, and `team.siteDescription`
 Images: `assets/` holds the team logo (`logo.png`, also the favicon) and PWA icons (`apple-touch-icon.png`,
 `pwa-192x192.png`, `pwa-512x512.png`). `teamBranding()` serves them at every app's root, so replace these files to rebrand.
 
+Enabling apps: an app and its same-named worker are disabled by omitting its `apps` entry, setting it to `false`, or
+adding `"enabled": false` (keeps its settings for later). `g3id` is required. Use `isEnabled("<app>")` before linking to or
+calling another app — reading `apps.<x>`/`workers.<x>` for a disabled app throws. `scripts/enabled-apps.js` gives the
+dev/build scripts the same list.
+
 `extraHosts` lists additional subdomains served by the same app (attendance serves both `signin.` and `signout.`, picking the kiosk mode from the hostname).
 
 - `@g3/config` — shared helpers (`appUrl`, `apiUrl`, `allowedOrigin`, `cookieDomain`, `isTeamHostname`, …). Safe in Workers and browsers.

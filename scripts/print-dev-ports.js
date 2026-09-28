@@ -1,13 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const configPath = path.join(__dirname, "..", "packages", "config", "team.json");
-const teamConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
+import { enabledApps, pnpmFilters, root, teamConfig } from "./enabled-apps.js";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -71,18 +65,20 @@ async function main() {
   try {
     const withUrl = (servers) =>
       Object.fromEntries(
-        Object.entries(servers).map(([key, s]) => [
-          key,
-          { ...s, url: `http://localhost:${s.devPort}` },
-        ]),
+        enabledApps
+          .filter((key) => servers[key])
+          .map((key) => [
+            key,
+            { ...servers[key], url: `http://localhost:${servers[key].devPort}` },
+          ]),
       );
     const config = { apps: withUrl(teamConfig.apps), workers: withUrl(teamConfig.workers) };
 
     console.log(`🚀 Starting ${teamConfig.team.name} development servers...\n`);
 
     // Start the dev servers in background
-    const devProcess = spawn("pnpm", ["-r", "--parallel", "--if-present", "dev"], {
-      cwd: path.join(__dirname, ".."),
+    const devProcess = spawn("pnpm", [...pnpmFilters, "--parallel", "--if-present", "dev"], {
+      cwd: root,
       stdio: "inherit",
       shell: true,
     });

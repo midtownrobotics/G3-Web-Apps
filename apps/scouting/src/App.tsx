@@ -1,4 +1,4 @@
-import { apps } from "@g3/config";
+import { apps, isEnabled } from "@g3/config";
 import { linkTo } from "@g3/config/client";
 import {
   ArrowRight,
@@ -2060,9 +2060,11 @@ export function App() {
           {theme === "light" ? <Moon size={17} /> : <Sun size={17} />}
           {theme === "light" ? "Dark mode" : "Light mode"}
         </button>
-        <a className="all-apps-link" href={linkTo("web")}>
-          All Apps
-        </a>
+        {isEnabled("web") && (
+          <a className="all-apps-link" href={linkTo("web")}>
+            All Apps
+          </a>
+        )}
       </aside>
       {menuOpen && (
         <button

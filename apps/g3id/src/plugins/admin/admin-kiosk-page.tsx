@@ -1,3 +1,4 @@
+import { isEnabled } from "@g3/config";
 import { Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
@@ -108,12 +109,14 @@ export function AdminKioskPage() {
         >
           Kiosk Devices
         </Link>
-        <Link
-          to="/admin/attendance"
-          className="py-2 px-4 text-secondary-200 hover:text-white transition-colors"
-        >
-          Attendance Summary
-        </Link>
+        {isEnabled("attendance") && (
+          <Link
+            to="/admin/attendance"
+            className="py-2 px-4 text-secondary-200 hover:text-white transition-colors"
+          >
+            Attendance Summary
+          </Link>
+        )}
       </div>
 
       <h1 className="text-3xl font-bold text-white mb-8">Kiosk Management</h1>

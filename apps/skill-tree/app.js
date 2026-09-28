@@ -1,4 +1,5 @@
 /* FRC Skill Trees — application logic */
+import { isEnabled } from "@g3/config";
 import { linkTo, loginUrl, workerUrl } from "@g3/config/client";
 import { TREES } from './data/trees.js';
 import {
@@ -10,6 +11,9 @@ import {
 
 const G3ID_API=localStorage.getItem('g3id_api')||workerUrl('g3id');
 const SKILL_TREE_API=localStorage.getItem('skill_tree_api')||workerUrl('skillTree');
+
+const allAppsLink=document.getElementById('allAppsLink');
+if(allAppsLink){ if(isEnabled('web')) allAppsLink.href=linkTo('web'); else allAppsLink.remove(); }
 
 // ═══════════════════════════════════════════════════════
 // LAYOUT ENGINE

@@ -1,4 +1,4 @@
-import { apps } from "@g3/config";
+import { apps, isEnabled } from "@g3/config";
 import { linkTo } from "@g3/config/client";
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
@@ -79,7 +79,7 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
               Admin
             </Link>
           )}
-          {isLoggedIn && (
+          {isLoggedIn && isEnabled("web") && (
             <a
               className="relative text-sm font-medium text-gray-300 hover:text-white transition-colors py-4"
               href={linkTo("web")}
@@ -132,7 +132,7 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
               Admin
             </Link>
           )}
-          {isLoggedIn && (
+          {isLoggedIn && isEnabled("web") && (
             <a
               className="text-2xl font-bold text-gray-300 hover:text-white transition-colors"
               href={linkTo("web")}

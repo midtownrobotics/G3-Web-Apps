@@ -1,3 +1,4 @@
+import { isEnabled } from "@g3/config";
 import { workerUrl } from "@g3/config/client";
 import { Loader2, LogOut, Minus, Plus, Search, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -5,7 +6,7 @@ import { Link } from "react-router-dom";
 
 // The attendance worker lives on its own subdomain but shares the g3id session
 // cookie (set on the root domain), so a plain fetch with credentials works.
-const ATTENDANCE_API_URL = workerUrl("attendance");
+const ATTENDANCE_API_URL = isEnabled("attendance") ? workerUrl("attendance") : "";
 
 type MemberSummary = {
   id: string;

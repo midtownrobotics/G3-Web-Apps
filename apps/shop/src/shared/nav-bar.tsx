@@ -1,4 +1,4 @@
-import { apps } from "@g3/config";
+import { apps, isEnabled } from "@g3/config";
 import { linkTo } from "@g3/config/client";
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
@@ -84,12 +84,14 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
           </div>
         ) : (
           <>
-            <a
-              className="hidden md:block ml-auto text-sm font-medium text-steel-dark hover:text-ink transition-colors"
-              href={linkTo("web")}
-            >
-              All Apps
-            </a>
+            {isEnabled("web") && (
+              <a
+                className="hidden md:block ml-auto text-sm font-medium text-steel-dark hover:text-ink transition-colors"
+                href={linkTo("web")}
+              >
+                All Apps
+              </a>
+            )}
 
             <div className="ml-auto md:hidden">
               <button
@@ -127,12 +129,14 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
               {item.label}
             </Link>
           ))}
-          <a
-            className="text-2xl font-bold text-ink hover:text-crimson transition-colors"
-            href={linkTo("web")}
-          >
-            All Apps
-          </a>
+          {isEnabled("web") && (
+            <a
+              className="text-2xl font-bold text-ink hover:text-crimson transition-colors"
+              href={linkTo("web")}
+            >
+              All Apps
+            </a>
+          )}
         </div>
       )}
     </>

@@ -1,3 +1,4 @@
+import { isEnabled } from "@g3/config";
 import { OnShapeIcon } from "@g3/ui";
 import { GraduationCap, Loader2, Shield, ShieldOff } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -317,12 +318,14 @@ export function AdminUsersPage() {
         >
           Kiosk Devices
         </Link>
-        <Link
-          to="/admin/attendance"
-          className="py-2 px-4 text-secondary-200 hover:text-white transition-colors"
-        >
-          Attendance Summary
-        </Link>
+        {isEnabled("attendance") && (
+          <Link
+            to="/admin/attendance"
+            className="py-2 px-4 text-secondary-200 hover:text-white transition-colors"
+          >
+            Attendance Summary
+          </Link>
+        )}
       </div>
 
       <div className="flex items-center justify-between mb-6">

@@ -33,11 +33,12 @@ All team-specific values live in `packages/config/team.json` so another team can
 - **`team`** — `number`, `name` ("G3 Robotics"), `shortName` ("G3", highlighted in the G3ID heading), `slackBotName`, `siteDescription` (every app's meta description), and links (`website`, `slack`, `github`, `instagram`)
 - **`apps.<app>`** — `name` is the app's display name used in navbars, page titles, PWA names, and messages (e.g. `apps.shop.name` → "G3 Shop", `apps.g3id.name` → "G3ID"); `host` is its subdomain; `devPort`; `extraHosts` for extra subdomains (attendance `signout.`)
 - **`workers.<worker>`** — `host` (API subdomain), `devPort`, `name` (dev port printer label)
+- **Enabling/disabling apps:** an app (and its same-named worker) is disabled when its `apps` entry is omitted, set to `false`, or has `"enabled": false`. `g3id` is required. Disabled apps are skipped by `pnpm dev`, `pnpm dev:silent`, `pnpm build`, and CI builds, and links to them are hidden. Reading `apps.<x>`/`workers.<x>` for a disabled app throws — **guard any cross-app link or call with `isEnabled("<app>")`** (e.g. "All Apps" → `isEnabled("web")`, G3ID's attendance admin → `isEnabled("attendance")`). Typecheck and lint still cover all code.
 - **`rootDomain`**, `external.printServer`, `dev.allowedHosts` (dev tunnel hosts)
 - **`packages/config/assets/`** — team logo (`logo.png`, also the favicon) and PWA icons. Replace these files to rebrand; don't add logo copies to apps.
 
 How to use it:
-- **Workers / shared code:** `@g3/config` — `team`, `apps`, `apiUrl()`, `appUrl()`, `allowedOrigin()` (CORS), `cookieDomain()`, `isTeamHostname()`, `tbaTeamUrl`
+- **Workers / shared code:** `@g3/config` — `team`, `apps`, `isEnabled()`, `enabledApps`, `apiUrl()`, `appUrl()`, `allowedOrigin()` (CORS), `cookieDomain()`, `isTeamHostname()`, `tbaTeamUrl`
 - **Apps:** `@g3/config/client` — `apiBase()`, `linkTo()`, `workerUrl()`, `loginUrl()` (pick dev vs prod URLs). Use `apps.<app>.name` for display names.
 - **Vite configs:** import `devServer`, `apiRequestMatcher`, `teamBranding` from `../../packages/config/src/vite` (relative path — Vite loads configs with plain Node, which can't import `.ts` from a package)
 - **`teamBranding()`** (in every app's `vite.config`) serves/emits `assets/` at the site root, injects the favicon links (don't write icon `<link>`s in `index.html`), and fills `index.html` tokens: `%APP_NAME:<app>%`, `%APP_URL:<app>%`, `%TEAM_NAME%`, `%TEAM_NUMBER%`, `%SITE_DESCRIPTION%`
@@ -195,6 +196,8 @@ Workers (Wrangler):
 **Starting dev servers:**
 - `pnpm dev` — Start all servers and print port summary after ready
 - `pnpm dev:silent` — Start all servers without port printer
+- `pnpm build` — Build every enabled app/worker (`scripts/run-enabled.js`; enabled list from `scripts/enabled-apps.js`)
+- Only apps enabled in `team.json` are started/built
 
 **Port conflicts:**
 If you see "Address already in use" errors, kill zombie processes:
@@ -214,7 +217,7 @@ killall -9 workerd wrangler node
 **Add a new app (React frontend):**
 1. Create directory: `apps/<app-name>/`
 2. Copy structure from an existing app (e.g., `apps/web/`)
-3. Add the app (`name`, `host`, unique `devPort`) to `packages/config/team.json`; in `vite.config.ts` use `server: devServer("<app>", "<worker>")` and add `teamBranding()` to `plugins`
+3. Add the app key to `appNames` (and `workerNames` if it has a worker) in `packages/config/src/index.ts`, and add the app (`name`, `host`, unique `devPort`) to `packages/config/team.json`; in `vite.config.ts` use `server: devServer("<app>", "<worker>")` and add `teamBranding()` to `plugins`
 4. In `index.html`, use `<title>%APP_NAME:<app>%</title>` and `content="%SITE_DESCRIPTION%"`; no favicon links (injected)
 5. Create `apps/<app-name>/package.json` with at minimum: `name`, `type: "module"`, `dev` script, and `"@g3/config": "workspace:*"`
 6. Add to root `pnpm-workspace.yaml` if not already globbed

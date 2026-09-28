@@ -1,3 +1,4 @@
+import { isEnabled } from "@g3/config";
 import type { Plugin } from "../../shared/plugin-types";
 import { AdminAttendancePage } from "./admin-attendance-page";
 import { AdminKioskPage } from "./admin-kiosk-page";
@@ -8,7 +9,9 @@ export const adminPlugin: Plugin = {
   routes: [
     { path: "/admin/users", element: <AdminUsersPage /> },
     { path: "/admin/kiosk", element: <AdminKioskPage /> },
-    { path: "/admin/attendance", element: <AdminAttendancePage /> },
+    ...(isEnabled("attendance")
+      ? [{ path: "/admin/attendance", element: <AdminAttendancePage /> }]
+      : []),
   ],
   navItems: [],
 };

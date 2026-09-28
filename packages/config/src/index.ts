@@ -1,13 +1,98 @@
 import config from "../team.json";
 
 export type Mode = "production" | "development";
-export type AppName = keyof typeof config.apps;
-export type WorkerName = keyof typeof config.workers;
+
+/** Every app in the repo. team.json decides which are enabled. */
+export const appNames = [
+  "g3id",
+  "shop",
+  "pit",
+  "web",
+  "skillTree",
+  "attendance",
+  "scouting",
+] as const;
+export type AppName = (typeof appNames)[number];
+
+/** Apps with a worker (same key); a worker is enabled exactly when its app is. */
+const workerNames = ["g3id", "shop", "pit", "skillTree", "attendance", "scouting"] as const;
+export type WorkerName = (typeof workerNames)[number];
+
+type AppConfig = {
+  name: string;
+  host: string;
+  devPort: number;
+  extraHosts?: string[];
+  enabled?: boolean;
+};
+type WorkerConfig = { name: string; host: string; devPort: number };
+
+const rawApps = config.apps as Partial<Record<string, AppConfig | false>>;
+const rawWorkers = config.workers as Partial<Record<string, WorkerConfig>>;
+
+/** An app is enabled when its team.json entry exists, isn't `false`, and doesn't set `"enabled": false`. */
+export function isEnabled(app: AppName): boolean {
+  const entry = rawApps[app];
+  return !!entry && entry.enabled !== false;
+}
+
+export const enabledApps: AppName[] = appNames.filter(isEnabled);
+
+for (const key of Object.keys(rawApps)) {
+  if (!(appNames as readonly string[]).includes(key)) {
+    throw new Error(`team.json: unknown app "${key}" (known apps: ${appNames.join(", ")})`);
+  }
+}
+if (!isEnabled("g3id"))
+  throw new Error("team.json: the g3id app is required and can't be disabled");
+for (const name of workerNames) {
+  if (isEnabled(name) && !rawWorkers[name]) {
+    throw new Error(`team.json: app "${name}" is enabled but has no "workers.${name}" entry`);
+  }
+}
+
+function disabledError(app: string): Error {
+  return new Error(
+    `App "${app}" is disabled in packages/config/team.json; check isEnabled() first`,
+  );
+}
+
+/** Config for each app. Reading a disabled app throws, so a missed link fails loudly instead of rendering a broken URL. */
+export const apps = Object.defineProperties(
+  {} as Record<AppName, AppConfig>,
+  Object.fromEntries(
+    appNames.map((name) => [
+      name,
+      {
+        enumerable: true,
+        get: () => {
+          if (!isEnabled(name)) throw disabledError(name);
+          return rawApps[name] as AppConfig;
+        },
+      },
+    ]),
+  ),
+);
+
+/** Config for each worker. Reading the worker of a disabled app throws. */
+export const workers = Object.defineProperties(
+  {} as Record<WorkerName, WorkerConfig>,
+  Object.fromEntries(
+    workerNames.map((name) => [
+      name,
+      {
+        enumerable: true,
+        get: () => {
+          if (!isEnabled(name)) throw disabledError(name);
+          return rawWorkers[name] as WorkerConfig;
+        },
+      },
+    ]),
+  ),
+);
 
 export const team = config.team;
 export const rootDomain = config.rootDomain;
-export const apps = config.apps;
-export const workers = config.workers;
 export const external = config.external;
 export const dev = config.dev;
 
@@ -16,12 +101,12 @@ export const tbaTeamUrl = `https://www.thebluealliance.com/team/${team.number}`;
 export const statboticsTeamUrl = `https://www.statbotics.io/team/${team.number}`;
 
 export function appUrl(app: AppName, mode: Mode = "production"): string {
-  const { host, devPort } = config.apps[app];
+  const { host, devPort } = apps[app];
   return mode === "development" ? `http://localhost:${devPort}` : `https://${host}.${rootDomain}`;
 }
 
 export function apiUrl(worker: WorkerName, mode: Mode = "production"): string {
-  const { host, devPort } = config.workers[worker];
+  const { host, devPort } = workers[worker];
   return mode === "development" ? `http://localhost:${devPort}` : `https://${host}.${rootDomain}`;
 }
 

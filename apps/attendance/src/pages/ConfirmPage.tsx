@@ -1,3 +1,4 @@
+import { isEnabled } from "@g3/config";
 import { linkTo } from "@g3/config/client";
 import { useEffect, useState } from "react";
 import { API, redirectToLogin } from "../utils/auth";
@@ -22,7 +23,7 @@ type Status =
     }
   | { kind: "error"; message: string };
 
-const ALL_APPS_URL = linkTo("web");
+const ALL_APPS_URL = linkTo(isEnabled("web") ? "web" : "g3id");
 const REDIRECT_SECONDS = 5;
 
 function tokenValid(w: string): boolean {

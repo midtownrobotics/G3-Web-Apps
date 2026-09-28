@@ -1,4 +1,12 @@
-import { apps, rootUrl, statboticsTeamUrl, tbaTeamUrl, team } from "@g3/config";
+import {
+  type AppName,
+  apps,
+  isEnabled,
+  rootUrl,
+  statboticsTeamUrl,
+  tbaTeamUrl,
+  team,
+} from "@g3/config";
 import { linkTo, loginUrl } from "@g3/config/client";
 import { useEffect, useState } from "react";
 import type { IconType } from "react-icons";
@@ -18,86 +26,92 @@ import { g3id } from "../../lib/api";
 
 type App = {
   label: string;
-  href: string;
+  /** One of our apps (hidden when disabled in team.json), or an external link. */
+  target: { app: AppName } | { href: string };
   icon?: IconType;
   bg: string;
   external?: boolean;
   logoSrc?: string;
 };
 
-const APPS: App[] = [
+const TILES: App[] = [
   {
     label: apps.g3id.name,
-    href: linkTo("g3id"),
+    target: { app: "g3id" },
     icon: FaUserShield,
     bg: "bg-red-600",
   },
   {
     label: "Shop",
-    href: linkTo("shop"),
+    target: { app: "shop" },
     icon: FaToolbox,
     bg: "bg-orange-600",
   },
   {
     label: "Pit",
-    href: linkTo("pit"),
+    target: { app: "pit" },
     icon: FaHardHat,
     bg: "bg-yellow-600",
   },
   {
     label: "Skill Tree",
-    href: linkTo("skillTree"),
+    target: { app: "skillTree" },
     icon: LuGitBranch,
     bg: "bg-amber-900",
   },
   {
     label: "Strategy",
-    href: linkTo("scouting"),
+    target: { app: "scouting" },
     icon: FaRobot,
     bg: "bg-slate-900",
   },
   {
     label: "Public Site",
-    href: team.website,
+    target: { href: team.website },
     bg: "bg-gray-400",
     logoSrc: "/logo.png",
   },
   {
     label: "Slack",
-    href: team.slack,
+    target: { href: team.slack },
     icon: FaSlack,
     bg: "bg-blue-300",
     external: true,
   },
   {
     label: "The Blue Alliance",
-    href: tbaTeamUrl,
+    target: { href: tbaTeamUrl },
     icon: FaTrophy,
     bg: "bg-blue-600",
     external: true,
   },
   {
     label: "Statbotics",
-    href: statboticsTeamUrl,
+    target: { href: statboticsTeamUrl },
     icon: FaChartLine,
     bg: "bg-purple-400",
     external: true,
   },
   {
     label: "GitHub",
-    href: team.github,
+    target: { href: team.github },
     icon: FaGithub,
     bg: "bg-gray-700",
     external: true,
   },
   {
     label: "Instagram",
-    href: team.instagram,
+    target: { href: team.instagram },
     icon: FaInstagram,
     bg: "bg-gradient-to-br from-yellow-400 via-pink-500 to-purple-600",
     external: true,
   },
 ];
+
+const APPS = TILES.filter((t) => !("app" in t.target) || isEnabled(t.target.app)).map((t) => ({
+  ...t,
+  href: "app" in t.target ? linkTo(t.target.app) : t.target.href,
+}));
 
 type AuthState = "checking" | "authenticated" | "unauthenticated";
 
