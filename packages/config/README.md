@@ -21,6 +21,7 @@ dev/build scripts the same list.
 
 - `@g3/config` — shared helpers (`appUrl`, `apiUrl`, `allowedOrigin`, `cookieDomain`, `isTeamHostname`, …). Safe in Workers and browsers.
 - `@g3/config/client` — browser-only helpers that pick dev vs. prod URLs from `import.meta.env` (`apiBase`, `linkTo`, `workerUrl`, `loginUrl`).
+- `@g3/config/cloudflare` — helpers for `workers/*/cloudflare.config.ts` (worker names, domains, D1/KV bindings, integrations). Reads `team.json` from disk instead of importing `./index.ts`; see the comment at the top of the file.
 - `src/vite.ts` — Vite config helpers (`devServer`, `apiRequestMatcher`, `teamBranding`). Import by relative path (`../../packages/config/src/vite`), since Vite loads configs with plain Node.
 
 Dev overrides: `VITE_API_BASE_URL` and `VITE_G3ID_URL` in an app's `.env.development.local` (e.g. for a tunnel).

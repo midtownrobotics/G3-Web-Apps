@@ -9,6 +9,7 @@ build/
 
 # Cloudflare
 .wrangler/
+.cloudflare/
 .dev.vars
 
 # Environment

@@ -16,8 +16,8 @@ alerts. Configure it as a secret before deploy:
 
 ```bash
 cd workers/scouting
-wrangler secret put SLACK_BOT_TOKEN --env production
-wrangler secret put TBA_AUTH_KEY --env production
+npx wrangler secret put SLACK_BOT_TOKEN --name scouting-production
+npx wrangler secret put TBA_AUTH_KEY --name scouting-production
 ```
 
 Helpers must link Slack to G3ID so their Slack member ID can be resolved when an

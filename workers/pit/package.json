@@ -2,16 +2,17 @@
   "name": "@g3/worker-pit",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "exports": {
     ".": "./src/index.ts"
   },
   "scripts": {
-    "dev": "wrangler dev --port 8789 --inspector-port 9231",
-    "build": "wrangler deploy --env production --dry-run",
-    "deploy": "wrangler deploy --env production",
+    "dev": "cf dev",
+    "build": "cf build",
+    "deploy": "cf deploy",
     "typecheck": "tsc --noEmit",
-    "db:migrate:local": "wrangler d1 migrations apply PIT_DB --local",
-    "db:migrate:remote": "wrangler d1 migrations apply PIT_DB --env production --remote"
+    "db:migrate:local": "node ../../scripts/d1-migrate.ts pit",
+    "db:migrate:remote": "node ../../scripts/d1-migrate.ts pit --remote"
   },
   "dependencies": {
     "@g3/config": "workspace:*",
@@ -19,9 +20,11 @@
     "hono": "^4.7.0"
   },
   "devDependencies": {
+    "@cloudflare/vite-plugin": "2.0.0-beta.sha-ad79608dd",
     "@cloudflare/workers-types": "^4.20250516.0",
+    "cf": "1.0.0-beta.5",
     "drizzle-kit": "^0.31.0",
     "typescript": "^5.8.0",
-    "wrangler": "^4.14.0"
+    "vite": "8.3.1"
   }
 }

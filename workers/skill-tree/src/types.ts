@@ -1,7 +1,5 @@
 export type AppEnv = {
   Bindings: {
-    FRONTEND_URL: string;
-    SESSIONS: KVNamespace;
     SKILL_DB: D1Database;
     G3ID: Fetcher;
   };

@@ -32,7 +32,8 @@ All team-specific values live in `packages/config/team.json` so another team can
 
 - **`team`** — `number`, `name` ("G3 Robotics"), `shortName` ("G3", highlighted in the G3ID heading), `slackBotName`, `siteDescription` (every app's meta description), and links (`website`, `slack`, `github`, `instagram`)
 - **`apps.<app>`** — `name` is the app's display name used in navbars, page titles, PWA names, and messages (e.g. `apps.shop.name` → "G3 Shop", `apps.g3id.name` → "G3ID"); `host` is its subdomain; `devPort`; `extraHosts` for extra subdomains (attendance `signout.`)
-- **`workers.<worker>`** — `host` (API subdomain), `devPort`, `name` (dev port printer label)
+- **`workers.<worker>`** — `host` (API subdomain), `devPort`, `inspectorPort`, `name` (dev port printer label), `d1` (production database `name` + `id`)
+- **`cloudflare`** — `accountId`, KV namespace IDs, R2 bucket names, queue names (production). **`integrations`** — OAuth client IDs, Slack team/app IDs, Firebase project (public, not secrets)
 - **Enabling/disabling apps:** an app (and its same-named worker) is disabled when its `apps` entry is omitted, set to `false`, or has `"enabled": false`. `g3id` is required. Disabled apps are skipped by `pnpm dev`, `pnpm dev:silent`, `pnpm build`, and CI builds, and links to them are hidden. Reading `apps.<x>`/`workers.<x>` for a disabled app throws — **guard any cross-app link or call with `isEnabled("<app>")`** (e.g. "All Apps" → `isEnabled("web")`, G3ID's attendance admin → `isEnabled("attendance")`). Typecheck and lint still cover all code.
 - **`rootDomain`**, `external.printServer`, `dev.allowedHosts` (dev tunnel hosts)
 - **`packages/config/assets/`** — team logo (`logo.png`, also the favicon) and PWA icons. Replace these files to rebrand; don't add logo copies to apps.
@@ -44,7 +45,18 @@ How to use it:
 - **`teamBranding()`** (in every app's `vite.config`) serves/emits `assets/` at the site root, injects the favicon links (don't write icon `<link>`s in `index.html`), and fills `index.html` tokens: `%APP_NAME:<app>%`, `%APP_URL:<app>%`, `%TEAM_NAME%`, `%TEAM_NUMBER%`, `%SITE_DESCRIPTION%`
 - If a file has a local variable named `team`, import as `team as teamConfig` to avoid shadowing
 
-See `packages/config/README.md`. Still per-environment in each `wrangler.toml`: D1/KV IDs, `FRONTEND_URL`, OAuth redirect URIs, Cloudflare resource names.
+See `packages/config/README.md`.
+
+## Workers: cf (Cloudflare CLI, beta)
+
+Workers use `cf` with the Vite bundler, not Wrangler. **Requires Node 22.18+** (`nvm use` → `.nvmrc`).
+- Config: `workers/<w>/cloudflare.config.ts`, built from `@g3/config/cloudflare` helpers (`workerBase`, `d1`, `kv`, `workerScriptName`, …) so names, IDs, custom domains and integration values all come from `team.json`. It's a function of the mode: `cf dev` → development (local IDs, dev worker names like `g3id`), `cf build`/`cf deploy` → production (`<worker>-production`, IDs from `team.json`).
+- `@g3/config/cloudflare` reads `team.json` from disk and must **not** import `./index.ts`: the Vite plugin blocks the dev server from serving any module a `cloudflare.config.ts` imports, and worker code imports `@g3/config` at runtime. It's loaded by plain Node, so use erasable TS syntax and `.ts` import paths.
+- Scripts per worker: `pnpm dev` (`cf dev`), `pnpm build` (`cf build`), `pnpm deploy` (`cf deploy`), `pnpm db:migrate:local` / `db:migrate:remote` (`scripts/d1-migrate.ts` → `cf d1 migrations apply <id>`; remote unless `--local`).
+- Local secrets: `.dev.vars` (loaded by `cf dev`). Production secrets: `npx wrangler secret put <NAME> --name <worker>-production` (`cf` can't set single secrets yet) or `cf deploy --secrets-file <file>`. Declare every secret with `bindings.secret()`.
+- Local data lives in each worker's `.cloudflare/state/` (gitignored). Workers run by `cf dev` find each other through `~/.config/cloudflare/registry`; they can't reach workers run by `wrangler dev`.
+- `cf` resource commands take IDs, not names, and hit production unless `--local`. Use `cf cli search "<task>"` to find commands. Set `CF_SEND_TELEMETRY=false` to disable telemetry.
+- Known beta bug: local `cf d1 migrations apply --local` sometimes finishes but never exits (a leaked watcher on the registry dir). Ctrl+C after the results print.
 
 ## Architecture Overview
 
@@ -140,7 +152,7 @@ PIN-based access for untrusted computers:
 **Database schema change:**
 1. Create migration file: `workers/g3id/src/db/migrations/000X_description.sql`
 2. Update `workers/g3id/src/db/schema.ts` Drizzle definitions
-3. Test locally: `wrangler d1 migrations apply <database-name> --local`
+3. Apply locally: `cd workers/g3id && pnpm db:migrate:local`
 
 **Create dev accounts with email/password (as admin):**
 ```
@@ -174,7 +186,7 @@ pnpm -r --if-present test    # Run available tests
 
 ## Development Servers
 
-**Port assignments** (`packages/config/team.json`; wrangler ports are also passed via `--port` in each worker's `dev` script):
+**Port assignments** (all from `packages/config/team.json`):
 
 Apps:
 - `apps/g3id` → 5173
@@ -185,7 +197,7 @@ Apps:
 - `apps/attendance` → 5181
 - `apps/scouting` → 5182
 
-Workers (Wrangler):
+Workers (`cf dev`):
 - `workers/g3id` → 8787 (inspector: 9229)
 - `workers/shop` → 8788 (inspector: 9230)
 - `workers/pit` → 8789 (inspector: 9231)
@@ -204,12 +216,12 @@ If you see "Address already in use" errors, kill zombie processes:
 ```bash
 fuser -k 8787 8788 8789 8790 8791 8792 9229 9230 9231 9232 9233 9234
 # or more aggressively:
-killall -9 workerd wrangler node
+killall -9 workerd node
 ```
 
 **Adding a new port:**
 1. Add the entry to `packages/config/team.json` (apps or workers)
-2. Apps pick it up via `devServer()`; for workers, also set `--port` in the worker's `dev` script
+2. Apps pick it up via `devServer()`, workers via `workerVite()` and `cloudflare({ inspectorPort })` in `vite.config.ts`
 3. The port printer will automatically pick it up on next `pnpm dev`
 
 ## Adding New Apps and Workers
@@ -225,25 +237,23 @@ killall -9 workerd wrangler node
 **Add a new worker (Cloudflare backend):**
 1. Create directory: `workers/<worker-name>/`
 2. Copy structure from an existing worker (e.g., `workers/shop/`)
-3. Pass a unique port and inspector port in the `dev` script (`wrangler dev --port <port> --inspector-port <port>`)
-4. Set up D1 database bindings and KV namespace bindings in wrangler.toml
-5. Create `workers/<worker-name>/package.json` with `name` and `dev` script
-6. Add the worker (host, port) to `packages/config/team.json`; use `allowedOrigin()` from `@g3/config` for CORS
+3. Add the worker (`host`, unique `devPort` and `inspectorPort`, `d1` if any) to `packages/config/team.json` and its key to `workerNames` in `packages/config/src/index.ts` (plus a local D1 ID in `src/cloudflare.ts`); use `allowedOrigin()` from `@g3/config` for CORS
+4. Write `cloudflare.config.ts` with the `@g3/config/cloudflare` helpers (bindings, service bindings via `bindings.worker({ worker: workerScriptName("g3id", mode) })`, secrets)
+5. Write `vite.config.ts`: `cloudflare({ inspectorPort })` plugin + `...workerVite("<worker>")`
+6. `package.json`: `"type": "module"`, scripts `cf dev` / `cf build` / `cf deploy`, dev deps `cf`, `@cloudflare/vite-plugin`, `vite` (pinned like the other workers)
 7. Add to root `pnpm-workspace.yaml` if not already globbed
-8. If the worker needs to call other services, add service bindings in wrangler.toml
 
 **Key differences from other systems:**
 - Apps use Vite for dev server and build
-- Workers use Wrangler for local dev (runs actual Cloudflare workerd runtime)
+- Workers use `cf dev` (Vite + Cloudflare plugin, runs the workerd runtime)
 - All use Tailwind CSS v4 for styling (via `@g3/ui` package)
 - All use TypeScript; monorepo-wide `pnpm typecheck` validates all
 
 ## Deployment
 
-Workers deployed via Wrangler:
-- `wrangler deploy` in each worker directory
-- D1 database migrations run on deploy (see `wrangler.toml` in worker directories)
-- Frontend apps deployed to Cloudflare Pages (via GitHub Actions)
+- Workers: `pnpm deploy` (`cf deploy`, production mode) in each worker directory; `cf deploy --dry-run` to preview. Sign in with `cf auth login` or `CLOUDFLARE_API_TOKEN`.
+- D1 migrations are not run by deploys: `pnpm db:migrate:remote` in the worker directory.
+- Frontend apps deploy to Cloudflare Pages.
 
 ## Key Files to Know
 
@@ -254,7 +264,9 @@ Workers deployed via Wrangler:
 - `apps/g3id/src/shared/nav-bar.tsx` — Navigation bar with auth state management
 - `packages/ui/src/index.css` — Tailwind theme and colors
 - `packages/config/team.json` — team name/number, app names, domains, dev ports (see Team Config)
-- `packages/config/src/vite.ts` — shared Vite helpers (`devServer`, `teamBranding`)
+- `packages/config/src/vite.ts` — shared Vite helpers (`devServer`, `teamBranding`, `workerVite`)
+- `packages/config/src/cloudflare.ts` — helpers for `workers/*/cloudflare.config.ts`
+- `scripts/d1-migrate.ts` — D1 migrations by ID from `team.json`
 - `packages/config/assets/` — team logo, favicon, PWA icons
 
 ## Updating This File

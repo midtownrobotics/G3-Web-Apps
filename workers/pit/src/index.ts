@@ -598,8 +598,8 @@ const app = base
   .get("/monitor/data", requireAuth, async (c) => {
     const db = createDb(c.env.PIT_DB);
     const team = String(teamConfig.number);
-    const eventKey = await getSetting(db, "eventKey", c.env.EVENT_KEY);
-    const nexusEventKey = await getSetting(db, "nexusEventKey", c.env.EVENT_KEY);
+    const eventKey = await getSetting(db, "eventKey", "");
+    const nexusEventKey = await getSetting(db, "nexusEventKey", "");
     const tbaKey = await getSetting(db, "tbaAuthKey", c.env.TBA_AUTH_KEY);
     const nexusKey = await getSetting(db, "nexusApiKey", c.env.NEXUS_API_KEY);
     const year = new Date().getFullYear();
@@ -765,8 +765,8 @@ const app = base
   .get("/admin/settings", requireAdmin, async (c) => {
     const db = createDb(c.env.PIT_DB);
     const [eventKey, nexusEventKey, tbaAuthKey, nexusApiKey, iframeUrl] = await Promise.all([
-      getSetting(db, "eventKey", c.env.EVENT_KEY),
-      getSetting(db, "nexusEventKey", c.env.EVENT_KEY),
+      getSetting(db, "eventKey", ""),
+      getSetting(db, "nexusEventKey", ""),
       getSetting(db, "tbaAuthKey", c.env.TBA_AUTH_KEY),
       getSetting(db, "nexusApiKey", c.env.NEXUS_API_KEY),
       getSetting(db, "iframeUrl", ""),

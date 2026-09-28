@@ -1,100 +1,82 @@
 # Production Deployment
 
-The worker (`workers/g3id`) and the frontend app (`apps/g3id`) are deployed separately. The worker runs on a dedicated subdomain; the frontend is hosted on Cloudflare Pages.
+The worker (`workers/g3id`) and the frontend app (`apps/g3id`) are deployed separately. Hostnames come from
+`packages/config/team.json` (`rootDomain`, `apps.g3id.host`, `workers.g3id.host`):
+
+```
+https://g3id.<rootDomain>          → Cloudflare Pages (frontend)
+https://api.g3id.<rootDomain>      → Cloudflare Worker (g3id-production)
+```
+
+The frontend calls the worker directly at the `api.` subdomain. In dev, the Vite dev server proxies `/api/*` to the
+worker instead.
 
 ---
 
-## Architecture
+## Worker
 
-```
-https://g3id.g3robotics.com          → Cloudflare Pages (frontend)
-https://api.g3id.g3robotics.com      → Cloudflare Worker (g3id)
-```
+Configured by `workers/g3id/cloudflare.config.ts`, which reads names, resource IDs, the custom domain, and OAuth
+client IDs from `team.json`. Requires Node 22.18+ (`nvm use` picks the repo's `.nvmrc`).
 
-The frontend calls the worker directly at the `api.` subdomain. There is no proxy — unlike dev, where the Vite dev server proxies `/api/*` to `localhost:8787`.
-
----
-
-## Worker Deployment
-
-### 1. Deploy the worker
+### 1. Deploy
 
 ```
 cd workers/g3id
-wrangler deploy --env production
+pnpm exec cf auth login     # once, or set CLOUDFLARE_API_TOKEN
+pnpm exec cf deploy --dry-run   # builds and prints bindings, uploads nothing
+pnpm deploy                 # cf deploy (production mode)
 ```
 
-### 2. Attach a custom domain
+`cf deploy` also attaches the custom domain `api.g3id.<rootDomain>` (declared as `domains` in the config).
 
-In the Cloudflare dashboard, go to **Workers & Pages → g3id-production → Settings → Domains & Routes** and add `api.g3id.g3robotics.com` as a custom domain. Cloudflare will provision the DNS record and TLS certificate automatically.
+### 2. Set production secrets
 
-### 3. Set production secrets
-
-Secrets are set per-environment and are never committed to the repo. Run each command and paste the value when prompted:
+Secrets are never committed. `cf` can't set a single secret yet, so use Wrangler with the worker name:
 
 ```
-wrangler secret put GOOGLE_CLIENT_ID      --env production
-wrangler secret put GOOGLE_CLIENT_SECRET  --env production
-wrangler secret put GOOGLE_REDIRECT_URI   --env production
-# value: https://api.g3id.g3robotics.com/auth/google/callback
+npx wrangler secret put GOOGLE_CLIENT_SECRET --name g3id-production
+npx wrangler secret put GITHUB_CLIENT_SECRET --name g3id-production
+npx wrangler secret put SLACK_BOT_TOKEN --name g3id-production
+npx wrangler secret put SLACK_SIGNING_SECRET --name g3id-production
+npx wrangler secret put STEAM_API_KEY --name g3id-production
+npx wrangler secret put ONSHAPE_CLIENT_SECRET --name g3id-production
 ```
 
-Repeat for any other OAuth providers as they are added.
+Or upload them with a deploy: `pnpm exec cf deploy --secrets-file <file>` (JSON or `.env` format).
+Locally, secrets come from `workers/g3id/.dev.vars` (see `.dev.vars.example`).
 
-### 4. Register the production redirect URI with each OAuth provider
+### 3. Register the production redirect URIs
 
-Every OAuth app (Google, GitHub, etc.) must have the production callback URL explicitly allowlisted:
+Client IDs live in `team.json` under `integrations`. Each OAuth app must allowlist its production callback:
 
-| Provider | Redirect URI to register |
-|----------|--------------------------|
-| Google   | `https://api.g3id.g3robotics.com/auth/google/callback` |
-| GitHub   | `https://api.g3id.g3robotics.com/auth/github/callback` |
+| Provider | Redirect URI                                          |
+| -------- | ----------------------------------------------------- |
+| Google   | `https://api.g3id.<rootDomain>/auth/google/callback`  |
+| GitHub   | `https://api.g3id.<rootDomain>/auth/github/callback`  |
+| Steam    | `https://api.g3id.<rootDomain>/auth/steam/callback`   |
+| OnShape  | `https://api.g3id.<rootDomain>/auth/onshape/callback` |
 
-Add new rows here as providers are added.
+In dev, callbacks go through the app proxy: `http://localhost:5173/api/auth/<provider>/callback`.
+
+### 4. Database migrations
+
+The production database (name + ID) is `workers.g3id.d1` in `team.json`:
+
+```
+cd workers/g3id
+pnpm db:migrate:remote   # cf d1 migrations apply <id from team.json>
+pnpm db:migrate:local    # same, against local dev data in .cloudflare/state
+```
 
 ---
 
-## Frontend Deployment
+## Frontend
 
-### 1. Connect the repo to Cloudflare Pages
-
-In the Cloudflare dashboard, create a new Pages project pointing at this repo. Set the following build configuration:
+Create a Cloudflare Pages project for this repo:
 
 - **Build command:** `pnpm --filter @g3/g3id build`
 - **Build output directory:** `apps/g3id/dist`
 - **Root directory:** `/` (repo root)
 
-### 2. Set the API base URL environment variable
-
-In the Pages project settings under **Environment Variables**, add:
-
-| Variable | Value |
-|----------|-------|
-| `VITE_API_BASE_URL` | `https://api.g3id.g3robotics.com` |
-
-This is read at build time by Vite and baked into the frontend bundle. Without it the frontend falls back to an empty string and all API calls break in production.
-
-### 3. Attach the custom domain
-
-In the Pages project under **Custom Domains**, add `g3id.g3robotics.com`.
-
----
-
-## Environment Variable Reference
-
-| Variable | Where set | Dev value | Production value |
-|----------|-----------|-----------|-----------------|
-| `VITE_API_BASE_URL` | Pages env vars (build-time) | `/api` (via `.env`) | `https://api.g3id.g3robotics.com` |
-| `GOOGLE_CLIENT_ID` | Wrangler secret | `.dev.vars` | wrangler secret |
-| `GOOGLE_CLIENT_SECRET` | Wrangler secret | `.dev.vars` | wrangler secret |
-| `GOOGLE_REDIRECT_URI` | Wrangler secret | `http://localhost:5173/api/auth/google/callback` | `https://api.g3id.g3robotics.com/auth/google/callback` |
-
----
-
-## Database
-
-The D1 databases and KV namespaces for production are already declared in `wrangler.toml` under `[env.production]`. Run migrations against the production database with:
-
-```
-wrangler d1 migrations apply g3-auth-prod --env production --remote
-```
+No environment variables are needed; API URLs are derived from `team.json` at build time. Attach the custom domain
+`g3id.<rootDomain>` under **Custom Domains**.

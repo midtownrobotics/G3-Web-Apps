@@ -31,11 +31,17 @@ it uses the helpers in `@g3/config`:
 
 - Workers: `allowedOrigin()` (CORS), `cookieDomain()`, `isTeamHostname()`, `appUrl()` / `apiUrl()`
 - Apps: `@g3/config/client` → `apiBase()`, `linkTo()`, `workerUrl()`, `loginUrl()`
-- Vite configs: `packages/config/src/vite` → `devServer()`, `apiRequestMatcher()`, `teamHtml()`
+- Vite configs: `packages/config/src/vite` → `devServer()`, `apiRequestMatcher()`, `teamBranding()`, `workerVite()`
   (imported by relative path because Vite loads its config with plain Node, which can't import `.ts` from a package)
+- Worker configs (`workers/*/cloudflare.config.ts`): `@g3/config/cloudflare` → worker names, custom domains,
+  D1/KV bindings, and integration values from `team.json`
 
-Per-environment Cloudflare values (D1/KV IDs, `FRONTEND_URL`, OAuth redirect URIs) are still in each
-worker's `wrangler.toml`.
+## Workers: cf
+
+Workers are built, run and deployed with the Cloudflare CLI `cf` (beta) using the Vite bundler
+(`@cloudflare/vite-plugin` 2.0 beta). Each worker has a `cloudflare.config.ts` (a function of the mode: `cf dev` →
+development, `cf build`/`cf deploy` → production) and a `vite.config.ts`. Production resource IDs live in
+`team.json`; local dev uses placeholder IDs and keeps data in each worker's `.cloudflare/state/`.
 
 ## Frontend: plugin pattern
 

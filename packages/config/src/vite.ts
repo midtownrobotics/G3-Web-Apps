@@ -25,6 +25,11 @@ export function devServer(
   };
 }
 
+/** Vite settings for a worker run by `cf dev`. */
+export function workerVite(worker: WorkerName) {
+  return { server: { port: workers[worker].devPort, strictPort: true } };
+}
+
 /**
  * Workbox matcher for a worker's API: the `/api` proxy in dev, its API host in prod.
  * A RegExp, not a function: Workbox serializes it into sw.js, where closures don't survive.

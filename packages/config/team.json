@@ -11,38 +11,122 @@
     "instagram": "https://www.instagram.com/g3robotics1648/"
   },
   "rootDomain": "g3robotics.com",
+  "cloudflare": {
+    "accountId": "e54a97a23069e7889e8e820c00e520d8",
+    "kv": {
+      "sessions": "db4457ce43c9468eb9ec5a049afa65b1",
+      "rateLimit": "d36a0313dd774bf78bacd76250ec085a"
+    },
+    "r2": {
+      "drawings": "g3-bucket",
+      "fieldMaps": "g3-scouting"
+    },
+    "queues": {
+      "bomFetch": "bom-fetch-jobs"
+    }
+  },
+  "integrations": {
+    "googleClientId": "26070176131-lom1rtgi2tmahrd12md7452oieha1vbl.apps.googleusercontent.com",
+    "githubClientId": "Iv23lii4BhJtKBycp2yB",
+    "onshapeClientId": "NREWPL5DFDUCQEIYYGYZ643CMR3FTTSUMI2XDWQ=",
+    "slackTeamId": "T04LF3F0D",
+    "slackAppId": "A08M9C82LEL",
+    "firebaseProjectId": "g3-attendance"
+  },
   "apps": {
-    "g3id": { "name": "G3ID", "host": "g3id", "devPort": 5173 },
-    "shop": { "name": "G3 Shop", "host": "shop", "devPort": 5174 },
-    "pit": { "name": "G3 Pit", "host": "pit", "devPort": 5175 },
-    "web": { "name": "G3 Robotics", "host": "web", "devPort": 5178 },
-    "skillTree": { "name": "FRC Skill Trees", "host": "skilltree", "devPort": 5180 },
+    "g3id": {
+      "name": "G3ID",
+      "host": "g3id",
+      "devPort": 5173
+    },
+    "shop": {
+      "name": "G3 Shop",
+      "host": "shop",
+      "devPort": 5174
+    },
+    "pit": {
+      "name": "G3 Pit",
+      "host": "pit",
+      "devPort": 5175
+    },
+    "web": {
+      "name": "G3 Robotics",
+      "host": "web",
+      "devPort": 5178
+    },
+    "skillTree": {
+      "name": "FRC Skill Trees",
+      "host": "skilltree",
+      "devPort": 5180
+    },
     "attendance": {
       "name": "G3 Attendance",
       "host": "signin.attendance",
       "extraHosts": ["signout.attendance"],
       "devPort": 5181
     },
-    "scouting": { "name": "G3 Strategy", "host": "scouting", "devPort": 5182 }
+    "scouting": {
+      "name": "G3 Strategy",
+      "host": "scouting",
+      "devPort": 5182
+    }
   },
   "workers": {
-    "g3id": { "name": "G3ID Worker", "host": "api.g3id", "devPort": 8787 },
-    "shop": { "name": "Shop Worker", "host": "api.shop", "devPort": 8788 },
-    "pit": { "name": "Pit Worker", "host": "api.pit", "devPort": 8789 },
+    "g3id": {
+      "name": "G3ID Worker",
+      "host": "api.g3id",
+      "devPort": 8787,
+      "inspectorPort": 9229,
+      "d1": {
+        "name": "g3-auth-prod",
+        "id": "50a5f8ad-b323-40d7-8fdf-da81ef87b935"
+      }
+    },
+    "shop": {
+      "name": "Shop Worker",
+      "host": "api.shop",
+      "devPort": 8788,
+      "inspectorPort": 9230,
+      "d1": {
+        "name": "g3-shop-prod",
+        "id": "4e69e7bc-85ce-4f32-859a-40ef6a21ab2a"
+      }
+    },
+    "pit": {
+      "name": "Pit Worker",
+      "host": "api.pit",
+      "devPort": 8789,
+      "inspectorPort": 9231,
+      "d1": {
+        "name": "g3-pit-prod",
+        "id": "f10a16be-9193-4888-ac18-099ccebe63c2"
+      }
+    },
     "skillTree": {
       "name": "Skill Tree Worker",
       "host": "api.skilltree",
-      "devPort": 8790
+      "devPort": 8790,
+      "inspectorPort": 9232,
+      "d1": {
+        "name": "g3-skill-tree-prod",
+        "id": "a8a17637-93f3-4fcd-b04a-91181b993673"
+      }
     },
     "attendance": {
       "name": "Attendance Worker",
       "host": "api.attendance",
-      "devPort": 8791
+      "devPort": 8791,
+      "inspectorPort": 9233
     },
     "scouting": {
       "name": "Scouting Worker",
       "host": "api.scouting",
-      "devPort": 8792
+      "devPort": 8792,
+      "inspectorPort": 9234,
+      "d1": {
+        "name": "g3-scouting-prod",
+        "id": "e24f6c2e-72dd-4307-864f-8e1b5dc2c2aa"
+      }
     }
   },
   "external": {

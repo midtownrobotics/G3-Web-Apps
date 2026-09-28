@@ -30,12 +30,13 @@ Request the minimum scopes needed. At minimum you need the user's unique ID (sub
 
 **`workers/g3id/.dev.vars`** — fill in your actual credentials (gitignored, never commit).
 
-**Production secrets** — set via Wrangler rather than a committed file:
+**Client ID and redirect URI** — not secrets. Add the client ID to `integrations` in `packages/config/team.json`
+and bind both in `workers/g3id/cloudflare.config.ts` (see the existing providers; the redirect URI comes from the
+`callback("{provider}")` helper there). Declare the secret there too with `bindings.secret()`.
+
+**Production secret** — `cf` can't set single secrets yet, so use Wrangler with the worker name:
 ```
-wrangler secret put {PROVIDER}_CLIENT_ID
-wrangler secret put {PROVIDER}_CLIENT_SECRET
-wrangler secret put {PROVIDER}_REDIRECT_URI
-# value: https://api.g3id.g3robotics.com/auth/{provider}/callback
+npx wrangler secret put {PROVIDER}_CLIENT_SECRET --name g3id-production
 ```
 
 **`workers/g3id/src/types.ts`** — add the three variables to the `Bindings` block of `AppEnv`.

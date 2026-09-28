@@ -10,6 +10,7 @@
     "ignore": [
       "dist",
       ".wrangler",
+      ".cloudflare",
       "node_modules",
       "G3-Web-Apps",
       "*.tsbuildinfo",

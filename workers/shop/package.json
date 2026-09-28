@@ -2,15 +2,17 @@
   "name": "@g3/worker-shop",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "exports": {
     ".": "./src/index.ts"
   },
   "scripts": {
-    "dev": "wrangler dev --port 8788 --inspector-port 9230",
-    "deploy": "wrangler deploy",
+    "dev": "cf dev",
+    "build": "cf build",
+    "deploy": "cf deploy",
     "typecheck": "tsc --noEmit",
-    "db:migrate:local": "wrangler d1 migrations apply SHOP_DB --local",
-    "db:migrate:remote": "wrangler d1 migrations apply SHOP_DB --env production --remote"
+    "db:migrate:local": "node ../../scripts/d1-migrate.ts shop",
+    "db:migrate:remote": "node ../../scripts/d1-migrate.ts shop --remote"
   },
   "dependencies": {
     "@g3/config": "workspace:*",
@@ -20,9 +22,11 @@
     "pdf-lib": "^1.17.1"
   },
   "devDependencies": {
+    "@cloudflare/vite-plugin": "2.0.0-beta.sha-ad79608dd",
     "@cloudflare/workers-types": "^4.20250516.0",
+    "cf": "1.0.0-beta.5",
     "drizzle-kit": "^0.31.0",
     "typescript": "^5.8.0",
-    "wrangler": "^4.110.0"
+    "vite": "8.3.1"
   }
 }

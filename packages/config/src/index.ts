@@ -1,4 +1,4 @@
-import config from "../team.json";
+import config from "../team.json" with { type: "json" };
 
 export type Mode = "production" | "development";
 
@@ -25,7 +25,14 @@ type AppConfig = {
   extraHosts?: string[];
   enabled?: boolean;
 };
-type WorkerConfig = { name: string; host: string; devPort: number };
+type WorkerConfig = {
+  name: string;
+  host: string;
+  devPort: number;
+  inspectorPort: number;
+  /** Production D1 database, for workers that have one. */
+  d1?: { name: string; id: string };
+};
 
 const rawApps = config.apps as Partial<Record<string, AppConfig | false>>;
 const rawWorkers = config.workers as Partial<Record<string, WorkerConfig>>;
@@ -92,6 +99,8 @@ export const workers = Object.defineProperties(
 );
 
 export const team = config.team;
+export const cloudflare = config.cloudflare;
+export const integrations = config.integrations;
 export const rootDomain = config.rootDomain;
 export const external = config.external;
 export const dev = config.dev;
