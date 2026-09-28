@@ -28,7 +28,22 @@ pnpm -r --if-present typecheck  # Ensure no type errors
 
 ## Team Config
 
-All team/domain-specific values (team number, root domain, subdomains, dev ports, external links) live in `packages/config/team.json`. **Never hardcode domains, URLs, ports, or the team number** — use `@g3/config` (workers + shared), `@g3/config/client` (apps), or `packages/config/src/vite` (Vite configs, imported by relative path). See `packages/config/README.md`.
+All team-specific values live in `packages/config/team.json` so another team can rebrand/redeploy by editing one file. **Never hardcode the team name, "G3", app names, domains, URLs, ports, the team number, or logo files.**
+
+- **`team`** — `number`, `name` ("G3 Robotics"), `shortName` ("G3", highlighted in the G3ID heading), `slackBotName`, `siteDescription` (every app's meta description), and links (`website`, `slack`, `github`, `instagram`)
+- **`apps.<app>`** — `name` is the app's display name used in navbars, page titles, PWA names, and messages (e.g. `apps.shop.name` → "G3 Shop", `apps.g3id.name` → "G3ID"); `host` is its subdomain; `devPort`; `extraHosts` for extra subdomains (attendance `signout.`)
+- **`workers.<worker>`** — `host` (API subdomain), `devPort`, `name` (dev port printer label)
+- **`rootDomain`**, `external.printServer`, `dev.allowedHosts` (dev tunnel hosts)
+- **`packages/config/assets/`** — team logo (`logo.png`, also the favicon) and PWA icons. Replace these files to rebrand; don't add logo copies to apps.
+
+How to use it:
+- **Workers / shared code:** `@g3/config` — `team`, `apps`, `apiUrl()`, `appUrl()`, `allowedOrigin()` (CORS), `cookieDomain()`, `isTeamHostname()`, `tbaTeamUrl`
+- **Apps:** `@g3/config/client` — `apiBase()`, `linkTo()`, `workerUrl()`, `loginUrl()` (pick dev vs prod URLs). Use `apps.<app>.name` for display names.
+- **Vite configs:** import `devServer`, `apiRequestMatcher`, `teamBranding` from `../../packages/config/src/vite` (relative path — Vite loads configs with plain Node, which can't import `.ts` from a package)
+- **`teamBranding()`** (in every app's `vite.config`) serves/emits `assets/` at the site root, injects the favicon links (don't write icon `<link>`s in `index.html`), and fills `index.html` tokens: `%APP_NAME:<app>%`, `%APP_URL:<app>%`, `%TEAM_NAME%`, `%TEAM_NUMBER%`, `%SITE_DESCRIPTION%`
+- If a file has a local variable named `team`, import as `team as teamConfig` to avoid shadowing
+
+See `packages/config/README.md`. Still per-environment in each `wrangler.toml`: D1/KV IDs, `FRONTEND_URL`, OAuth redirect URIs, Cloudflare resource names.
 
 ## Architecture Overview
 
@@ -167,6 +182,7 @@ Apps:
 - `apps/web` → 5178
 - `apps/skill-tree` → 5180
 - `apps/attendance` → 5181
+- `apps/scouting` → 5182
 
 Workers (Wrangler):
 - `workers/g3id` → 8787 (inspector: 9229)
@@ -174,6 +190,7 @@ Workers (Wrangler):
 - `workers/pit` → 8789 (inspector: 9231)
 - `workers/skill-tree` → 8790 (inspector: 9232)
 - `workers/attendance` → 8791 (inspector: 9233)
+- `workers/scouting` → 8792 (inspector: 9234)
 
 **Starting dev servers:**
 - `pnpm dev` — Start all servers and print port summary after ready
@@ -182,7 +199,7 @@ Workers (Wrangler):
 **Port conflicts:**
 If you see "Address already in use" errors, kill zombie processes:
 ```bash
-fuser -k 8787 8788 8789 8790 8791 9229 9230 9231 9232 9233
+fuser -k 8787 8788 8789 8790 8791 8792 9229 9230 9231 9232 9233 9234
 # or more aggressively:
 killall -9 workerd wrangler node
 ```
@@ -197,14 +214,15 @@ killall -9 workerd wrangler node
 **Add a new app (React frontend):**
 1. Create directory: `apps/<app-name>/`
 2. Copy structure from an existing app (e.g., `apps/web/`)
-3. Add the app (host + unique dev port) to `packages/config/team.json` and use `server: devServer("<app>")` in `vite.config.ts`
-4. Create `apps/<app-name>/package.json` with at minimum: `name`, `type: "module"`, `dev` script
-5. Add to root `pnpm-workspace.yaml` if not already globbed
+3. Add the app (`name`, `host`, unique `devPort`) to `packages/config/team.json`; in `vite.config.ts` use `server: devServer("<app>", "<worker>")` and add `teamBranding()` to `plugins`
+4. In `index.html`, use `<title>%APP_NAME:<app>%</title>` and `content="%SITE_DESCRIPTION%"`; no favicon links (injected)
+5. Create `apps/<app-name>/package.json` with at minimum: `name`, `type: "module"`, `dev` script, and `"@g3/config": "workspace:*"`
+6. Add to root `pnpm-workspace.yaml` if not already globbed
 
 **Add a new worker (Cloudflare backend):**
 1. Create directory: `workers/<worker-name>/`
 2. Copy structure from an existing worker (e.g., `workers/shop/`)
-3. Add unique port and inspector-port to `workers/<worker-name>/wrangler.toml`
+3. Pass a unique port and inspector port in the `dev` script (`wrangler dev --port <port> --inspector-port <port>`)
 4. Set up D1 database bindings and KV namespace bindings in wrangler.toml
 5. Create `workers/<worker-name>/package.json` with `name` and `dev` script
 6. Add the worker (host, port) to `packages/config/team.json`; use `allowedOrigin()` from `@g3/config` for CORS
@@ -232,6 +250,9 @@ Workers deployed via Wrangler:
 - `workers/g3id/src/lib/slack-code.ts` — Core Slack authentication logic
 - `apps/g3id/src/shared/nav-bar.tsx` — Navigation bar with auth state management
 - `packages/ui/src/index.css` — Tailwind theme and colors
+- `packages/config/team.json` — team name/number, app names, domains, dev ports (see Team Config)
+- `packages/config/src/vite.ts` — shared Vite helpers (`devServer`, `teamBranding`)
+- `packages/config/assets/` — team logo, favicon, PWA icons
 
 ## Updating This File
 
