@@ -14,18 +14,27 @@ import { useShopData } from "../../shared/use-shop-data";
 import { useTouchDevice } from "../../shared/use-touch";
 import { PartCard } from "./part-card";
 
-type SortKey = "newest" | "oldest" | "alpha" | "alpha-rev" | "number" | "number-rev" | "revision" | "revision-rev" | "instance" | "instance-rev" | "process" | "process-rev" | "progress" | "progress-rev" | "priority" | "status" | "subsystem";
+type SortKey =
+  | "newest"
+  | "oldest"
+  | "alpha"
+  | "alpha-rev"
+  | "number"
+  | "number-rev"
+  | "revision"
+  | "revision-rev"
+  | "instance"
+  | "instance-rev"
+  | "process"
+  | "process-rev"
+  | "progress"
+  | "progress-rev"
+  | "priority"
+  | "status"
+  | "subsystem";
 
 /** Sorts that order whole blueprints — instances stay grouped with a connector line. */
 const GROUPED_SORTS: SortKey[] = ["newest", "oldest", "alpha", "priority", "subsystem"];
-
-const STATE_ORDER: Record<InstanceState, number> = {
-  doing: 0,
-  todo: 1,
-  waiting: 2,
-  "no-processes": 3,
-  complete: 4,
-};
 
 type Filters = {
   priority: "all" | "priority" | "standard";
@@ -281,9 +290,13 @@ function PartsTable({
     } else if (sort === "alpha-rev") {
       flat.sort((a, b) => b.definition.name.localeCompare(a.definition.name));
     } else if (sort === "number") {
-      flat.sort((a, b) => a.definition.onshapePartNumber.localeCompare(b.definition.onshapePartNumber));
+      flat.sort((a, b) =>
+        a.definition.onshapePartNumber.localeCompare(b.definition.onshapePartNumber),
+      );
     } else if (sort === "number-rev") {
-      flat.sort((a, b) => b.definition.onshapePartNumber.localeCompare(a.definition.onshapePartNumber));
+      flat.sort((a, b) =>
+        b.definition.onshapePartNumber.localeCompare(a.definition.onshapePartNumber),
+      );
     } else if (sort === "revision") {
       flat.sort((a, b) => a.definition.revision.localeCompare(b.definition.revision));
     } else if (sort === "revision-rev") {
@@ -308,16 +321,40 @@ function PartsTable({
       flat.sort((a, b) => {
         const aProcs = a.procs ?? [];
         const bProcs = b.procs ?? [];
-        const aPercent = aProcs.length > 0 ? ((aProcs.filter((p) => p.status === "done").length + aProcs.filter((p) => p.status === "doing").length * 0.5) / aProcs.length) * 100 : -1;
-        const bPercent = bProcs.length > 0 ? ((bProcs.filter((p) => p.status === "done").length + bProcs.filter((p) => p.status === "doing").length * 0.5) / bProcs.length) * 100 : -1;
+        const aPercent =
+          aProcs.length > 0
+            ? ((aProcs.filter((p) => p.status === "done").length +
+                aProcs.filter((p) => p.status === "doing").length * 0.5) /
+                aProcs.length) *
+              100
+            : -1;
+        const bPercent =
+          bProcs.length > 0
+            ? ((bProcs.filter((p) => p.status === "done").length +
+                bProcs.filter((p) => p.status === "doing").length * 0.5) /
+                bProcs.length) *
+              100
+            : -1;
         return bPercent - aPercent;
       });
     } else if (sort === "progress-rev") {
       flat.sort((a, b) => {
         const aProcs = a.procs ?? [];
         const bProcs = b.procs ?? [];
-        const aPercent = aProcs.length > 0 ? ((aProcs.filter((p) => p.status === "done").length + aProcs.filter((p) => p.status === "doing").length * 0.5) / aProcs.length) * 100 : -1;
-        const bPercent = bProcs.length > 0 ? ((bProcs.filter((p) => p.status === "done").length + bProcs.filter((p) => p.status === "doing").length * 0.5) / bProcs.length) * 100 : -1;
+        const aPercent =
+          aProcs.length > 0
+            ? ((aProcs.filter((p) => p.status === "done").length +
+                aProcs.filter((p) => p.status === "doing").length * 0.5) /
+                aProcs.length) *
+              100
+            : -1;
+        const bPercent =
+          bProcs.length > 0
+            ? ((bProcs.filter((p) => p.status === "done").length +
+                bProcs.filter((p) => p.status === "doing").length * 0.5) /
+                bProcs.length) *
+              100
+            : -1;
         return aPercent - bPercent;
       });
     } else if (sort === "priority" || sort === "subsystem" || !GROUPED_SORTS.includes(sort)) {
@@ -362,54 +399,6 @@ function PartsTable({
     }
 
     return flat.map((r) => [r]);
-
-    const byDef = new Map<number, InstanceRow[]>();
-    for (const r of filtered) {
-      // biome-ignore lint/correctness/useExhaustiveDependencies: existing is checked in if
-      const existing = byDef.get(r.definition.id);
-      if (existing) {
-        existing.push(r);
-      } else {
-        byDef.set(r.definition.id, [r]);
-      }
-    }
-    const grouped = [...byDef.values()];
-    for (const g of grouped)
-      g.sort((a, b) => a.instance.instanceNumber - b.instance.instanceNumber);
-
-    const def = (g: InstanceRow[]) => g[0].definition;
-    switch (sort) {
-      case "oldest":
-        grouped.sort((a, b) => def(a).createdAt - def(b).createdAt);
-        break;
-      case "alpha":
-        grouped.sort((a, b) => def(a).name.localeCompare(def(b).name));
-        break;
-      case "priority":
-        for (const g of grouped)
-          g.sort(
-            (a, b) =>
-              b.instance.isPriority - a.instance.isPriority ||
-              a.instance.instanceNumber - b.instance.instanceNumber,
-          );
-        grouped.sort(
-          (a, b) =>
-            Math.max(...b.map((r) => r.instance.isPriority)) -
-              Math.max(...a.map((r) => r.instance.isPriority)) ||
-            def(b).createdAt - def(a).createdAt,
-        );
-        break;
-      case "subsystem":
-        grouped.sort(
-          (a, b) =>
-            subsystemName(def(a).subsystemId).localeCompare(subsystemName(def(b).subsystemId)) ||
-            def(a).name.localeCompare(def(b).name),
-        );
-        break;
-      default: // newest
-        grouped.sort((a, b) => def(b).createdAt - def(a).createdAt);
-    }
-    return grouped;
   }, [filtered, sort]);
 
   const activeFilterCount =

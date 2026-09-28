@@ -44,7 +44,6 @@ export function PartDetailsView({
         </button>
       </div>
 
-
       {/* Main content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Drawing PDF - 3/4 width */}
