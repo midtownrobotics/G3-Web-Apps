@@ -14,7 +14,12 @@
     "pit": { "name": "Pit App", "host": "pit", "devPort": 5175 },
     "web": { "name": "Web (Members Portal)", "host": "web", "devPort": 5178 },
     "skillTree": { "name": "Skill Tree", "host": "skilltree", "devPort": 5180 },
-    "attendance": { "name": "Attendance", "host": "signin.attendance", "devPort": 5181 },
+    "attendance": {
+      "name": "Attendance",
+      "host": "signin.attendance",
+      "extraHosts": ["signout.attendance"],
+      "devPort": 5181
+    },
     "scouting": { "name": "Strategy Tools", "host": "scouting", "devPort": 5182 }
   },
   "workers": {
