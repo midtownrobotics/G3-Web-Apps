@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../../shared/api";
 import { getErrorMessage } from "../../shared/api-error";
-import { partInfoRequiredBy } from "../../shared/derive";
+import { partInfoRequiredBy, pipelineFileError } from "../../shared/derive";
 import type { PartDefinition, PartInstance } from "../../shared/types";
 import { ErrorBanner, PageLoading } from "../../shared/ui";
 import { useAuthUser } from "../../shared/use-auth";
@@ -88,6 +88,11 @@ export function AddPartPage() {
     }
     if (infoRequiredBy.length > 0 && (!form.material.trim() || !form.thickness.trim())) {
       setFormError(`Material and thickness are required for ${infoRequiredBy.join(", ")}.`);
+      return;
+    }
+    const fileError = pipelineFileError(processIds, data?.processes ?? []);
+    if (fileError) {
+      setFormError(fileError);
       return;
     }
     setFormError("");

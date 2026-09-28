@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../../shared/api";
 import { getErrorMessage } from "../../shared/api-error";
-import { partInfoRequiredBy } from "../../shared/derive";
+import { partInfoRequiredBy, pipelineFileError } from "../../shared/derive";
 import type { Process, Subsystem } from "../../shared/types";
 import { ErrorBanner, PageLoading } from "../../shared/ui";
 import { useShopData } from "../../shared/use-shop-data";
@@ -620,6 +620,16 @@ export function IngestPartsPage() {
                             onOpenFull={() => setEditingProcessPartIdx(idx)}
                           />
                         )}
+                        {data &&
+                          (() => {
+                            const fileError = pipelineFileError(
+                              localPartData[part.partNumber]?.processIds ?? [],
+                              data.processes,
+                            );
+                            return fileError ? (
+                              <p className="mt-1 text-crimson-dark">{fileError}</p>
+                            ) : null;
+                          })()}
                       </td>
                       <td className="px-4 py-3 text-steel text-xs">
                         {data &&
@@ -694,7 +704,9 @@ export function IngestPartsPage() {
                       !data ||
                       partInfoRequiredBy(partData?.processIds ?? [], data.processes).length === 0 ||
                       (!!partData?.material?.trim() && !!partData?.thickness?.trim());
-                    return partData?.subsystemId && revision && name && infoOk;
+                    const filesOk =
+                      !data || !pipelineFileError(partData?.processIds ?? [], data.processes);
+                    return partData?.subsystemId && revision && name && infoOk && filesOk;
                   })
                 }
                 onClick={async () => {
@@ -1061,6 +1073,11 @@ function PartIngestCard({
     }
     if (infoRequiredBy.length > 0 && (!form.material.trim() || !form.thickness.trim())) {
       setFormError(`Material and thickness are required for ${infoRequiredBy.join(", ")}.`);
+      return;
+    }
+    const fileError = pipelineFileError(form.processIds, processes);
+    if (fileError) {
+      setFormError(fileError);
       return;
     }
 
