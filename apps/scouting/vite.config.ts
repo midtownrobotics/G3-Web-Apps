@@ -1,9 +1,9 @@
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
-import { devServer, teamHtml } from "../../packages/config/src/vite";
+import { devServer, teamBranding } from "../../packages/config/src/vite";
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), teamHtml()],
+  plugins: [react(), tailwindcss(), teamBranding()],
   server: devServer("scouting", "scouting"),
 });

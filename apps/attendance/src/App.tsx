@@ -1,3 +1,4 @@
+import { apps } from "@g3/config";
 import { useEffect, useState } from "react";
 import "./index.css";
 import ConfirmPage from "./pages/ConfirmPage";
@@ -49,7 +50,7 @@ function KioskGate({ types }: { types: PageType[] }) {
           <>
             <p className="kiosk-gate__title">ADMIN ACCESS REQUIRED</p>
             <p className="kiosk-gate__text">
-              Sign in with an admin G3ID account to run this kiosk.
+              Sign in with an admin {apps.g3id.name} account to run this kiosk.
             </p>
           </>
         )}

@@ -1,7 +1,9 @@
+import { team } from "@g3/config";
 import { Check, Copy, Loader2, Send } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../../lib/api";
+import { BrandName } from "../../shared/brand-name";
 
 type PollStatus =
   | { status: "pending" }
@@ -128,7 +130,7 @@ export function SlackLoginPage() {
       <div className="w-full max-w-sm space-y-6 text-center">
         <div>
           <h1 className="text-5xl font-bold text-white">
-            <span className="text-primary-500">G3</span>ID
+            <BrandName />
           </h1>
         </div>
 
@@ -154,7 +156,7 @@ export function SlackLoginPage() {
               <div className="space-y-2">
                 <p className="text-sm text-gray-200">
                   Or DM this code to the {""}
-                  <span className="text-primary-400 font-medium">"G3 Bot"</span> user:
+                  <span className="text-primary-400 font-medium">"{team.slackBotName}"</span> user:
                 </p>
                 <div className="bg-secondary-700 border border-secondary-600 rounded-xl px-6 py-4 flex items-center justify-center gap-3">
                   <p className="text-5xl font-mono font-bold text-white tracking-widest">

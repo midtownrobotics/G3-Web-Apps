@@ -207,7 +207,7 @@ killall -9 workerd wrangler node
 3. Add unique port and inspector-port to `workers/<worker-name>/wrangler.toml`
 4. Set up D1 database bindings and KV namespace bindings in wrangler.toml
 5. Create `workers/<worker-name>/package.json` with `name` and `dev` script
-6. Add the worker (host, port, inspectorPort) to `packages/config/team.json`; use `allowedOrigin()` from `@g3/config` for CORS
+6. Add the worker (host, port) to `packages/config/team.json`; use `allowedOrigin()` from `@g3/config` for CORS
 7. Add to root `pnpm-workspace.yaml` if not already globbed
 8. If the worker needs to call other services, add service bindings in wrangler.toml
 

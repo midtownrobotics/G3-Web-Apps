@@ -1,3 +1,4 @@
+import { apps } from "@g3/config";
 import { linkTo } from "@g3/config/client";
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
@@ -57,7 +58,7 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
           to="/"
           className="font-display text-2xl font-bold text-primary-400 tracking-wide leading-none"
         >
-          G3ID
+          {apps.g3id.name}
         </Link>
 
         <div className="hidden md:flex items-center gap-7 h-full">

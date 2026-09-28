@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const configPath = path.join(__dirname, "..", "packages", "config", "team.json");
+const teamConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -48,7 +49,7 @@ async function waitForServers(config, timeout = 60000) {
 
 function printServerInfo(config) {
   console.log(`\n${"=".repeat(60)}`);
-  console.log("  G3 Robotics Development Servers");
+  console.log(`  ${teamConfig.team.name} Development Servers`);
   console.log(`${"=".repeat(60)}\n`);
 
   console.log("📱 Apps:");
@@ -68,7 +69,6 @@ function printServerInfo(config) {
 
 async function main() {
   try {
-    const team = JSON.parse(fs.readFileSync(configPath, "utf8"));
     const withUrl = (servers) =>
       Object.fromEntries(
         Object.entries(servers).map(([key, s]) => [
@@ -76,9 +76,9 @@ async function main() {
           { ...s, url: `http://localhost:${s.devPort}` },
         ]),
       );
-    const config = { apps: withUrl(team.apps), workers: withUrl(team.workers) };
+    const config = { apps: withUrl(teamConfig.apps), workers: withUrl(teamConfig.workers) };
 
-    console.log("🚀 Starting G3 Robotics development servers...\n");
+    console.log(`🚀 Starting ${teamConfig.team.name} development servers...\n`);
 
     // Start the dev servers in background
     const devProcess = spawn("pnpm", ["-r", "--parallel", "--if-present", "dev"], {

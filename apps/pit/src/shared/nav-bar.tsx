@@ -1,3 +1,4 @@
+import { apps } from "@g3/config";
 import { linkTo } from "@g3/config/client";
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
@@ -44,7 +45,7 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
     <>
       <nav className="sticky top-0 z-50 bg-white border-b border-secondary-200 px-6 flex items-center gap-8 h-14">
         <Link to="/" className="font-display text-2xl text-primary-500 tracking-wide leading-none">
-          G3 PIT
+          {apps.pit.name.toUpperCase()}
         </Link>
 
         <div className="hidden md:flex items-center gap-7 h-full">

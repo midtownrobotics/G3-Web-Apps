@@ -3,6 +3,7 @@ import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../../lib/api";
+import { BrandName } from "../../shared/brand-name";
 
 export function EmailLoginPage() {
   const navigate = useNavigate();
@@ -41,7 +42,7 @@ export function EmailLoginPage() {
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
           <h1 className="text-5xl font-bold text-white">
-            <span className="text-primary-500">G3</span>ID
+            <BrandName />
           </h1>
           <p className="mt-2 text-secondary-200 text-sm">Sign in with email</p>
         </div>

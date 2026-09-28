@@ -3,7 +3,7 @@ import { type AppName, type Mode, type WorkerName, apiUrl, appUrl } from "./inde
 // Only import this from Vite-built apps: it relies on import.meta.env.
 const env = (import.meta as unknown as { env: Record<string, string | boolean | undefined> }).env;
 
-export const mode: Mode = env.DEV ? "development" : "production";
+const mode: Mode = env.DEV ? "development" : "production";
 
 /** URL of another app. `VITE_G3ID_URL` overrides the G3ID URL (e.g. for a dev tunnel). */
 export function linkTo(app: AppName): string {

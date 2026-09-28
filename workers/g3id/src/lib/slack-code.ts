@@ -1,3 +1,4 @@
+import { apps } from "@g3/config";
 import { getUserInfo } from "@g3/slack";
 import { and, eq } from "drizzle-orm";
 import { createDb } from "../db";
@@ -100,9 +101,12 @@ export async function handleSlackCode(opts: {
     if (existingIdentity) {
       if (existingIdentity.userId === userId) {
         await updateStatus("linked");
-        return { success: true, message: "✅ Your Slack account is already linked to your G3ID." };
+        return {
+          success: true,
+          message: `✅ Your Slack account is already linked to your ${apps.g3id.name}.`,
+        };
       }
-      const msg = "This Slack account is already linked to a different G3ID account.";
+      const msg = `This Slack account is already linked to a different ${apps.g3id.name} account.`;
       await updateStatus("failed", msg);
       return { success: false, message: `❌ ${msg}` };
     }
@@ -118,7 +122,10 @@ export async function handleSlackCode(opts: {
     });
 
     await updateStatus("linked");
-    return { success: true, message: "✅ Slack account linked successfully to your G3ID." };
+    return {
+      success: true,
+      message: `✅ Slack account linked successfully to your ${apps.g3id.name}.`,
+    };
   }
 
   // --- Sign-in / sign-up flow ---

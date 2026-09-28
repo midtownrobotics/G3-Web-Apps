@@ -1,4 +1,4 @@
-import { rootUrl, statboticsTeamUrl, tbaTeamUrl, team } from "@g3/config";
+import { apps, rootUrl, statboticsTeamUrl, tbaTeamUrl, team } from "@g3/config";
 import { linkTo, loginUrl } from "@g3/config/client";
 import { useEffect, useState } from "react";
 import type { IconType } from "react-icons";
@@ -14,7 +14,6 @@ import {
   FaUserShield,
 } from "react-icons/fa";
 import { LuGitBranch } from "react-icons/lu";
-import g3Logo from "../../assets/g3.png";
 import { g3id } from "../../lib/api";
 
 type App = {
@@ -28,7 +27,7 @@ type App = {
 
 const APPS: App[] = [
   {
-    label: "G3ID",
+    label: apps.g3id.name,
     href: linkTo("g3id"),
     icon: FaUserShield,
     bg: "bg-red-600",
@@ -61,7 +60,7 @@ const APPS: App[] = [
     label: "Public Site",
     href: team.website,
     bg: "bg-gray-400",
-    logoSrc: g3Logo,
+    logoSrc: "/logo.png",
   },
   {
     label: "Slack",

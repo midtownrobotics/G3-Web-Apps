@@ -1,4 +1,4 @@
-import { allowedOrigin, team as teamConfig } from "@g3/config";
+import { allowedOrigin, apps, team as teamConfig } from "@g3/config";
 import { sendDM } from "@g3/slack";
 import { type Context, Hono } from "hono";
 import { cors } from "hono/cors";
@@ -653,7 +653,7 @@ app.put("/event-context", requireAuth, async (c) => {
   const nexusEventKey = text(body.nexusEventKey, 30).toLowerCase() || eventKey;
   const nexusApiKey = text(body.nexusApiKey, 300);
   if ((tbaAuthKey || nexusApiKey) && !c.get("userIsAdmin"))
-    return c.json({ error: "Only a G3ID admin can update API keys." }, 403);
+    return c.json({ error: `Only a ${apps.g3id.name} admin can update API keys.` }, 403);
   if (activeConfig?.schedule_mode !== "manual" && eventKey && !/^\d{4}[a-z0-9]+$/.test(eventKey))
     return c.json({ error: "Enter a valid TBA event key, such as 2026gadal." }, 400);
   const tbaConfigChanged =
@@ -983,7 +983,7 @@ Return ONLY compact JSON: {"matches":[{"n":1,"t":null,"o":"red-blue","a":[1648,1
   >();
   const combinedTeams = new Map<string, string>();
   const warnings: string[] = [];
-  const knownTeamNumbers = new Set<string>(["1648"]);
+  const knownTeamNumbers = new Set<string>([String(teamConfig.number)]);
   const cachedTeams = await c.env.SCOUTING_DB.prepare(
     "SELECT teams_json FROM tba_team_cache ORDER BY expires_at DESC LIMIT 20",
   ).all<{ teams_json: string }>();
@@ -1750,12 +1750,12 @@ app.get("/strategy-admins", requireAuth, async (c) => {
 
 app.post("/strategy-admins", requireAuth, async (c) => {
   if (!c.get("userIsAdmin"))
-    return c.json({ error: "Only a G3ID admin can assign Strategy leads." }, 403);
+    return c.json({ error: `Only a ${apps.g3id.name} admin can assign Strategy leads.` }, 403);
   const body = await c.req.json<{ userId?: unknown }>();
   const userId = text(body.userId, 200);
   const users = await getG3IdUsers(c);
   const user = users?.find((candidate) => candidate.id === userId && candidate.status === "active");
-  if (!user) return c.json({ error: "Select an active G3ID account." }, 400);
+  if (!user) return c.json({ error: `Select an active ${apps.g3id.name} account.` }, 400);
   await c.env.SCOUTING_DB.prepare(
     "INSERT OR REPLACE INTO strategy_admins (user_id, email, display_name, granted_by, created_at) VALUES (?, ?, ?, ?, ?)",
   )
@@ -1766,7 +1766,7 @@ app.post("/strategy-admins", requireAuth, async (c) => {
 
 app.delete("/strategy-admins/:userId", requireAuth, async (c) => {
   if (!c.get("userIsAdmin"))
-    return c.json({ error: "Only a G3ID admin can remove Strategy leads." }, 403);
+    return c.json({ error: `Only a ${apps.g3id.name} admin can remove Strategy leads.` }, 403);
   await c.env.SCOUTING_DB.prepare("DELETE FROM strategy_admins WHERE user_id = ?")
     .bind(c.req.param("userId"))
     .run();
@@ -1814,9 +1814,10 @@ app.get("/analysis", requireAuth, async (c) => {
         )
         .map((match) => {
           const alliance = match.alliances.red.team_keys.includes(teamKey) ? "red" : "blue";
-          const partner = match.alliances[alliance].team_keys.includes("frc1648");
-          const opponent =
-            match.alliances[alliance === "red" ? "blue" : "red"].team_keys.includes("frc1648");
+          const partner = match.alliances[alliance].team_keys.includes(`frc${teamConfig.number}`);
+          const opponent = match.alliances[alliance === "red" ? "blue" : "red"].team_keys.includes(
+            `frc${teamConfig.number}`,
+          );
           return {
             ...publicMatch(match),
             alliance,
@@ -1824,7 +1825,7 @@ app.get("/analysis", requireAuth, async (c) => {
             blueTeams: match.alliances.blue.team_keys.map((key) => key.replace(/^frc/, "")),
             redScore: match.alliances.red.score,
             blueScore: match.alliances.blue.score,
-            relationTo1648: partner ? "with" : opponent ? "against" : "none",
+            relationToTeam: partner ? "with" : opponent ? "against" : "none",
             played: match.alliances.red.score >= 0 && match.alliances.blue.score >= 0,
           };
         });
@@ -1936,7 +1937,7 @@ app.delete("/analysis/reports/:id/permanent", requireAuth, async (c) => {
 app.get("/field-map-publisher-options", requireAuth, async (c) => {
   if (!c.get("userIsAdmin")) return c.json({ error: "Admin access required." }, 403);
   const users = await getG3IdUsers(c);
-  if (!users) return c.json({ error: "Could not load G3ID accounts." }, 502);
+  if (!users) return c.json({ error: `Could not load ${apps.g3id.name} accounts.` }, 502);
   return c.json({
     users: users
       .filter((user) => user.status === "active")
@@ -1949,11 +1950,11 @@ app.post("/field-map-publishers", requireAuth, async (c) => {
   if (!c.get("userIsAdmin")) return c.json({ error: "Admin access required." }, 403);
   const body = await c.req.json<{ userId?: unknown }>();
   const userId = text(body.userId, 200);
-  if (!userId) return c.json({ error: "Select a G3ID account." }, 400);
+  if (!userId) return c.json({ error: `Select a ${apps.g3id.name} account.` }, 400);
   const users = await getG3IdUsers(c);
-  if (!users) return c.json({ error: "Could not validate the G3ID account." }, 502);
+  if (!users) return c.json({ error: `Could not validate the ${apps.g3id.name} account.` }, 502);
   const user = users.find((candidate) => candidate.id === userId && candidate.status === "active");
-  if (!user) return c.json({ error: "Select an active G3ID account." }, 400);
+  if (!user) return c.json({ error: `Select an active ${apps.g3id.name} account.` }, 400);
   const email = user.email.toLowerCase();
   await c.env.SCOUTING_DB.prepare(
     "INSERT OR IGNORE INTO field_map_publishers (email, granted_by, created_at) VALUES (?, ?, ?)",
@@ -2394,7 +2395,7 @@ app.post("/service-helpers", requireAuth, async (c) => {
   const body = await c.req.json<Record<string, unknown>>();
   const users = await getG3IdUsers(c);
   const user = users?.find((item) => item.id === text(body.userId, 200));
-  if (!user) return c.json({ error: "Select an active G3ID user." }, 400);
+  if (!user) return c.json({ error: `Select an active ${apps.g3id.name} user.` }, 400);
   await c.env.SCOUTING_DB.prepare(
     "INSERT OR REPLACE INTO service_helpers (user_id, display_name, email, slack_user_id, skills_json, approved_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
   )

@@ -1,3 +1,4 @@
+import { apps, team } from "@g3/config";
 import {
   AlertCircle,
   ArrowDown,
@@ -637,7 +638,7 @@ function AdminManager({ isG3IdAdmin }: { isG3IdAdmin: boolean }) {
           }}
         >
           <select required value={userId} onChange={(event) => setUserId(event.target.value)}>
-            <option value="">Select a G3ID user</option>
+            <option value="">Select a {apps.g3id.name} user</option>
             {users
               .filter((user) => user.status === "active")
               .map((user) => {
@@ -691,7 +692,7 @@ function AnnouncementManager() {
       <form
         onSubmit={async (event) => {
           event.preventDefault();
-          if (!window.confirm("Publish this announcement in G3 Strategy?")) return;
+          if (!window.confirm(`Publish this announcement in ${apps.scouting.name}?`)) return;
           await api("/announcements", {
             method: "POST",
             body: JSON.stringify({ message, durationSeconds: Number(durationSeconds) }),
@@ -1390,7 +1391,7 @@ function ManualModeManager() {
               rows={12}
               value={teamText}
               onChange={(e) => setTeamText(e.target.value)}
-              placeholder="1648,G3 Robotics"
+              placeholder={`${team.number},${team.name}`}
             />
           </label>
         </div>
@@ -1635,7 +1636,7 @@ function EventStatus({
             </span>
           </div>
           <details className="team-schedule">
-            <summary>Team 1648 schedule</summary>
+            <summary>Team {team.number} schedule</summary>
             {context?.teamSchedule.map((match) => (
               <div key={match.key}>
                 <strong>{match.label}</strong>
@@ -1649,7 +1650,7 @@ function EventStatus({
       <div className="next-match-status">
         <CalendarClock size={20} />
         <div>
-          <span>Next Team 1648 match</span>
+          <span>Next Team {team.number} match</span>
           <strong>{next?.label ?? "Schedule unavailable"}</strong>
           {next?.scheduledAt && <time>{new Date(next.scheduledAt).toLocaleString()}</time>}
         </div>
@@ -1710,7 +1711,9 @@ export function ScoutingForms({
       <div className="page-heading">
         <div className="scouting-heading-title">
           <h1>Scouting Forms</h1>
-          <span>Next G3 match: {context?.nextTeamMatch?.label ?? "Unavailable"}</span>
+          <span>
+            Next {team.shortName} match: {context?.nextTeamMatch?.label ?? "Unavailable"}
+          </span>
         </div>
         <button
           type="button"

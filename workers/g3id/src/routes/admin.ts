@@ -1,3 +1,4 @@
+import { apps } from "@g3/config";
 import { sendDM } from "@g3/slack";
 import { and, desc, eq, gt, isNull, or } from "drizzle-orm";
 import { Hono } from "hono";
@@ -70,7 +71,7 @@ export const adminRouter = new Hono<AppEnv>()
     if (slackIdentity?.providerId) {
       await sendDM(
         slackIdentity.providerId,
-        `✅ Your G3 account has been approved! Click <${c.env.FRONTEND_URL}/login|here> to go to the login page and *sign in with Slack*. Yes, you will have to repeat the code sending process.`,
+        `✅ Your ${apps.g3id.name} account has been approved! Click <${c.env.FRONTEND_URL}/login|here> to go to the login page and *sign in with Slack*. Yes, you will have to repeat the code sending process.`,
         c.env,
       );
     }

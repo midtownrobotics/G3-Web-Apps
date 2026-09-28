@@ -1,3 +1,4 @@
+import { team } from "@g3/config";
 import { apiBase as apiBaseFor } from "@g3/config/client";
 import { useEffect, useState } from "react";
 import { api } from "../../shared/api";
@@ -98,8 +99,7 @@ export function FilesPage() {
   async function handleTestPrint() {
     setTestPrinting(true);
     try {
-      const testContent =
-        "G3 Robotics Shop - Test Print\n\nIf you're seeing this, the printer is working!";
+      const testContent = `${team.name} Shop - Test Print\n\nIf you're seeing this, the printer is working!`;
       const encoder = new TextEncoder();
       const testBuffer = encoder.encode(testContent);
 

@@ -2,19 +2,20 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
-import { apiRequestMatcher, devServer } from "../../packages/config/src/vite";
+import { apps, team } from "../../packages/config/src/index";
+import { apiRequestMatcher, devServer, teamBranding } from "../../packages/config/src/vite";
 
 export default defineConfig({
   plugins: [
+    teamBranding(),
     react(),
     tailwindcss(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.png", "apple-touch-icon.png"],
       manifest: {
-        name: "G3 Pit",
-        short_name: "G3 Pit",
-        description: "G3 Robotics pit management and operations",
+        name: apps.pit.name,
+        short_name: apps.pit.name,
+        description: `${team.name} pit management and operations`,
         theme_color: "#111827",
         background_color: "#030712",
         display: "standalone",

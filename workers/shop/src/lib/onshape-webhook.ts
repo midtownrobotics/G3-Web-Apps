@@ -1,4 +1,4 @@
-import { apiUrl } from "@g3/config";
+import { apiUrl, team } from "@g3/config";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "../db/schema";
@@ -18,6 +18,9 @@ interface BOMData {
   headers: BOMHeader[];
   rows: BOMRow[];
 }
+
+const WEBHOOK_NAME = `${team.name} Shop SW`;
+const webhookUrl = () => `${apiUrl("shop")}/onshape/events`;
 
 export const ONSHAPE_WEBHOOK_EVENTS = ["onshape.revision.created", "onshape.workflow.transition"];
 
@@ -89,11 +92,13 @@ export async function unregisterOnShapeWebhooks(documentId: string, env: AppEnv[
       return;
     }
 
-    const webhooks = (await listResponse.json()) as { items: { id: string; name: string }[] };
+    const webhooks = (await listResponse.json()) as {
+      items: { id: string; name: string; url?: string }[];
+    };
 
-    // Delete our webhook
+    // Ours by URL, or by name for webhooks registered before a domain change.
     for (const webhook of webhooks.items || []) {
-      if (webhook.name === "G3 Robotics Shop SW") {
+      if (webhook.url === webhookUrl() || webhook.name === WEBHOOK_NAME) {
         const deleteResponse = await fetch(
           `https://cad.onshape.com/api/v16/webhooks/${webhook.id}`,
           {
@@ -127,7 +132,6 @@ export async function registerOnShapeWebhook(documentId: string, env: AppEnv["Bi
   }
 
   const credentials = btoa(`${apiKey}:${apiSecret}`);
-  const webhookUrl = `${apiUrl("shop")}/onshape/events`;
 
   const response = await fetch("https://cad.onshape.com/api/v16/webhooks", {
     method: "POST",
@@ -139,12 +143,12 @@ export async function registerOnShapeWebhook(documentId: string, env: AppEnv["Bi
       documentId,
       companyId,
       events: ONSHAPE_WEBHOOK_EVENTS,
-      url: webhookUrl,
+      url: webhookUrl(),
       isTransient: false,
       options: {
         collapseEvents: false,
       },
-      name: "G3 Robotics Shop SW",
+      name: WEBHOOK_NAME,
     }),
   });
 

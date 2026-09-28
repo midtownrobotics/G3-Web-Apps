@@ -1,6 +1,8 @@
+import { apps } from "@g3/config";
 import { apiBase as apiBaseFor } from "@g3/config/client";
 import { FaSlack } from "react-icons/fa";
 import { Link } from "react-router-dom";
+import { BrandName } from "../../shared/brand-name";
 
 const apiBase = apiBaseFor("g3id");
 
@@ -10,10 +12,11 @@ export function SignupPage() {
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
           <h1 className="text-5xl font-bold text-white">
-            Join <span className="text-primary-500">G3</span>ID
+            Join <BrandName />
           </h1>
           <p className="mt-2 text-gray-200 text-sm">
-            G3ID uses Slack for signup. Once you signup, you can add additional login methods.
+            {apps.g3id.name} uses Slack for signup. Once you signup, you can add additional login
+            methods.
           </p>
         </div>
 

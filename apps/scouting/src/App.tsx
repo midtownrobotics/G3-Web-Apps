@@ -1,3 +1,4 @@
+import { apps } from "@g3/config";
 import { linkTo } from "@g3/config/client";
 import {
   ArrowRight,
@@ -135,11 +136,11 @@ function AnnouncementBanner() {
   );
 }
 
-function G3Logo({ size = 20, className = "" }: { size?: number; className?: string }) {
+function TeamLogo({ size = 20, className = "" }: { size?: number; className?: string }) {
   return (
     <img
       className={`g3-icon ${className}`}
-      src="/g3.png"
+      src="/logo.png"
       alt=""
       aria-hidden="true"
       width={size}
@@ -1100,9 +1101,9 @@ function FieldMaps({ user }: { user: User }) {
               required
               value={publisherUserId}
               onChange={(event) => setPublisherUserId(event.target.value)}
-              aria-label="G3ID account"
+              aria-label={`${apps.g3id.name} account`}
             >
-              <option value="">Select a G3ID account</option>
+              <option value="">Select a {apps.g3id.name} account</option>
               {publisherOptions
                 .filter(
                   (account) => !publishers.some((publisher) => publisher.email === account.email),
@@ -1423,7 +1424,7 @@ function AutoLibrary() {
                 )}
                 <header>
                   <span className="auto-icon">
-                    <G3Logo size={24} />
+                    <TeamLogo size={24} />
                   </span>
                   <div>
                     <span>{auto.team ? `Team ${auto.team}` : "Unassigned team"}</span>
@@ -1990,12 +1991,12 @@ export function App() {
     return (
       <div className="auth-screen">
         <div className="auth-mark">
-          <G3Logo size={38} />
+          <TeamLogo size={38} />
         </div>
-        <h1>Scouting starts with G3ID</h1>
+        <h1>Scouting starts with {apps.g3id.name}</h1>
         <p>Sign in with your team account to open shared tier lists, field maps, and autos.</p>
         <a href={`${G3ID_URL}/login?redirect=${encodeURIComponent(returnTo)}`}>
-          <LogIn size={18} /> Sign in with G3ID
+          <LogIn size={18} /> Sign in with {apps.g3id.name}
         </a>
       </div>
     );
@@ -2020,7 +2021,7 @@ export function App() {
       <aside className={menuOpen ? "open" : ""}>
         <div className="brand">
           <span>
-            G3 STRATEGY
+            {apps.scouting.name.toUpperCase()}
             <small>Scouting workspace</small>
           </span>
           <button type="button" aria-label="Close menu" onClick={() => setMenuOpen(false)}>
@@ -2076,7 +2077,7 @@ export function App() {
           <button type="button" onClick={() => setMenuOpen(true)} aria-label="Open menu">
             <Menu />
           </button>
-          <span>G3 Strategy</span>
+          <span>{apps.scouting.name}</span>
         </header>
         <AnnouncementBanner />
         {page === "forms" && (
