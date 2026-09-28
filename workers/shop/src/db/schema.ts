@@ -19,6 +19,9 @@ export const partDefinitions = sqliteTable("part_definitions", {
   partDrawingUrl: text("part_drawing_url"),
   isObsolete: integer("is_obsolete").notNull().default(0),
   createdAt: integer("created_at").notNull(),
+  // Free text (e.g. "4140", "0.25\""); required when a process in the blueprint asks for it.
+  material: text("material"),
+  thickness: text("thickness"),
 });
 
 export const partInstances = sqliteTable(
@@ -43,6 +46,8 @@ export const processes = sqliteTable("processes", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull(),
   type: text("type", { enum: PROCESS_TYPES }).notNull().default("regular"),
+  // Parts using this process must record material + thickness at ingest.
+  requiresPartInfo: integer("requires_part_info").notNull().default(0),
   createdAt: integer("created_at").notNull(),
 });
 

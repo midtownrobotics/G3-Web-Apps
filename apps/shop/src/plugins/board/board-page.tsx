@@ -20,6 +20,7 @@ import { useShopData } from "../../shared/use-shop-data";
 import { useTouchDevice } from "../../shared/use-touch";
 import { useUserNames } from "../../shared/use-user-names";
 import { PartCard } from "../parts/part-card";
+import { ConsumerSections } from "./consumer-process-view";
 import { PartDetailsView } from "./part-details-view";
 import { PartWorkView } from "./part-work-view";
 import { ProducerSections } from "./producer-process-view";
@@ -200,6 +201,7 @@ export function BoardPage() {
             onOpenWorkView={setWorkingPartInstanceId}
             onViewPart={setViewingPartInstanceId}
             processType={data?.processes.find((p) => p.id === view)?.type ?? "regular"}
+            requiresPartInfo={!!data?.processes.find((p) => p.id === view)?.requiresPartInfo}
             definitions={data?.definitions ?? []}
             onChanged={refresh}
           />
@@ -429,6 +431,7 @@ function ProcessView({
   onOpenWorkView,
   onViewPart,
   processType,
+  requiresPartInfo,
   definitions,
   onChanged,
 }: {
@@ -440,6 +443,7 @@ function ProcessView({
   onOpenWorkView: (instanceId: number) => void;
   onViewPart: (instanceId: number) => void;
   processType: ProcessType;
+  requiresPartInfo: boolean;
   definitions: PartDefinition[];
   onChanged: () => Promise<void>;
 }) {
@@ -460,12 +464,15 @@ function ProcessView({
 
   return (
     <div className="space-y-6">
-      {processType === "file_producer" ? (
+      {processType === "file_consumer" ? (
+        <ConsumerSections processId={processId} rows={here} touch={touch} onChanged={onChanged} />
+      ) : processType === "file_producer" ? (
         <ProducerSections
           processId={processId}
           rows={here}
           touch={touch}
           definitions={definitions}
+          showPartInfo={requiresPartInfo}
           onChanged={onChanged}
         />
       ) : (

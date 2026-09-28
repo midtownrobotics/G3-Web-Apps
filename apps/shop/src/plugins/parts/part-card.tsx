@@ -150,6 +150,8 @@ export function PartCard({
           subsystemId: row.definition.subsystemId,
           name: row.definition.name,
           notes: row.definition.notes ?? "",
+          material: row.definition.material ?? "",
+          thickness: row.definition.thickness ?? "",
           isPriority: !!row.instance.isPriority,
           quantity: totalInstances,
           // Pipeline in order, flagged with whether each step was already done.

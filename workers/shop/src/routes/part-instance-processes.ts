@@ -1,8 +1,8 @@
-import { and, asc, eq, gt } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { validator } from "hono/validator";
 import { createShopDb } from "../db";
-import { partInstanceProcesses } from "../db/schema";
+import { actions, partInstanceProcesses } from "../db/schema";
 import { requireAuth } from "../middleware/auth";
 import type { AppEnv } from "../types";
 import { recordAction } from "./actions";
@@ -15,7 +15,105 @@ const updateProcessStatusValidator = validator("json", (value, c): { status: str
   return { status: v.status as string };
 });
 
+// D1 caps a statement at 100 bound parameters; the widest write here (actions) has 5 columns.
+const BULK_CHUNK = 15;
+
+const bulkValidator = validator(
+  "json",
+  (value, c): { processId: number; partInstanceIds: number[]; to: "doing" | "done" } => {
+    const v = (value ?? {}) as { processId?: unknown; partInstanceIds?: unknown; to?: unknown };
+    const ids = v.partInstanceIds;
+    if (!Number.isInteger(v.processId) || (v.processId as number) < 1) {
+      return c.json({ error: "processId must be a positive integer." }, 400) as never;
+    }
+    if (
+      !Array.isArray(ids) ||
+      ids.length === 0 ||
+      ids.length > 500 ||
+      !ids.every((n) => Number.isInteger(n) && n > 0)
+    ) {
+      return c.json({ error: "partInstanceIds must be 1–500 positive integers." }, 400) as never;
+    }
+    if (v.to !== "doing" && v.to !== "done") {
+      return c.json({ error: "to must be 'doing' or 'done'." }, 400) as never;
+    }
+    return {
+      processId: v.processId as number,
+      partInstanceIds: [...new Set(ids as number[])],
+      to: v.to,
+    };
+  },
+);
+
 export const partInstanceProcessesRouter = new Hono<AppEnv>()
+  /**
+   * Moves many instances' step at one process in a few set-based statements: To Do → In
+   * Progress ("doing"), or In Progress → done, which also unlocks each instance's next step.
+   * Instances not in the expected starting status are skipped. Returns how many moved.
+   */
+  .post("/bulk", requireAuth, bulkValidator, async (c) => {
+    const { processId, partInstanceIds, to } = c.req.valid("json");
+    const db = createShopDb(c.env.SHOP_DB);
+    const now = Date.now();
+    const from = to === "doing" ? "todo" : "doing";
+    const moved: number[] = [];
+
+    for (let i = 0; i < partInstanceIds.length; i += BULK_CHUNK) {
+      const ids = partInstanceIds.slice(i, i + BULK_CHUNK);
+      const rows = await db
+        .update(partInstanceProcesses)
+        .set(to === "done" ? { status: "done", completedAt: now } : { status: "doing" })
+        .where(
+          and(
+            eq(partInstanceProcesses.processId, processId),
+            eq(partInstanceProcesses.status, from),
+            inArray(partInstanceProcesses.partInstanceId, ids),
+          ),
+        )
+        .returning({ id: partInstanceProcesses.partInstanceId })
+        .all();
+      moved.push(...rows.map((r) => r.id));
+
+      if (to === "done" && rows.length > 0) {
+        // Promote each completed instance's next step, mirroring the single-instance route.
+        const done = rows.map((r) => r.id);
+        await db.run(sql`
+          UPDATE part_instance_processes SET status = 'todo'
+          WHERE status = 'waiting' AND id IN (
+            SELECT (
+              SELECT n.id FROM part_instance_processes n
+              WHERE n.part_instance_id = d.part_instance_id AND n."index" > d."index"
+              ORDER BY n."index" LIMIT 1
+            )
+            FROM part_instance_processes d
+            WHERE d.process_id = ${processId} AND d.status = 'done'
+              AND d.completed_at = ${now} AND d.part_instance_id IN (${sql.join(done, sql`, `)})
+          )
+        `);
+      }
+    }
+
+    // Same policy as recordAction: the audit log never blocks shop-floor work.
+    try {
+      const userId = c.get("userId");
+      const action: "started" | "completed" = to === "doing" ? "started" : "completed";
+      for (let i = 0; i < moved.length; i += BULK_CHUNK) {
+        await db.insert(actions).values(
+          moved.slice(i, i + BULK_CHUNK).map((partInstanceId) => ({
+            userId,
+            partInstanceId,
+            processId,
+            action,
+            createdAt: now,
+          })),
+        );
+      }
+    } catch (err) {
+      console.error("Failed to record actions:", err);
+    }
+
+    return c.json({ moved: moved.length, requested: partInstanceIds.length });
+  })
   .get("/", requireAuth, async (c) => {
     const processId = c.req.query("processId");
     const partInstanceId = c.req.query("partInstanceId");

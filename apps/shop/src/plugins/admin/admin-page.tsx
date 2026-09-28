@@ -15,6 +15,7 @@ export function AdminPage() {
   const [newSubsystem, setNewSubsystem] = useState("");
   const [newProcess, setNewProcess] = useState("");
   const [newProcessType, setNewProcessType] = useState<ProcessType>("regular");
+  const [newProcessNeedsInfo, setNewProcessNeedsInfo] = useState(false);
 
   async function addSubsystem() {
     if (!newSubsystem.trim()) return;
@@ -31,7 +32,11 @@ export function AdminPage() {
   async function addProcess() {
     if (!newProcess.trim()) return;
     const res = await api.processes.$post({
-      json: { name: newProcess.trim(), type: newProcessType },
+      json: {
+        name: newProcess.trim(),
+        type: newProcessType,
+        requiresPartInfo: newProcessNeedsInfo,
+      },
     });
     if (!res.ok) {
       setBanner(await getErrorMessage(res as unknown as Response));
@@ -39,32 +44,38 @@ export function AdminPage() {
     }
     setNewProcess("");
     setNewProcessType("regular");
+    setNewProcessNeedsInfo(false);
     setBanner(null);
     await refresh();
   }
 
-  // Show a type change immediately; the shop-data refresh behind it is slow, and until it
-  // lands the controlled <select> would otherwise snap back to the old value.
-  const [pendingTypes, setPendingTypes] = useState<Record<number, ProcessType>>({});
+  // Show process edits immediately; the shop-data refresh behind them is slow, and until it
+  // lands the controlled inputs would otherwise snap back to the old values.
+  type ProcessEdit = { type?: ProcessType; requiresPartInfo?: boolean };
+  const [pendingEdits, setPendingEdits] = useState<Record<number, ProcessEdit>>({});
 
-  function clearPending(id: number, type: ProcessType) {
-    // Only clear if a newer change hasn't replaced this one in the meantime.
-    setPendingTypes(({ [id]: current, ...rest }) =>
-      current === type ? rest : { ...rest, [id]: current },
-    );
+  function clearPending(id: number, edit: ProcessEdit) {
+    // Drop only the fields this edit set, and only if a newer edit hasn't replaced them.
+    setPendingEdits(({ [id]: current = {}, ...rest }) => {
+      const next = { ...current };
+      for (const key of Object.keys(edit) as (keyof ProcessEdit)[]) {
+        if (next[key] === edit[key]) delete next[key];
+      }
+      return Object.keys(next).length ? { ...rest, [id]: next } : rest;
+    });
   }
 
-  async function setProcessType(id: number, type: ProcessType) {
-    setPendingTypes((prev) => ({ ...prev, [id]: type }));
-    const res = await api.processes[":id"].$patch({ param: { id: String(id) }, json: { type } });
+  async function updateProcess(id: number, edit: ProcessEdit) {
+    setPendingEdits((prev) => ({ ...prev, [id]: { ...prev[id], ...edit } }));
+    const res = await api.processes[":id"].$patch({ param: { id: String(id) }, json: edit });
     if (!res.ok) {
       setBanner(await getErrorMessage(res as unknown as Response));
-      clearPending(id, type);
+      clearPending(id, edit);
       return;
     }
     setBanner(null);
     await refresh();
-    clearPending(id, type);
+    clearPending(id, edit);
   }
 
   async function deleteObsoleteInstances() {
@@ -112,16 +123,25 @@ export function AdminPage() {
               placeholder="New subsystem"
             />
             <ProcessList
-              processes={(data?.processes ?? []).map((p) => ({
-                ...p,
-                type: pendingTypes[p.id] ?? p.type,
-              }))}
+              processes={(data?.processes ?? []).map((p) => {
+                const edit = pendingEdits[p.id];
+                return {
+                  ...p,
+                  type: edit?.type ?? p.type,
+                  requiresPartInfo:
+                    edit?.requiresPartInfo === undefined
+                      ? p.requiresPartInfo
+                      : Number(edit.requiresPartInfo),
+                };
+              })}
               draft={newProcess}
               setDraft={setNewProcess}
               draftType={newProcessType}
               setDraftType={setNewProcessType}
+              draftNeedsInfo={newProcessNeedsInfo}
+              setDraftNeedsInfo={setNewProcessNeedsInfo}
               onAdd={addProcess}
-              onChangeType={setProcessType}
+              onUpdate={updateProcess}
             />
           </div>
         </Section>
@@ -328,22 +348,49 @@ function ProcessTypeSelect({
   );
 }
 
+function PartInfoToggle({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label
+      title="Require additional part information (material + thickness) at ingest"
+      className="flex items-center gap-1.5 text-xs text-steel-dark cursor-pointer select-none shrink-0"
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="accent-crimson w-3.5 h-3.5"
+      />
+      Part info
+    </label>
+  );
+}
+
 function ProcessList({
   processes,
   draft,
   setDraft,
   draftType,
   setDraftType,
+  draftNeedsInfo,
+  setDraftNeedsInfo,
   onAdd,
-  onChangeType,
+  onUpdate,
 }: {
   processes: Process[];
   draft: string;
   setDraft: (v: string) => void;
   draftType: ProcessType;
   setDraftType: (t: ProcessType) => void;
+  draftNeedsInfo: boolean;
+  setDraftNeedsInfo: (v: boolean) => void;
   onAdd: () => void;
-  onChangeType: (id: number, type: ProcessType) => void;
+  onUpdate: (id: number, edit: { type?: ProcessType; requiresPartInfo?: boolean }) => void;
 }) {
   return (
     <div className="space-y-3">
@@ -362,6 +409,7 @@ function ProcessList({
           className="flex-1 min-w-0 bg-paper border border-steel/40 rounded-lg px-3 py-2 text-sm text-ink placeholder-steel focus:outline-none focus:border-crimson"
         />
         <ProcessTypeSelect value={draftType} onChange={setDraftType} label="New process type" />
+        <PartInfoToggle checked={draftNeedsInfo} onChange={setDraftNeedsInfo} />
         <button
           type="button"
           onClick={onAdd}
@@ -378,9 +426,13 @@ function ProcessList({
             className="flex items-center gap-2 bg-mist border border-steel/20 rounded-lg px-3.5 py-2 text-sm text-ink"
           >
             <span className="flex-1 truncate">{p.name}</span>
+            <PartInfoToggle
+              checked={!!p.requiresPartInfo}
+              onChange={(requiresPartInfo) => onUpdate(p.id, { requiresPartInfo })}
+            />
             <ProcessTypeSelect
               value={p.type}
-              onChange={(type) => onChangeType(p.id, type)}
+              onChange={(type) => onUpdate(p.id, { type })}
               label={`Type for ${p.name}`}
             />
           </div>

@@ -16,6 +16,8 @@ export type Process = {
   id: number;
   name: string;
   type: ProcessType;
+  /** 1 when parts using this process must record material + thickness at ingest. */
+  requiresPartInfo: number;
   createdAt: number;
 };
 
@@ -30,6 +32,8 @@ export type PartDefinition = {
   partDrawingUrl: string | null;
   isObsolete: number;
   createdAt: number;
+  material: string | null;
+  thickness: string | null;
 };
 
 export type PartInstance = {

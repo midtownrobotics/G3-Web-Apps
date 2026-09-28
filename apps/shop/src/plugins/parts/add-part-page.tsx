@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../../shared/api";
 import { getErrorMessage } from "../../shared/api-error";
+import { partInfoRequiredBy } from "../../shared/derive";
 import type { PartDefinition, PartInstance } from "../../shared/types";
 import { ErrorBanner, PageLoading } from "../../shared/ui";
 import { useAuthUser } from "../../shared/use-auth";
@@ -16,6 +17,8 @@ type TransferFrom = {
   subsystemId: number;
   name: string;
   notes: string;
+  material: string;
+  thickness: string;
   isPriority: boolean;
   quantity: number;
   processes: { processId: number; done: boolean }[];
@@ -44,6 +47,8 @@ export function AddPartPage() {
     name: transfer?.name ?? "",
     quantity: transfer?.quantity ?? 1,
     notes: transfer?.notes ?? "",
+    material: transfer?.material ?? "",
+    thickness: transfer?.thickness ?? "",
     isPriority: transfer?.isPriority ?? false,
   });
   // Edit & Obsolete starts from the original pipeline (all steps restart); Add Part starts empty.
@@ -65,6 +70,8 @@ export function AddPartPage() {
     });
   }
 
+  const infoRequiredBy = partInfoRequiredBy(processIds, data?.processes ?? []);
+
   async function handleSubmit() {
     if (
       !form.onshapePartNumber.trim() ||
@@ -79,6 +86,10 @@ export function AddPartPage() {
       setFormError("Quantity must be a whole number of at least 1.");
       return;
     }
+    if (infoRequiredBy.length > 0 && (!form.material.trim() || !form.thickness.trim())) {
+      setFormError(`Material and thickness are required for ${infoRequiredBy.join(", ")}.`);
+      return;
+    }
     setFormError("");
     setSubmitting(true);
 
@@ -88,6 +99,8 @@ export function AddPartPage() {
         subsystemId: form.subsystemId,
         name: form.name.trim(),
         notes: form.notes.trim() || null,
+        material: form.material.trim() || null,
+        thickness: form.thickness.trim() || null,
       };
 
       // Edit & Obsolete usually keeps the same part number + revision, which matches the
@@ -128,6 +141,8 @@ export function AddPartPage() {
             subsystemId: form.subsystemId,
             name: fields.name,
             notes: fields.notes ?? undefined,
+            material: fields.material ?? undefined,
+            thickness: fields.thickness ?? undefined,
             processIds: pipeline,
           },
         });
@@ -275,6 +290,25 @@ export function AddPartPage() {
                   onChange={(v) => setForm({ ...form, notes: v })}
                   placeholder="Optional"
                 />
+                {infoRequiredBy.length > 0 && (
+                  <>
+                    <Field
+                      label="Material"
+                      required
+                      value={form.material}
+                      onChange={(v) => setForm({ ...form, material: v })}
+                      placeholder="e.g. 4140"
+                      hint={`Required by ${infoRequiredBy.join(", ")}`}
+                    />
+                    <Field
+                      label="Thickness"
+                      required
+                      value={form.thickness}
+                      onChange={(v) => setForm({ ...form, thickness: v })}
+                      placeholder='e.g. 0.25"'
+                    />
+                  </>
+                )}
               </div>
 
               <label className="flex items-center gap-2 cursor-pointer select-none text-sm text-ink">

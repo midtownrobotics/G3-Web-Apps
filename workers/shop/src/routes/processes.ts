@@ -11,24 +11,43 @@ const isProcessType = (v: unknown): v is ProcessType =>
 
 const createProcessValidator = validator(
   "json",
-  (value, c): { name: string; type: ProcessType } => {
-    const v = (value ?? {}) as { name?: unknown; type?: unknown };
+  (value, c): { name: string; type: ProcessType; requiresPartInfo: boolean } => {
+    const v = (value ?? {}) as { name?: unknown; type?: unknown; requiresPartInfo?: unknown };
     const name = typeof v.name === "string" ? v.name.trim() : "";
     if (!name) return c.json({ error: "name is required." }, 400) as never;
     if (v.type !== undefined && !isProcessType(v.type)) {
       return c.json({ error: `type must be one of: ${PROCESS_TYPES.join(", ")}.` }, 400) as never;
     }
-    return { name, type: v.type ?? "regular" };
+    if (v.requiresPartInfo !== undefined && typeof v.requiresPartInfo !== "boolean") {
+      return c.json({ error: "requiresPartInfo must be a boolean." }, 400) as never;
+    }
+    return { name, type: v.type ?? "regular", requiresPartInfo: v.requiresPartInfo ?? false };
   },
 );
 
-const updateProcessValidator = validator("json", (value, c): { type: ProcessType } => {
-  const v = (value ?? {}) as { type?: unknown };
-  if (!isProcessType(v.type)) {
-    return c.json({ error: `type must be one of: ${PROCESS_TYPES.join(", ")}.` }, 400) as never;
-  }
-  return { type: v.type };
-});
+const updateProcessValidator = validator(
+  "json",
+  (value, c): { type?: ProcessType; requiresPartInfo?: boolean } => {
+    const v = (value ?? {}) as { type?: unknown; requiresPartInfo?: unknown };
+    const out: { type?: ProcessType; requiresPartInfo?: boolean } = {};
+    if (v.type !== undefined) {
+      if (!isProcessType(v.type)) {
+        return c.json({ error: `type must be one of: ${PROCESS_TYPES.join(", ")}.` }, 400) as never;
+      }
+      out.type = v.type;
+    }
+    if (v.requiresPartInfo !== undefined) {
+      if (typeof v.requiresPartInfo !== "boolean") {
+        return c.json({ error: "requiresPartInfo must be a boolean." }, 400) as never;
+      }
+      out.requiresPartInfo = v.requiresPartInfo;
+    }
+    if (Object.keys(out).length === 0) {
+      return c.json({ error: "Provide type and/or requiresPartInfo." }, 400) as never;
+    }
+    return out;
+  },
+);
 
 export const processesRouter = new Hono<AppEnv>()
   .get("/", requireAuth, async (c) => {
@@ -37,12 +56,12 @@ export const processesRouter = new Hono<AppEnv>()
     return c.json(rows);
   })
   .post("/", requireAuth, createProcessValidator, async (c) => {
-    const { name, type } = c.req.valid("json");
+    const { name, type, requiresPartInfo } = c.req.valid("json");
 
     const db = createShopDb(c.env.SHOP_DB);
     const row = await db
       .insert(processes)
-      .values({ name, type, createdAt: Date.now() })
+      .values({ name, type, requiresPartInfo: requiresPartInfo ? 1 : 0, createdAt: Date.now() })
       .returning()
       .get();
 
@@ -50,12 +69,15 @@ export const processesRouter = new Hono<AppEnv>()
   })
   .patch("/:id", requireAuth, updateProcessValidator, async (c) => {
     const id = Number(c.req.param("id"));
-    const { type } = c.req.valid("json");
+    const { type, requiresPartInfo } = c.req.valid("json");
 
     const db = createShopDb(c.env.SHOP_DB);
     const row = await db
       .update(processes)
-      .set({ type })
+      .set({
+        ...(type !== undefined && { type }),
+        ...(requiresPartInfo !== undefined && { requiresPartInfo: requiresPartInfo ? 1 : 0 }),
+      })
       .where(eq(processes.id, id))
       .returning()
       .get();

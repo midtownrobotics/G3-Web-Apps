@@ -248,3 +248,19 @@ export async function deleteDrawing(partNumber: string, revision: string): Promi
   });
   if (!res.ok) throw new Error(await getErrorMessage(res as unknown as Response));
 }
+
+/**
+ * Moves many instances' step at a process: "doing" starts To Do ones, "done" completes
+ * In Progress ones (unlocking each next step). Resolves to how many actually moved.
+ */
+export async function bulkMoveInstances(
+  processId: number,
+  partInstanceIds: number[],
+  to: "doing" | "done",
+): Promise<number> {
+  const res = await api["part-instance-processes"].bulk.$post({
+    json: { processId, partInstanceIds, to },
+  });
+  if (!res.ok) throw new Error(await getErrorMessage(res as unknown as Response));
+  return ((await res.json()) as { moved: number }).moved;
+}

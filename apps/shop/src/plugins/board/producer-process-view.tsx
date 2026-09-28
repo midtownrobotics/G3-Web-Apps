@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { type InstanceRow, partLabel } from "../../shared/derive";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { type InstanceRow, partInfoLabel, partLabel } from "../../shared/derive";
 import {
   completeStagingBatch,
   createStagingBatch,
@@ -18,6 +18,9 @@ import { FilePickerModal } from "../files/file-picker-modal";
 import { DownloadLink, ErrorText, UploadButton } from "../files/part-files-panel";
 
 const MAX_FILE_BYTES = 100 * 1024 * 1024;
+
+/** True on processes that require part info, so part headers show material and thickness. */
+const ShowPartInfo = createContext(false);
 const NEW_BATCH = "new";
 
 type PartGroup = { key: number; rows: InstanceRow[] };
@@ -64,12 +67,14 @@ export function ProducerSections({
   rows,
   touch,
   definitions,
+  showPartInfo,
   onChanged,
 }: {
   processId: number;
   rows: InstanceRow[];
   touch: boolean;
   definitions: PartDefinition[];
+  showPartInfo: boolean;
   onChanged: () => Promise<void>;
 }) {
   const kiosk = useKiosk();
@@ -170,7 +175,7 @@ export function ProducerSections({
     `Batch ${b.id} · ${b.createdBy === "migration" ? "carried over" : resolveName(b.createdBy)}`;
 
   return (
-    <>
+    <ShowPartInfo.Provider value={showPartInfo}>
       {pickerBatch && (
         <FilePickerModal
           files={files.filter((f) => f.id !== pickerBatch.fileId)}
@@ -408,7 +413,7 @@ export function ProducerSections({
           </div>
         )}
       </section>
-    </>
+    </ShowPartInfo.Provider>
   );
 }
 
@@ -488,12 +493,21 @@ function PartGroup({
   actions: React.ReactNode;
   renderRow: (row: InstanceRow) => React.ReactNode;
 }) {
+  const showInfo = useContext(ShowPartInfo);
   const first = rows[0];
   return (
     <div className={`px-4 ${touch ? "py-3" : "py-2.5"}`}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-ink truncate">{first.definition.name}</p>
+          <p className="text-sm font-semibold text-ink truncate">
+            {first.definition.name}
+            {showInfo && partInfoLabel(first.definition) && (
+              <span className="font-normal text-steel-dark">
+                {" "}
+                — {partInfoLabel(first.definition)}
+              </span>
+            )}
+          </p>
           <p className="text-xs font-mono text-steel truncate">
             {partLabel(first)} · {plural(rows.length, "instance")}
           </p>
