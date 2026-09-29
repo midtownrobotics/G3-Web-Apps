@@ -1,3 +1,4 @@
+import { fileStepError } from "@g3/worker-shop/process-rules";
 import type { PartDefinition, PartInstance, PartInstanceProcess, Process } from "./types";
 import type { ShopData } from "./use-shop-data";
 
@@ -240,6 +241,15 @@ export function partInfoRequiredBy(
 ): string[] {
   const needed = new Set(processIds);
   return processes.filter((p) => p.requiresPartInfo && needed.has(p.id)).map((p) => p.name);
+}
+
+/** The File Producer/Consumer error for a list of process IDs, or null (see fileStepError). */
+export function pipelineFileError(
+  processIds: number[],
+  processes: { id: number; name: string; type: string }[],
+): string | null {
+  const byId = new Map(processes.map((p) => [p.id, p]));
+  return fileStepError(processIds.flatMap((id) => byId.get(id) ?? []));
 }
 
 /** "4140 — 0.25\"" style suffix for parts that carry material/thickness. */

@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { validator } from "hono/validator";
 import { createShopDb } from "../db";
 import { partDefinitionProcessBlueprints, partDefinitions, processes } from "../db/schema";
+import { fileStepError } from "../lib/process-rules";
 import { requireAuth } from "../middleware/auth";
 import type { AppEnv } from "../types";
 
@@ -81,6 +82,19 @@ const reorderBlueprintValidator = validator("json", (value, c): { processIds: nu
   return { processIds: v.processIds as number[] };
 });
 
+async function fileStepViolation(
+  db: ReturnType<typeof createShopDb>,
+  processIds: number[],
+): Promise<string | null> {
+  if (processIds.length === 0) return null;
+  const steps = await db
+    .select({ name: processes.name, type: processes.type })
+    .from(processes)
+    .where(inArray(processes.id, processIds))
+    .all();
+  return fileStepError(steps);
+}
+
 export const partDefinitionsRouter = new Hono<AppEnv>()
   .get("/", requireAuth, async (c) => {
     const db = createShopDb(c.env.SHOP_DB);
@@ -149,6 +163,9 @@ export const partDefinitionsRouter = new Hono<AppEnv>()
         );
       }
     }
+
+    const fileError = await fileStepViolation(db, processIds ?? []);
+    if (fileError) return c.json({ error: fileError }, 400);
 
     // If obsoleteExisting is true, mark all existing parts with same number as obsolete
     // BUT exclude the new revision we're about to create
@@ -281,6 +298,9 @@ export const partDefinitionsRouter = new Hono<AppEnv>()
       .where(eq(partDefinitions.id, partDefinitionId))
       .get();
     if (!def) return c.json({ error: "Part definition not found." }, 404);
+
+    const fileError = await fileStepViolation(db, processIds);
+    if (fileError) return c.json({ error: fileError }, 400);
 
     const now = Date.now();
     const remove = db
