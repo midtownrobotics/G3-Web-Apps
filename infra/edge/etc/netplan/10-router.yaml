@@ -1,0 +1,17 @@
+# Placeholder MACs: this repo is public. The real file is in local/etc/netplan/.
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    wan0:
+      match: { driver: "rk_gmac-dwmac" }
+      # Fixed MAC for the built-in port, so the hotspot's DHCP lease is stable.
+      macaddress: "02:00:00:00:00:01"
+      set-name: wan0
+      dhcp4: true
+    lan0:
+      # The USB gigabit adapter.
+      match: { macaddress: "02:00:00:00:00:02" }
+      set-name: lan0
+      addresses: [192.168.50.1/24]
+      ignore-carrier: true

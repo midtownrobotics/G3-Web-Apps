@@ -34,6 +34,11 @@
       "port": 5182,
       "name": "Strategy Tools",
       "url": "http://localhost:5182"
+    },
+    "edge": {
+      "port": 5183,
+      "name": "Edge (Network)",
+      "url": "http://localhost:5183"
     }
   },
   "workers": {
@@ -72,6 +77,12 @@
       "inspectorPort": 9234,
       "name": "Scouting Worker",
       "url": "http://localhost:8792"
+    },
+    "edge": {
+      "port": 8793,
+      "inspectorPort": 9235,
+      "name": "Edge Worker",
+      "url": "http://localhost:8793"
     }
   }
 }

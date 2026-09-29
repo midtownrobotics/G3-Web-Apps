@@ -34,3 +34,6 @@ workers/shop/example-bom-res*.json
 .dev-logs/manual-schedule-test*
 .dev-logs/ios-paper-cropped.jpg
 apps/scouting/eng.traineddata
+
+# Edge box: raw configs copied from g3-edge (real MACs etc). Scrubbed copies live in infra/edge/.
+infra/edge/local/

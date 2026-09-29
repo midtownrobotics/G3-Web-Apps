@@ -20,6 +20,9 @@ jobs:
           node-version: 22
           cache: pnpm
 
+      # devices/edge-agent runs its tests with `bun test`.
+      - uses: oven-sh/setup-bun@v2
+
       - run: pnpm install --frozen-lockfile
 
       - run: pnpm lint
