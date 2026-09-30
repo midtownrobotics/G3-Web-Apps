@@ -137,10 +137,8 @@ export function formatDailySummary(
 
   const [busiest, runnerUp] = stats.byProcess;
   if (busiest) {
-    reflection.push(
-      `Busiest process: ${busiest.name} (${plural(busiest.steps, "step")})` +
-        (runnerUp ? `, then ${runnerUp.name} (${runnerUp.steps}).` : "."),
-    );
+    const then = runnerUp ? `, then ${runnerUp.name} (${runnerUp.steps})` : "";
+    reflection.push(`Busiest process: ${busiest.name} (${plural(busiest.steps, "step")})${then}.`);
   }
 
   const top = stats.byUser
