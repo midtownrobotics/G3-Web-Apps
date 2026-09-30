@@ -3,7 +3,12 @@ import { eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import { createShopDb } from "../db";
 import * as schema from "../db/schema";
-import { formatDailySummary, getDailyStats } from "../lib/daily-summary";
+import {
+  formatOverview,
+  formatReflection,
+  getOverviewStats,
+  getReflectionStats,
+} from "../lib/daily-summary";
 import { exportDrawingAsPDF, storeDrawingInR2 } from "../lib/onshape-export";
 import { registerOnShapeWebhook, unregisterOnShapeWebhooks } from "../lib/onshape-webhook";
 import { requireAdmin, requireAuth } from "../middleware/auth";
@@ -419,10 +424,18 @@ export const adminPartsRouter = new Hono<AppEnv>()
       );
     }
   })
-  // Posts today's shop rundown to the summary channel. The browser sends the start of its local
-  // day and its time zone, since the worker runs in UTC.
+  // Posts the Overview (start of day) or Reflection (end of day) to the summary channel. The
+  // browser sends the start of its local day and its time zone, since the worker runs in UTC.
   .post("/slack/daily-summary", requireAdmin, async (c) => {
-    const body = await c.req.json<{ since?: unknown; dayLabel?: unknown; timeZone?: unknown }>();
+    const body = await c.req.json<{
+      kind?: unknown;
+      since?: unknown;
+      dayLabel?: unknown;
+      timeZone?: unknown;
+    }>();
+    if (body.kind !== "overview" && body.kind !== "reflection") {
+      return c.json({ error: 'kind must be "overview" or "reflection".' }, 400);
+    }
     const now = Date.now();
     const since = Number(body.since);
     if (!Number.isFinite(since) || since > now || since < now - 36 * 60 * 60 * 1000) {
@@ -446,23 +459,28 @@ export const adminPartsRouter = new Hono<AppEnv>()
       return c.json({ error: "Set the daily summary channel in Slack Configuration first." }, 400);
     }
 
-    const stats = await getDailyStats(db, since);
-    const names = new Map<string, string>();
-    const ids = stats.byUser.slice(0, 3).map((u) => u.userId);
-    if (ids.length > 0) {
-      const res = await c.env.G3ID.fetch(
-        new Request(`http://g3id/auth/users?ids=${encodeURIComponent(ids.join(","))}`, {
-          headers: { cookie: c.req.header("Cookie") ?? "" },
-        }),
-      );
-      if (res.ok) {
-        for (const u of (await res.json()) as { id: string; displayName: string }[]) {
-          names.set(u.id, u.displayName);
+    let text: string;
+    if (body.kind === "overview") {
+      text = formatOverview(await getOverviewStats(db), { dayLabel, now });
+    } else {
+      const stats = await getReflectionStats(db, since);
+      const names = new Map<string, string>();
+      const ids = stats.byUser.slice(0, 3).map((u) => u.userId);
+      if (ids.length > 0) {
+        const res = await c.env.G3ID.fetch(
+          new Request(`http://g3id/auth/users?ids=${encodeURIComponent(ids.join(","))}`, {
+            headers: { cookie: c.req.header("Cookie") ?? "" },
+          }),
+        );
+        if (res.ok) {
+          for (const u of (await res.json()) as { id: string; displayName: string }[]) {
+            names.set(u.id, u.displayName);
+          }
         }
       }
+      text = formatReflection(stats, { dayLabel, timeZone, names });
     }
 
-    const text = formatDailySummary(stats, { dayLabel, timeZone, names });
     try {
       await sendMessage(channel, text, c.env);
     } catch (err) {

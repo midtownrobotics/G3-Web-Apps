@@ -4,7 +4,7 @@ import { actions, partInstanceProcesses, partInstances, processes } from "../db/
 
 type Db = ReturnType<typeof createShopDb>;
 
-export type DailyStats = {
+export type ReflectionStats = {
   partsCompleted: number;
   partsLeft: number;
   stepsCompleted: number;
@@ -18,12 +18,16 @@ export type DailyStats = {
   lastAt: number | null;
 };
 
+// Two daily Slack messages, both simply generated from shop data:
+// - Overview (start of day): where the work is waiting and which machines need help.
+// - Reflection (end of day): what got done.
+
 /**
- * What happened in the shop since `since` (ms). Step counts include parts made obsolete since
+ * Reflection: what happened in the shop since `since` (ms). Step counts include parts made obsolete since
  * (the work still happened); part counts only cover current parts, which are completed once
  * every step is done.
  */
-export async function getDailyStats(db: Db, since: number): Promise<DailyStats> {
+export async function getReflectionStats(db: Db, since: number): Promise<ReflectionStats> {
   const [instances, steps, procs, todaysActions] = await Promise.all([
     db
       .select({
@@ -110,9 +114,9 @@ export async function getDailyStats(db: Db, since: number): Promise<DailyStats> 
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
-/** Slack message for the day: the counts, then a few generated lines reflecting on what happened. */
-export function formatDailySummary(
-  stats: DailyStats,
+/** The Reflection message: today's counts, then a few generated lines on what happened. */
+export function formatReflection(
+  stats: ReflectionStats,
   opts: { dayLabel: string; timeZone: string; names: Map<string, string> },
 ): string {
   const time = (ms: number) =>
@@ -123,7 +127,7 @@ export function formatDailySummary(
     });
 
   const lines = [
-    `*Shop rundown for ${opts.dayLabel}*`,
+    `*Shop reflection for ${opts.dayLabel}*`,
     `:white_check_mark: *${stats.partsCompleted}* ${stats.partsCompleted === 1 ? "part" : "parts"} completed today  ·  *${stats.partsLeft}* left to do`,
   ];
 
@@ -164,5 +168,172 @@ export function formatDailySummary(
   if (stats.partsAdded > 0) reflection.push(`${plural(stats.partsAdded, "new part")} added.`);
 
   lines.push("", ...reflection.map((l) => `• ${l}`));
+  return lines.join("\n");
+}
+
+export type OverviewStats = {
+  partsLeft: number;
+  ready: number;
+  inProgress: number;
+  /** Per machine: parts ready at it, in progress there, still coming, and the oldest wait. */
+  byProcess: {
+    name: string;
+    ready: number;
+    inProgress: number;
+    upcoming: number;
+    oldestReadySince: number | null;
+  }[];
+  /** Where each open priority part currently is. */
+  priorityAt: string[];
+};
+
+/**
+ * Overview: the shop right now. Each current part is at its first unfinished step. A part has
+ * been waiting there since its previous step finished (or since it was created).
+ */
+export async function getOverviewStats(db: Db): Promise<OverviewStats> {
+  const [instances, steps, procs] = await Promise.all([
+    db
+      .select({
+        id: partInstances.id,
+        isPriority: partInstances.isPriority,
+        createdAt: partInstances.createdAt,
+      })
+      .from(partInstances)
+      .where(eq(partInstances.isStale, 0))
+      .all(),
+    db
+      .select({
+        partInstanceId: partInstanceProcesses.partInstanceId,
+        processId: partInstanceProcesses.processId,
+        index: partInstanceProcesses.index,
+        status: partInstanceProcesses.status,
+        completedAt: partInstanceProcesses.completedAt,
+      })
+      .from(partInstanceProcesses)
+      .all(),
+    db.select({ id: processes.id, name: processes.name }).from(processes).all(),
+  ]);
+
+  const stepsByInstance = new Map<number, typeof steps>();
+  for (const s of steps) {
+    const list = stepsByInstance.get(s.partInstanceId) ?? [];
+    list.push(s);
+    stepsByInstance.set(s.partInstanceId, list);
+  }
+
+  type Load = {
+    ready: number;
+    inProgress: number;
+    upcoming: number;
+    oldestReadySince: number | null;
+  };
+  const load = new Map<number, Load>();
+  const loadFor = (processId: number) => {
+    let l = load.get(processId);
+    if (!l) {
+      l = { ready: 0, inProgress: 0, upcoming: 0, oldestReadySince: null };
+      load.set(processId, l);
+    }
+    return l;
+  };
+  const procName = new Map(procs.map((p) => [p.id, p.name]));
+  const nameOf = (id: number) => procName.get(id) ?? `Process #${id}`;
+
+  let partsLeft = 0;
+  let ready = 0;
+  let inProgress = 0;
+  const priorityAt: string[] = [];
+
+  for (const inst of instances) {
+    const instSteps = (stepsByInstance.get(inst.id) ?? []).sort((a, b) => a.index - b.index);
+    const currentIdx = instSteps.findIndex((s) => s.status !== "done");
+    if (currentIdx === -1) continue;
+    partsLeft++;
+    const current = instSteps[currentIdx];
+    const l = loadFor(current.processId);
+    if (current.status === "doing") {
+      inProgress++;
+      l.inProgress++;
+    } else {
+      ready++;
+      l.ready++;
+      const since = instSteps[currentIdx - 1]?.completedAt ?? inst.createdAt;
+      if (l.oldestReadySince === null || since < l.oldestReadySince) l.oldestReadySince = since;
+    }
+    for (const later of instSteps.slice(currentIdx + 1)) loadFor(later.processId).upcoming++;
+    if (inst.isPriority) priorityAt.push(nameOf(current.processId));
+  }
+
+  const byProcess = [...load]
+    .map(([id, l]) => ({ name: nameOf(id), ...l }))
+    .sort((a, b) => b.ready + b.inProgress - (a.ready + a.inProgress) || b.upcoming - a.upcoming);
+
+  return { partsLeft, ready, inProgress, byProcess, priorityAt };
+}
+
+function waitLabel(ms: number): string {
+  const hours = Math.floor(ms / 3_600_000);
+  if (hours < 1) return "under an hour";
+  if (hours < 24) return plural(hours, "hour");
+  return plural(Math.floor(hours / 24), "day");
+}
+
+/** The Overview message: what's left, the machines that need the most help, and where parts are stuck. */
+export function formatOverview(
+  stats: OverviewStats,
+  opts: { dayLabel: string; now: number },
+): string {
+  const lines = [
+    `*Shop overview for ${opts.dayLabel}*`,
+    `:clipboard: *${stats.partsLeft}* ${stats.partsLeft === 1 ? "part" : "parts"} left to do  ·  *${stats.ready}* ready to work on  ·  *${stats.inProgress}* in progress`,
+  ];
+  if (stats.partsLeft === 0) {
+    lines.push("", "Nothing in the queue — every part is done.");
+    return lines.join("\n");
+  }
+
+  const overview: string[] = [];
+
+  const busy = stats.byProcess.filter((p) => p.ready + p.inProgress > 0).slice(0, 3);
+  if (busy.length > 0) {
+    const describe = (p: (typeof busy)[number]) => {
+      const parts = [
+        p.ready > 0 && `${p.ready} ready`,
+        p.inProgress > 0 && `${p.inProgress} in progress`,
+      ].filter(Boolean);
+      return `${p.name} (${parts.join(", ")})`;
+    };
+    overview.push(`Machines that will need the most help: ${busy.map(describe).join(", ")}.`);
+  }
+
+  const stuck = stats.byProcess
+    .filter((p) => p.oldestReadySince !== null)
+    .sort((a, b) => (a.oldestReadySince as number) - (b.oldestReadySince as number))
+    .slice(0, 2)
+    .filter((p) => opts.now - (p.oldestReadySince as number) >= 24 * 3_600_000);
+  if (stuck.length > 0) {
+    const describe = (p: (typeof stuck)[number]) =>
+      `${p.name} (a part has waited ${waitLabel(opts.now - (p.oldestReadySince as number))})`;
+    overview.push(`Parts are stuck longest at ${stuck.map(describe).join(" and ")}.`);
+  }
+
+  if (stats.priorityAt.length > 0) {
+    const counts = new Map<string, number>();
+    for (const at of stats.priorityAt) counts.set(at, (counts.get(at) ?? 0) + 1);
+    const where = [...counts].map(([name, n]) => (n > 1 ? `${name} (${n})` : name)).join(", ");
+    overview.push(`${plural(stats.priorityAt.length, "priority part")} still open — at ${where}.`);
+  }
+
+  const upcoming = stats.byProcess
+    .filter((p) => p.upcoming > 0)
+    .sort((a, b) => b.upcoming - a.upcoming);
+  if (upcoming[0]) {
+    overview.push(
+      `Coming up: ${upcoming[0].name} has ${plural(upcoming[0].upcoming, "more part")} on the way from earlier steps.`,
+    );
+  }
+
+  lines.push("", ...overview.map((l) => `• ${l}`));
   return lines.join("\n");
 }

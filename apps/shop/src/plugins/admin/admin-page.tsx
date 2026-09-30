@@ -99,7 +99,7 @@ export function AdminPage() {
       <div className="max-w-4xl mx-auto px-6 py-8 space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="font-display text-4xl text-ink">Admin</h1>
-          <DailyRundownButton />
+          <DailySlackButtons />
         </div>
 
         {error && <ErrorBanner message={error} />}
@@ -605,19 +605,26 @@ function OnShapeConfig() {
   );
 }
 
-function DailyRundownButton() {
-  const [sending, setSending] = useState(false);
+const SUMMARY_KINDS = {
+  overview: { label: "Overview", blurb: "where the work is waiting and which machines need help" },
+  reflection: { label: "Reflection", blurb: "what got done today" },
+} as const;
+
+function DailySlackButtons() {
+  const [sending, setSending] = useState<keyof typeof SUMMARY_KINDS | null>(null);
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
 
-  async function send() {
-    if (!window.confirm("Post today's shop rundown to the Slack summary channel?")) return;
+  async function send(kind: keyof typeof SUMMARY_KINDS) {
+    const { label, blurb } = SUMMARY_KINDS[kind];
+    if (!window.confirm(`Post the ${label} (${blurb}) to the Slack summary channel?`)) return;
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
-    setSending(true);
+    setSending(kind);
     setResult(null);
     try {
       const res = await api.admin.slack["daily-summary"].$post({
         json: {
+          kind,
           since: startOfDay.getTime(),
           dayLabel: startOfDay.toLocaleDateString("en-US", {
             weekday: "long",
@@ -636,20 +643,26 @@ function DailyRundownButton() {
     } catch (err) {
       setResult({ ok: false, text: err instanceof Error ? err.message : "Failed to send" });
     } finally {
-      setSending(false);
+      setSending(null);
     }
   }
 
   return (
     <div className="flex flex-col items-end gap-2 max-w-md">
-      <button
-        type="button"
-        onClick={send}
-        disabled={sending}
-        className="px-4 py-2 bg-crimson hover:bg-crimson-dark disabled:opacity-50 text-paper text-sm font-semibold rounded-lg transition-colors"
-      >
-        {sending ? "Sending…" : "Send today's rundown to Slack"}
-      </button>
+      <div className="flex gap-2">
+        {(Object.keys(SUMMARY_KINDS) as (keyof typeof SUMMARY_KINDS)[]).map((kind) => (
+          <button
+            key={kind}
+            type="button"
+            onClick={() => send(kind)}
+            disabled={sending !== null}
+            title={`Post the ${SUMMARY_KINDS[kind].label} to Slack: ${SUMMARY_KINDS[kind].blurb}`}
+            className="px-4 py-2 bg-crimson hover:bg-crimson-dark disabled:opacity-50 text-paper text-sm font-semibold rounded-lg transition-colors"
+          >
+            {sending === kind ? "Sending…" : `Send ${SUMMARY_KINDS[kind].label}`}
+          </button>
+        ))}
+      </div>
       {result && (
         <div
           className={`w-full text-xs rounded-lg px-3 py-2 whitespace-pre-wrap ${
@@ -765,7 +778,7 @@ function SlackSettings() {
 
       <div className="space-y-1">
         <label htmlFor="summary-channel-id" className="text-xs font-medium text-steel-dark">
-          Daily Rundown Channel ID
+          Overview &amp; Reflection Channel ID
         </label>
         <input
           id="summary-channel-id"
@@ -776,7 +789,7 @@ function SlackSettings() {
           className="w-full bg-paper border border-steel/40 rounded-lg px-3 py-2 text-sm text-ink placeholder-steel focus:outline-none focus:border-crimson"
         />
         <p className="text-xs text-steel">
-          Where "Send today's rundown to Slack" posts. The Slack bot must be a member of the
+          Where the Overview and Reflection buttons post. The Slack bot must be a member of the
           channel.
         </p>
       </div>
