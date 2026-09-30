@@ -1,0 +1,44 @@
+name = "edge"
+main = "src/index.ts"
+compatibility_date = "2026-05-17"
+
+# Daily rollup of 5-minute usage rows into hourly rows (UTC).
+[triggers]
+crons = ["30 8 * * *"]
+
+[[services]]
+binding = "G3ID"
+service = "g3id"
+
+[[d1_databases]]
+binding = "EDGE_DB"
+database_name = "g3-edge-local"
+database_id = "00000000-0000-0000-0000-000000000003"
+migrations_dir = "src/db/migrations"
+
+[vars]
+FRONTEND_URL = "http://localhost:5183"
+# Secrets: EDGE_AGENT_KEY (shared with the agent; .dev.vars locally, `wrangler secret put` in prod)
+
+[env.production]
+name = "edge-production"
+
+[env.production.triggers]
+crons = ["30 8 * * *"]
+
+[[env.production.services]]
+binding = "G3ID"
+service = "g3id-production"
+
+[[env.production.d1_databases]]
+binding = "EDGE_DB"
+database_name = "g3-edge-prod"
+database_id = "0ba12f11-3577-472f-9998-81017319bd51"
+migrations_dir = "src/db/migrations"
+
+[[env.production.routes]]
+pattern = "api.edge.g3robotics.com"
+custom_domain = true
+
+[env.production.vars]
+FRONTEND_URL = "https://edge.g3robotics.com"

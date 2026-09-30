@@ -2,6 +2,7 @@ packages:
   - "apps/*"
   - "workers/*"
   - "packages/*"
+  - "devices/*"
 
 # pnpm v10 (Cloudflare Pages CI)
 onlyBuiltDependencies:

@@ -1,0 +1,22 @@
+{
+  "name": "@g3/edge-agent",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev:mock": "bun --env-file=mock.env --watch src/index.ts",
+    "build": "bun build src/index.ts --compile --target=bun-linux-arm64 --outfile dist/g3-edge-agent",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "hono": "4.12.19",
+    "tldts": "^7.4.16"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250516.0",
+    "@g3/worker-edge": "workspace:*",
+    "@types/bun": "^1.2.0",
+    "typescript": "^5.8.0"
+  }
+}

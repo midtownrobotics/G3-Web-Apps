@@ -5,6 +5,7 @@ import {
   FaGithub,
   FaHardHat,
   FaInstagram,
+  FaNetworkWired,
   FaRobot,
   FaSlack,
   FaToolbox,
@@ -53,6 +54,12 @@ const APPS: App[] = [
     label: "Strategy",
     href: "https://scouting.g3robotics.com",
     icon: FaRobot,
+    bg: "bg-slate-900",
+  },
+  {
+    label: "Infra",
+    href: "https://scouting.g3robotics.com",
+    icon: FaNetworkWired,
     bg: "bg-slate-900",
   },
   {

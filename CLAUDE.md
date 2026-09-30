@@ -20,11 +20,13 @@ pnpm -r --if-present typecheck  # Ensure no type errors
 
 ## Repository Structure
 
-**Monorepo using pnpm workspaces with three categories:**
+**Monorepo using pnpm workspaces:**
 
-- `apps/` — React frontends (g3id, web, shop, pit, attendance)
-- `workers/` — Cloudflare Workers backends (g3id, shop, pit, skill-tree, attendance)
-- `packages/` — Shared libraries (auth, ui)
+- `apps/` — React frontends (g3id, web, shop, pit, attendance, scouting, edge)
+- `workers/` — Cloudflare Workers backends (g3id, shop, pit, skill-tree, attendance, scouting, edge)
+- `packages/` — Shared libraries (auth, ui, slack)
+- `devices/` — Software that runs on physical hardware (edge-agent: Bun, compiled to an arm64 binary)
+- `infra/edge/` — Hand-applied system config for the shop edge box
 
 ## Architecture Overview
 
@@ -51,6 +53,17 @@ pnpm -r --if-present typecheck  # Ensure no type errors
 - Color system centralized in `packages/ui/src/index.css` using Tailwind v4 `@theme` block
 - Primary color: #A32035 (burgundy), Secondary: neutral grays (#f8f8f8–#1a1a1a)
 - Navbar updates auth state on every route change (useLocation dependency)
+
+### G3 Edge (shop network box)
+
+Design brief: `docs/edge.md`. On-site Orange Pi 5 (hostname `orangepi5`, login user `g3`) routes the shop LAN through a 50 GB/month cellular hotspot.
+- `devices/edge-agent` (Bun + Hono, binds 127.0.0.1): `src/core/*` + feature modules in `src/modules/<name>/`. The network module reads nftables `inet acct` counters every 5 min, attributes bytes by MAC, buffers in local SQLite, and pushes to the worker. Per-site stats: `flows_dl`/`flows_ul` nft sets (client . remote IP) plus the dnsmasq query log (`/run/g3-edge-dns/queries.log`) map bytes to domains; hourly top-20 sites per device are pushed. The agent deletes idle entries from the flows sets (its only write to `inet acct`).
+- `workers/edge`: `/agent/*` routes use a shared bearer key (`EDGE_AGENT_KEY`); UI routes use G3ID (`isAdmin` required for writes). Modules live in `src/modules/<name>/`. Daily cron rolls 5-min usage into hourly rows after 14 days.
+- `apps/edge`: plugin-based UI; nav items are grouped by module.
+- Agent and app both use Hono RPC types from `@g3/worker-edge` (no shared schema package).
+- **Site data is admin-only** in both the worker and the UI (it is per-student browsing data). Hourly rows kept 30 days, then daily for a year.
+- **Single edge device, no HMAC, no Cloudflare Access.** The agent never touches base netplan, nftables, or dnsmasq config.
+- Local dev: `pnpm --filter @g3/edge-agent run dev:mock` runs the agent with fake counters against the local worker (copy `workers/edge/.dev.vars.example` to `.dev.vars`).
 
 ### Color Implementation
 
@@ -163,6 +176,8 @@ Apps:
 - `apps/web` → 5178
 - `apps/skill-tree` → 5180
 - `apps/attendance` → 5181
+- `apps/scouting` → 5182
+- `apps/edge` → 5183
 
 Workers (Wrangler):
 - `workers/g3id` → 8787 (inspector: 9229)
@@ -170,6 +185,9 @@ Workers (Wrangler):
 - `workers/pit` → 8789 (inspector: 9231)
 - `workers/skill-tree` → 8790 (inspector: 9232)
 - `workers/attendance` → 8791 (inspector: 9233)
+- `workers/scouting` → 8792 (inspector: 9234)
+- `workers/edge` → 8793 (inspector: 9235)
+- `devices/edge-agent` (mock) → 8700
 
 **Starting dev servers:**
 - `pnpm dev` — Start all servers and print port summary after ready

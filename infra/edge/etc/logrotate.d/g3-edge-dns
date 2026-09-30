@@ -1,0 +1,14 @@
+# dnsmasq query log (in RAM). The agent reads the rest of queries.log.1 after a
+# rotation, so it must be `create` mode (not copytruncate) and keep 1 old file.
+/run/g3-edge-dns/queries.log {
+    daily
+    maxsize 50M
+    rotate 1
+    missingok
+    notifempty
+    nocompress
+    create 0640 dnsmasq g3-edge
+    postrotate
+        systemctl kill --signal=USR2 dnsmasq.service
+    endscript
+}
