@@ -1,17 +1,38 @@
 import { Hono } from "hono";
+import { bearerMatches } from "./key";
 import type { EdgeModule } from "./module";
 import { AGENT_VERSION } from "./version";
 
-/** Local HTTP API. Bound to 127.0.0.1 only; cloudflared is the only way in (Phase 2). */
-export function startServer(port: number, modules: EdgeModule[], startedAt: number) {
-  const app = new Hono().get("/health", (c) =>
-    c.json({
-      version: AGENT_VERSION,
-      startedAt,
-      uptimeSeconds: Math.floor(Date.now() / 1000) - startedAt,
-      modules: Object.fromEntries(modules.map((m) => [m.name, m.status()])),
-    }),
-  );
+/**
+ * Local HTTP API, bound to 127.0.0.1. The tunnel (cloudflared) forwards only
+ * POST /sync from edge-agent.g3robotics.com; /health is local-only.
+ */
+export function startServer(
+  port: number,
+  modules: EdgeModule[],
+  startedAt: number,
+  agentKey: string,
+) {
+  const app = new Hono()
+    .get("/health", (c) =>
+      c.json({
+        version: AGENT_VERSION,
+        startedAt,
+        uptimeSeconds: Math.floor(Date.now() / 1000) - startedAt,
+        modules: Object.fromEntries(modules.map((m) => [m.name, m.status()])),
+      }),
+    )
+    // The worker's "something changed" poke. It carries no data: modules fetch
+    // the desired state from the worker themselves, with their own key.
+    .post("/sync", (c) => {
+      if (!bearerMatches(c.req.header("Authorization"), agentKey)) {
+        return c.json({ error: "Unauthorized." }, 401);
+      }
+      for (const m of modules) {
+        m.sync?.().catch((err) => console.error(`[${m.name}] sync failed:`, err));
+      }
+      return c.json({ ok: true }, 202);
+    });
   for (const m of modules) {
     if (m.routes) app.route(`/${m.name}`, m.routes);
   }

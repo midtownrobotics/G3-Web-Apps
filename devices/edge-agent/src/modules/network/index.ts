@@ -1,5 +1,7 @@
+import { dirname } from "node:path";
 import type { EdgeModule, ModuleContext } from "../../core/module";
 import { attribute, bucketFor, counterDeltas } from "./deltas";
+import { Enforcer, fileTarget, systemTarget } from "./enforcer";
 import { attributeFlows, idleFlows } from "./flows";
 import { type Lease, parseDnsLog } from "./parse";
 import { Pusher } from "./pusher";
@@ -26,7 +28,17 @@ export function createNetworkModule(ctx: ModuleContext): EdgeModule {
   const source = ctx.config.mock ? mockSource() : systemSource(ctx.config, ctx.db);
   const store = new UsageStore(ctx.db);
   const sites = new SiteStore(ctx.db);
-  const pusher = new Pusher(store, sites, ctx.worker);
+  const enforcer = new Enforcer(
+    ctx,
+    ctx.config.mock
+      ? fileTarget(dirname(ctx.config.dbPath), ctx.config.dnsmasqConfPath)
+      : systemTarget(ctx.config.dnsmasqConfPath),
+    () => source.leases(),
+  );
+  // Every worker response says which state version is current; fetch it if ours is behind.
+  const pusher = new Pusher(store, sites, ctx.worker, (version) => {
+    if (version > ctx.sync.applied) void enforcer.sync();
+  });
   const dnsPending = new Map<string, string>();
   const interval = ctx.config.collectIntervalSeconds;
   let timer: Timer | null = null;
@@ -85,6 +97,9 @@ export function createNetworkModule(ctx: ModuleContext): EdgeModule {
   }
 
   async function tick() {
+    // Keep enforcement applied: recreates the table if nftables was reloaded,
+    // and moves grants to devices' current IPs.
+    await enforcer.ensure().catch((err) => console.error("[network] enforcement failed:", err));
     try {
       const [leases, bootId] = await Promise.all([source.leases(), source.bootId()]);
       const ts = Math.floor(Date.now() / 1000);
@@ -120,16 +135,21 @@ export function createNetworkModule(ctx: ModuleContext): EdgeModule {
   return {
     name: "network",
     async start() {
+      // The first tick applies the last-known state (works offline), then the
+      // worker's latest is fetched.
       await tick();
+      void enforcer.sync();
       scheduleNext();
     },
     stop() {
       if (timer) clearTimeout(timer);
       pusher.stop();
     },
+    sync: () => enforcer.sync(),
     status() {
       return {
         mock: ctx.config.mock,
+        enforcement: enforcer.status(),
         lastCollectAt,
         lastCollectError,
         lastSitesError,

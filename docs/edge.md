@@ -78,11 +78,13 @@ table inet acct {
 
 ## Security
 
-**Worker → agent** (the tunnel hostname, e.g. `edge-api.g3robotics.com`) has two layers:
-1. Cloudflare Access on the hostname with a **service token**. The worker sends `CF-Access-Client-Id` and `CF-Access-Client-Secret`, and anything without them is rejected at Cloudflare's edge.
-2. **HMAC-SHA256** over `method + path + timestamp + body`, using a shared secret, sent as `X-G3-Timestamp` and `X-G3-Signature`. The agent rejects requests with more than 5 minutes of clock skew. This is the same pattern as the OnShape webhook verification in `workers/shop`; reuse that helper if possible.
+> **As built (differs from the original plan below):** one edge device, one shared key (`EDGE_AGENT_KEY`) sent as `Authorization: Bearer` in both directions, no HMAC, and no Cloudflare Access. The tunnel (`edge-agent.g3robotics.com`) forwards only `POST /sync`, which carries no data: it tells the agent to fetch the desired state from the worker with its own key. Every agent→worker response also carries `X-G3-State-Version`, so a missed poke is caught within 5 minutes. No SSH through the tunnel; SSH on `wan0` stays open for now (`# TEMP` rule in `nftables.conf`, to remove before go-live).
 
-**Agent → worker:** HMAC with a separate per-device secret. Devices are registered in D1, so a second edge box later is just another row.
+~~**Worker → agent** (the tunnel hostname, e.g. `edge-api.g3robotics.com`) has two layers:~~
+1. ~~Cloudflare Access on the hostname with a service token.~~
+2. ~~HMAC-SHA256 over `method + path + timestamp + body`.~~
+
+~~**Agent → worker:** HMAC with a separate per-device secret.~~
 
 **Other rules:**
 - The agent's HTTP server binds to `127.0.0.1` only. cloudflared is the only way in.
@@ -111,6 +113,7 @@ table inet acct {
 ### Network module
 - **Collector:** replaces `g3-usage.py`. Every 5 minutes it reads the `acct` sets and `wan0` statistics, computes deltas with reset handling, attributes them by **MAC** (IP → MAC from leases), stores the result locally, and pushes to the worker. Unsent batches are retried with backoff. Usage is keyed by MAC because IPs change.
 - **Per-site stats** (added after Phase 1; admin-only): `inet acct` also has `flows_dl`/`flows_ul` sets keyed `client . remote IP` (1h timeout). The agent attributes their byte deltas to the domain the client looked up (dnsmasq `log-queries=extra` → `/run/g3-edge-dns/queries.log`), reduced to the registrable domain (`tldts`), or `(unknown)`. It deletes flow entries idle since the last reading so re-created entries start from zero; this is its only write to `inet acct`. Hourly per-device top-20 sites (rest as `(other)`) go to `net_site_usage`; rolled up to daily after 30 days, deleted after a year.
+- **As built (Phase 2):** admins make custom blocklists (no built-in categories), each `block` or `throttle` (per-device rate). The agent owns `inet g3` (built in `enforce.ts`): `bl<id>_ips` sets filled by dnsmasq `nftset=`, `bl<id>_ok` grant sets (MAC → current IP, nft timeout = time left), reject/police rules, and DNS hardening (port-53 redirect, DoT/DoH blocks, NXDOMAIN for the Firefox canary and iCloud Private Relay). Its dnsmasq config lives in `/var/lib/g3-edge/dnsmasq/g3-edge.conf` (not `/etc/dnsmasq.d/`); a systemd path unit restarts dnsmasq when it changes, so the agent needs no privileges for that. `nftables.conf` deletes only its own tables on reload so `inet g3` survives. QUIC is not blocked globally (IP-based rules already cover it). Grants are admin-only (1h / 4h / rest of today); enforcement and hardening are UI switches. Big-download rule and alerts are deferred.
 - **Grants** (Phase 2): nftables sets in `inet g3` with `flags timeout`, e.g. `video_ok` and `bigdl_ok`. A grant is `nft add element … { <ip> timeout <remaining> }`, where the remaining time is computed from `expires_at`. Because grants are stored by MAC in D1, the agent resolves MAC → current IP when applying, and re-applies when a device's lease changes IP.
 - **Blocklists** (Phase 2): categories of domains (e.g. `video`, `updates`, custom) managed from the UI. The agent writes `/etc/dnsmasq.d/g3-edge-blocklist.conf` using `nftset=/domain/.../4#inet#g3#<category>_ips` and reloads dnsmasq. nftables rules in `inet g3` drop or throttle traffic to `<category>_ips` unless the client's IP is in the matching grant set.
 - **DNS bypass hardening** (Phase 2, when blocking is on): redirect LAN port 53 to the box; block QUIC (UDP 443) so traffic falls back to TCP; return NXDOMAIN for `use-application-dns.net` and `mask.icloud.com`; block known DoH endpoints.

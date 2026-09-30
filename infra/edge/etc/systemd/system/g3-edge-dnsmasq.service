@@ -1,0 +1,9 @@
+[Unit]
+Description=Restart dnsmasq after the g3-edge agent changes its config
+
+[Service]
+Type=oneshot
+# Check the whole config first; if it's invalid, the running dnsmasq keeps
+# serving with its current config instead of going down.
+ExecStartPre=/usr/sbin/dnsmasq --test
+ExecStart=/usr/bin/systemctl restart dnsmasq.service

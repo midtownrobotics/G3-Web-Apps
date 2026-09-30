@@ -8,7 +8,12 @@ export interface AgentConfig {
   /** Use fake counters/leases instead of nft, sysfs, and dnsmasq (for local dev). */
   mock: boolean;
   wanInterface: string;
+  lanInterface: string;
+  /** The box's LAN address; clients' DNS is redirected here when hardening is on. */
+  lanIp: string;
   leasesPath: string;
+  /** Generated dnsmasq config (blocklist nftsets, hardening); dnsmasq restarts when it changes. */
+  dnsmasqConfPath: string;
   /** dnsmasq query log (log-queries=extra), used to name the sites clients use. */
   dnsLogPath: string;
   collectIntervalSeconds: number;
@@ -37,7 +42,10 @@ export function loadConfig(): AgentConfig {
     httpPort: int("EDGE_HTTP_PORT", 8700),
     mock: process.env.EDGE_MOCK === "1",
     wanInterface: process.env.EDGE_WAN_IF ?? "wan0",
+    lanInterface: process.env.EDGE_LAN_IF ?? "lan0",
+    lanIp: process.env.EDGE_LAN_IP ?? "192.168.50.1",
     leasesPath: process.env.EDGE_LEASES_PATH ?? "/var/lib/misc/dnsmasq.leases",
+    dnsmasqConfPath: process.env.EDGE_DNSMASQ_CONF ?? "/var/lib/g3-edge/dnsmasq/g3-edge.conf",
     dnsLogPath: process.env.EDGE_DNS_LOG ?? "/run/g3-edge-dns/queries.log",
     collectIntervalSeconds: int("EDGE_COLLECT_INTERVAL", 300),
   };
