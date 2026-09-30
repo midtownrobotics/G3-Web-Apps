@@ -58,16 +58,16 @@ const APPS: App[] = [
   },
   {
     label: "Infra",
-    href: "https://scouting.g3robotics.com",
+    href: "https://edge.g3robotics.com",
     icon: FaNetworkWired,
-    bg: "bg-slate-900",
+    bg: "bg-green-200",
   },
   {
     label: "Public Site",
     href: "https://www.g3robotics.com",
-    bg: "bg-gray-400",
+    bg: "bg-red-300",
     logoSrc: g3Logo,
-  },
+  },  
   {
     label: "Slack",
     href: "https://g3robotics.slack.com",
