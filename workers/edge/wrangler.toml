@@ -33,8 +33,7 @@ service = "g3id-production"
 [[env.production.d1_databases]]
 binding = "EDGE_DB"
 database_name = "g3-edge-prod"
-# TODO: replace with the id from `wrangler d1 create g3-edge-prod`
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "0ba12f11-3577-472f-9998-81017319bd51"
 migrations_dir = "src/db/migrations"
 
 [[env.production.routes]]

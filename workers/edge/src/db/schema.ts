@@ -54,3 +54,20 @@ export const netSettings = sqliteTable("net_settings", {
   cycleStartDay: integer("cycle_start_day").notNull(),
   updatedAt: integer("updated_at").notNull(),
 });
+
+// Queried with raw SQL in modules/network/sites.ts (hourly and daily are unioned).
+const siteUsageColumns = {
+  mac: text("mac").notNull(),
+  ts: integer("ts").notNull(),
+  site: text("site").notNull(),
+  dlBytes: integer("dl_bytes").notNull(),
+  ulBytes: integer("ul_bytes").notNull(),
+};
+
+export const netSiteUsage = sqliteTable("net_site_usage", siteUsageColumns, (t) => [
+  primaryKey({ columns: [t.ts, t.mac, t.site] }),
+]);
+
+export const netSiteUsageDaily = sqliteTable("net_site_usage_daily", siteUsageColumns, (t) => [
+  primaryKey({ columns: [t.ts, t.mac, t.site] }),
+]);

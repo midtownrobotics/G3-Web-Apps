@@ -11,6 +11,8 @@ export interface PluginNavItem {
   order: number;
   /** The module this item belongs to (e.g. "Network"); items are grouped under it. */
   group?: string;
+  /** Only shown to G3ID admins. */
+  adminOnly?: boolean;
 }
 
 export interface Plugin {

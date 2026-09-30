@@ -6,6 +6,7 @@ import { formatBytes, formatDateTime, formatDayKey } from "../../shared/format";
 import { Card, ErrorBanner, Loading, Page, Stat } from "../../shared/ui";
 import { useLoad } from "../../shared/use-load";
 import { BarChart, ChartLegend } from "./bar-chart";
+import { isPseudoSite, sitePath } from "./sites-page";
 
 const hourFormat = new Intl.DateTimeFormat("en-US", {
   timeZone: "America/New_York",
@@ -90,7 +91,48 @@ export function ClientDetailPage() {
           }))}
         />
       </Card>
+
+      <ClientSites mac={client.mac} />
     </Page>
+  );
+}
+
+/** Admin-only: this device’s top sites this cycle. */
+function ClientSites({ mac }: { mac: string }) {
+  const user = useAuthUser();
+  const { data, error } = useLoad(async () => {
+    if (!user.isAdmin) return null;
+    const res = await api.network.sites.client[":mac"].$get({ param: { mac } });
+    if (!res.ok) throw new Error(await getErrorMessage(res));
+    return res.json();
+  }, [mac, user.isAdmin]);
+  if (!user.isAdmin) return null;
+
+  return (
+    <Card title="Top sites this cycle">
+      {error && <ErrorBanner message={error} />}
+      {!data && !error && <Loading />}
+      {data && data.sites.length === 0 && (
+        <p className="text-sm text-secondary-400">No site data yet.</p>
+      )}
+      {data && data.sites.length > 0 && (
+        <ul className="divide-y divide-secondary-100">
+          {data.sites.map((s) => (
+            <li key={s.site} className="py-2 flex items-center justify-between gap-3">
+              <Link
+                to={sitePath(s.site)}
+                className={`truncate hover:text-primary-500 ${isPseudoSite(s.site) ? "italic text-secondary-500" : "text-secondary-900 font-medium"}`}
+              >
+                {s.site}
+              </Link>
+              <span className="text-sm text-secondary-600 tabular-nums">
+                {formatBytes(s.dl + s.ul)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
   );
 }
 

@@ -1,6 +1,6 @@
 {
   "name": "@g3/edge-agent",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,7 +10,8 @@
     "test": "bun test"
   },
   "dependencies": {
-    "hono": "4.12.19"
+    "hono": "4.12.19",
+    "tldts": "^7.4.16"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250516.0",

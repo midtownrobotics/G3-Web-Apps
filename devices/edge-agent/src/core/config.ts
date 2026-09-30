@@ -9,6 +9,8 @@ export interface AgentConfig {
   mock: boolean;
   wanInterface: string;
   leasesPath: string;
+  /** dnsmasq query log (log-queries=extra), used to name the sites clients use. */
+  dnsLogPath: string;
   collectIntervalSeconds: number;
 }
 
@@ -36,6 +38,7 @@ export function loadConfig(): AgentConfig {
     mock: process.env.EDGE_MOCK === "1",
     wanInterface: process.env.EDGE_WAN_IF ?? "wan0",
     leasesPath: process.env.EDGE_LEASES_PATH ?? "/var/lib/misc/dnsmasq.leases",
+    dnsLogPath: process.env.EDGE_DNS_LOG ?? "/run/g3-edge-dns/queries.log",
     collectIntervalSeconds: int("EDGE_COLLECT_INTERVAL", 300),
   };
 }

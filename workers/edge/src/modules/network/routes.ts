@@ -7,37 +7,43 @@ import { writeAudit } from "../../lib/audit";
 import { DAY, billingCycle } from "../../lib/time";
 import { requireAdmin, requireAgent, requireAuth } from "../../middleware/auth";
 import { type AppEnv, WAN_KEY } from "../../types";
+import { clientName, getSettings } from "./common";
 import { ingestUsage, parseUsageBatch } from "./ingest";
+import { ingestSites, parseSiteBatch } from "./sites";
+import { sitesRouter } from "./sites-routes";
 import { SEVEN_DAYS, dailyFor, earliestSample, hourlyFor, project, totalsByMac } from "./usage";
 
 const now = () => Math.floor(Date.now() / 1000);
 
-async function getSettings(db: ReturnType<typeof createEdgeDb>) {
-  const settings = await db.select().from(netSettings).where(eq(netSettings.id, 1)).get();
-  if (!settings) throw new Error("net_settings row missing");
-  return settings;
-}
-
-const clientName = (c: { mac: string; displayName: string | null; hostname: string | null }) =>
-  c.displayName ?? c.hostname ?? c.mac;
-
 /** Routes called by the edge agent (shared-key auth). */
-export const networkAgentRouter = new Hono<AppEnv>().post(
-  "/usage",
-  requireAgent,
-  validator("json", (value, c) => {
-    const batch = parseUsageBatch(value);
-    if (!batch) return c.json({ error: "Invalid usage batch." }, 400);
-    return batch;
-  }),
-  async (c) => {
-    const result = await ingestUsage(createEdgeDb(c.env.EDGE_DB), c.req.valid("json"));
-    return c.json(result);
-  },
-);
+export const networkAgentRouter = new Hono<AppEnv>()
+  .post(
+    "/usage",
+    requireAgent,
+    validator("json", (value, c) => {
+      const batch = parseUsageBatch(value);
+      if (!batch) return c.json({ error: "Invalid usage batch." }, 400);
+      return batch;
+    }),
+    async (c) => {
+      const result = await ingestUsage(createEdgeDb(c.env.EDGE_DB), c.req.valid("json"));
+      return c.json(result);
+    },
+  )
+  .post(
+    "/sites",
+    requireAgent,
+    validator("json", (value, c) => {
+      const batch = parseSiteBatch(value);
+      if (!batch) return c.json({ error: "Invalid sites batch." }, 400);
+      return batch;
+    }),
+    async (c) => c.json(await ingestSites(c.env.EDGE_DB, c.req.valid("json").rows)),
+  );
 
 /** Routes for the UI (G3ID session). Everyone can read; admins can edit. */
 export const networkRouter = new Hono<AppEnv>()
+  .route("/sites", sitesRouter)
   .get("/overview", requireAuth, async (c) => {
     const db = createEdgeDb(c.env.EDGE_DB);
     const t = now();

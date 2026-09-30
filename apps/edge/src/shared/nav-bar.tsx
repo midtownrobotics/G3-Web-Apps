@@ -1,11 +1,14 @@
 import { Fragment } from "react";
 import { Link, NavLink } from "react-router-dom";
+import { useAuthUser } from "./auth";
 import type { PluginNavItem } from "./plugin-types";
 
 /** Top bar. Items are grouped by module ("Network", later "Print", ...). */
 export function NavBar({ items }: { items: PluginNavItem[] }) {
+  const user = useAuthUser();
   const groups = new Map<string, PluginNavItem[]>();
   for (const item of items) {
+    if (item.adminOnly && !user.isAdmin) continue;
     const key = item.group ?? "";
     groups.set(key, [...(groups.get(key) ?? []), item]);
   }
