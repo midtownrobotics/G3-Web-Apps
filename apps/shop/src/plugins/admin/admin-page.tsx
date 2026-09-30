@@ -79,7 +79,10 @@ export function AdminPage() {
   }
 
   async function deleteObsoleteInstances() {
-    if (!window.confirm("Delete all obsolete instances? This cannot be undone.")) return;
+    if (
+      !window.confirm("Delete all obsolete instances? Their work history stays in the actions log.")
+    )
+      return;
     setDeletingObsolete(true);
     const res = await api.admin["obsolete-instances"].$delete();
     if (!res.ok) {
@@ -87,7 +90,8 @@ export function AdminPage() {
       setDeletingObsolete(false);
       return;
     }
-    setBanner("Obsolete instances deleted successfully");
+    const body = (await res.json()) as { message?: string };
+    setBanner(body.message ?? "Obsolete instances deleted");
     setDeletingObsolete(false);
     await refresh();
   }

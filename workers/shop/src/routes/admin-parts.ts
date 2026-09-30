@@ -529,43 +529,30 @@ export const adminPartsRouter = new Hono<AppEnv>()
     try {
       const db = createShopDb(c.env.SHOP_DB);
 
-      // First, get all stale instance IDs
       const staleInstances = await db
         .select({ id: schema.partInstances.id })
         .from(schema.partInstances)
         .where(eq(schema.partInstances.isStale, 1));
-
       const staleInstanceIds = staleInstances.map((i) => i.id);
 
       if (staleInstanceIds.length === 0) {
-        return c.json({
-          success: true,
-          message: "No obsolete instances to delete",
-        });
+        return c.json({ success: true, message: "No obsolete instances to delete" });
       }
 
-      const batchSize = 100;
-
-      // Delete associated actions (actions table has FK to part_instances)
-      for (let i = 0; i < staleInstanceIds.length; i += batchSize) {
-        const batch = staleInstanceIds.slice(i, i + batchSize);
-        await db.delete(schema.actions).where(inArray(schema.actions.partInstanceId, batch));
-      }
-
-      // Delete associated processes (part_instance_processes has FK to part_instances)
+      // The actions log has no foreign keys and keeps its own snapshot of each part, so work
+      // history survives this. part_instance_files cascades; steps must go first.
+      const batchSize = 90; // D1 caps bound parameters per statement at 100.
       for (let i = 0; i < staleInstanceIds.length; i += batchSize) {
         const batch = staleInstanceIds.slice(i, i + batchSize);
         await db
           .delete(schema.partInstanceProcesses)
           .where(inArray(schema.partInstanceProcesses.partInstanceId, batch));
+        await db.delete(schema.partInstances).where(inArray(schema.partInstances.id, batch));
       }
-
-      // Finally delete the stale instances
-      await db.delete(schema.partInstances).where(eq(schema.partInstances.isStale, 1));
 
       return c.json({
         success: true,
-        message: `Deleted ${staleInstanceIds.length} obsolete instances`,
+        message: `Deleted ${staleInstanceIds.length} obsolete instances (their work history is kept).`,
       });
     } catch (err) {
       console.error("[Delete Obsolete Instances Error]", err);

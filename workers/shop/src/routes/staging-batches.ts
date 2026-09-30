@@ -3,7 +3,7 @@ import { Hono } from "hono";
 import { validator } from "hono/validator";
 import { createShopDb } from "../db";
 import {
-  actions,
+  type ActionType,
   files,
   partInstanceFiles,
   partInstanceProcesses,
@@ -11,6 +11,7 @@ import {
 } from "../db/schema";
 import { requireAuth } from "../middleware/auth";
 import type { AppEnv } from "../types";
+import { recordActions } from "./actions";
 
 type ShopDb = ReturnType<typeof createShopDb>;
 type BatchRow = typeof stagingBatches.$inferSelect;
@@ -106,25 +107,9 @@ async function logActions(
   userId: string,
   processId: number,
   instanceIds: number[],
-  action: "started" | "completed",
+  action: ActionType,
 ): Promise<void> {
-  const now = Date.now();
-  try {
-    for (const batch of chunks(instanceIds)) {
-      await db.insert(actions).values(
-        batch.map((partInstanceId) => ({
-          userId,
-          partInstanceId,
-          processId,
-          action,
-          createdAt: now,
-        })),
-      );
-    }
-  } catch (err) {
-    // Same policy as recordAction: the audit log never blocks shop-floor work.
-    console.error("Failed to record actions:", err);
-  }
+  await recordActions(db, { userId, processId, partInstanceIds: instanceIds, action });
 }
 
 export const stagingBatchesRouter = new Hono<AppEnv>()
@@ -237,6 +222,7 @@ export const stagingBatchesRouter = new Hono<AppEnv>()
       unstaged.push(...rows.map((r) => r.id));
     }
     await putFileOn(db, null, unstaged, c.get("userId"));
+    await logActions(db, c.get("userId"), batch.processId, unstaged, "unstarted");
 
     // A batch that empties out is gone; batches only exist while they hold work.
     const deleted = (await stagedIn(db, batch)).length === 0;

@@ -8,6 +8,15 @@ import { useUserNames } from "../../shared/use-user-names";
 const ACTION_LABELS: Record<Action["action"], string> = {
   started: "Marked In Progress",
   completed: "Marked Complete",
+  unstarted: "Moved Back to To Do",
+  reopened: "Reopened",
+};
+
+const ACTION_BADGES: Record<Action["action"], string> = {
+  started: "bg-amber-50 text-amber-700 border-amber-300",
+  completed: "bg-emerald-50 text-emerald-700 border-emerald-300",
+  unstarted: "bg-secondary-50 text-secondary-700 border-secondary-300",
+  reopened: "bg-primary-50 text-primary-700 border-primary-300",
 };
 
 type SortKey = "time" | "user" | "part" | "process" | "action";
@@ -48,16 +57,18 @@ export function ActionsLog({ data }: { data: ShopData }) {
     return (actions ?? []).map((a) => {
       const instance = instById.get(a.partInstanceId);
       const definition = instance ? defById.get(instance.partDefinitionId) : undefined;
-      const partLabel = definition
-        ? `${definition.name} #${instance?.instanceNumber ?? "?"}`
-        : `Instance ${a.partInstanceId}`;
+      // Live names first; the row's snapshot covers parts deleted since.
+      const name = definition?.name ?? a.partName;
+      const number = instance?.instanceNumber ?? a.instanceNumber;
+      const partLabel = name ? `${name} #${number ?? "?"}` : `Instance ${a.partInstanceId}`;
       return {
         action: a,
         userName: resolveName(a.userId),
         partLabel,
-        partNumber: definition?.onshapePartNumber ?? "",
-        definitionId: definition?.id ?? null,
-        processName: processById.get(a.processId)?.name ?? `Process #${a.processId}`,
+        partNumber: definition?.onshapePartNumber ?? a.partNumber ?? "",
+        definitionId: definition?.id ?? a.partDefinitionId,
+        processName:
+          processById.get(a.processId)?.name ?? a.processName ?? `Process #${a.processId}`,
       };
     });
   }, [actions, instById, defById, processById, resolveName]);
@@ -258,9 +269,7 @@ export function ActionsLog({ data }: { data: ShopData }) {
                 <td className="px-3 py-2">
                   <span
                     className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${
-                      r.action.action === "completed"
-                        ? "bg-emerald-50 text-emerald-700 border-emerald-300"
-                        : "bg-amber-50 text-amber-700 border-amber-300"
+                      ACTION_BADGES[r.action.action]
                     }`}
                   >
                     {ACTION_LABELS[r.action.action]}

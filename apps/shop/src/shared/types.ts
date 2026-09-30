@@ -55,7 +55,7 @@ export type Blueprint = {
 
 export type ProcessStatus = "waiting" | "todo" | "doing" | "done";
 
-export type ActionType = "started" | "completed";
+export type ActionType = "started" | "completed" | "unstarted" | "reopened";
 
 export type Action = {
   id: number;
@@ -64,6 +64,12 @@ export type Action = {
   processId: number;
   action: ActionType;
   createdAt: number;
+  // Snapshot at the time of the action, so rows stay readable after the part is deleted.
+  partDefinitionId: number | null;
+  partNumber: string | null;
+  partName: string | null;
+  instanceNumber: number | null;
+  processName: string | null;
 };
 
 export type KioskPresence = {

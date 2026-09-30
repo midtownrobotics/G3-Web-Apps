@@ -7,6 +7,7 @@ import { type BOMQueueMessage, processBOMQueue } from "./lib/bom-queue-consumer"
 import { requireAuth } from "./middleware/auth";
 import { actionsRouter } from "./routes/actions";
 import { adminPartsRouter } from "./routes/admin-parts";
+import { analyticsRouter } from "./routes/analytics";
 import { drawingsRouter } from "./routes/drawings";
 import { clearPresence, kioskPresenceRouter } from "./routes/kiosk-presence";
 import { onshapeExportRouter } from "./routes/onshape-export";
@@ -100,6 +101,7 @@ const app = base
   .route("/part-files", partFilesRouter)
   .route("/staging-batches", stagingBatchesRouter)
   .route("/actions", actionsRouter)
+  .route("/analytics", analyticsRouter)
   .route("/kiosk-presence", kioskPresenceRouter)
   .route("/admin", adminPartsRouter)
   .get("/slack-test", async (c) => {

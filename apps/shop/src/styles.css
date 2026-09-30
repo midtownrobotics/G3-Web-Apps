@@ -14,3 +14,32 @@
   --color-steel-tint: #eef1f3;
   --color-mist: #f4f6f7;
 }
+
+/* Static: charts reference these from SVG strings, which Tailwind can't see as class usage. */
+@theme static {
+  /* Chart palette (validated for colorblind separation; see workers/shop/src/lib/analytics/charts.ts,
+     whose HEX_THEME mirrors these for Slack images). Series order is fixed: 1 blue, 2 orange, 3 aqua. */
+  --color-chart-surface: #fcfcfb;
+  --color-chart-ink: #0b0b0b;
+  --color-chart-ink-secondary: #52514e;
+  --color-chart-muted: #898781;
+  --color-chart-grid: #e1e0d9;
+  --color-chart-baseline: #c3c2b7;
+  --color-chart-1: #2a78d6;
+  --color-chart-1-soft: #86b6ef;
+  --color-chart-2: #eb6834;
+  --color-chart-3: #1baf7a;
+  --color-chart-ramp-0: #cde2fb;
+  --color-chart-ramp-1: #b7d3f6;
+  --color-chart-ramp-2: #9ec5f4;
+  --color-chart-ramp-3: #86b6ef;
+  --color-chart-ramp-4: #6da7ec;
+  --color-chart-ramp-5: #5598e7;
+  --color-chart-ramp-6: #3987e5;
+  --color-chart-ramp-7: #2a78d6;
+  --color-chart-ramp-8: #256abf;
+  --color-chart-ramp-9: #1c5cab;
+  --color-chart-ramp-10: #184f95;
+  --color-chart-ramp-11: #104281;
+  --color-chart-ramp-12: #0d366b;
+}

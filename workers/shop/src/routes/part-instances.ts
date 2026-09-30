@@ -142,9 +142,12 @@ export const partInstancesRouter = new Hono<AppEnv>()
     const id = Number(c.req.param("id"));
     const body = c.req.valid("json");
 
-    const updates: Partial<{ isPriority: number; isStale: number }> = {};
+    const updates: Partial<{ isPriority: number; isStale: number; staleAt: number | null }> = {};
     if (body.isPriority !== undefined) updates.isPriority = body.isPriority ? 1 : 0;
-    if (body.isStale !== undefined) updates.isStale = body.isStale ? 1 : 0;
+    if (body.isStale !== undefined) {
+      updates.isStale = body.isStale ? 1 : 0;
+      updates.staleAt = body.isStale ? Date.now() : null;
+    }
 
     if (Object.keys(updates).length === 0) {
       return c.json({ error: "No updatable fields provided." }, 400);

@@ -2,10 +2,10 @@ import { and, asc, eq, gt, inArray, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { validator } from "hono/validator";
 import { createShopDb } from "../db";
-import { actions, partInstanceProcesses } from "../db/schema";
+import { type ActionType, partInstanceProcesses } from "../db/schema";
 import { requireAuth } from "../middleware/auth";
 import type { AppEnv } from "../types";
-import { recordAction } from "./actions";
+import { recordAction, recordActions } from "./actions";
 
 const updateProcessStatusValidator = validator("json", (value, c): { status: string } => {
   const v = (value ?? {}) as { status?: unknown };
@@ -14,6 +14,16 @@ const updateProcessStatusValidator = validator("json", (value, c): { status: str
   }
   return { status: v.status as string };
 });
+
+/** The action a manual status change represents, or null when nothing changed. */
+function transitionAction(from: string | undefined, to: string): ActionType | null {
+  if (from === to) return null;
+  if (to === "done") return "completed";
+  if (from === "done") return "reopened";
+  if (to === "doing") return "started";
+  if (from === "doing") return "unstarted";
+  return null;
+}
 
 // D1 caps a statement at 100 bound parameters; the widest write here (actions) has 5 columns.
 const BULK_CHUNK = 15;
@@ -93,24 +103,13 @@ export const partInstanceProcessesRouter = new Hono<AppEnv>()
       }
     }
 
-    // Same policy as recordAction: the audit log never blocks shop-floor work.
-    try {
-      const userId = c.get("userId");
-      const action: "started" | "completed" = to === "doing" ? "started" : "completed";
-      for (let i = 0; i < moved.length; i += BULK_CHUNK) {
-        await db.insert(actions).values(
-          moved.slice(i, i + BULK_CHUNK).map((partInstanceId) => ({
-            userId,
-            partInstanceId,
-            processId,
-            action,
-            createdAt: now,
-          })),
-        );
-      }
-    } catch (err) {
-      console.error("Failed to record actions:", err);
-    }
+    await recordActions(db, {
+      userId: c.get("userId"),
+      partInstanceIds: moved,
+      processId,
+      action: to === "doing" ? "started" : "completed",
+      at: now,
+    });
 
     return c.json({ moved: moved.length, requested: partInstanceIds.length });
   })
@@ -226,6 +225,16 @@ export const partInstanceProcessesRouter = new Hono<AppEnv>()
       const processId = Number(c.req.param("processId"));
 
       const db = createShopDb(c.env.SHOP_DB);
+      const prev = await db
+        .select({ status: partInstanceProcesses.status })
+        .from(partInstanceProcesses)
+        .where(
+          and(
+            eq(partInstanceProcesses.partInstanceId, partInstanceId),
+            eq(partInstanceProcesses.processId, processId),
+          ),
+        )
+        .get();
       const row = await db
         .update(partInstanceProcesses)
         .set({
@@ -266,14 +275,10 @@ export const partInstanceProcessesRouter = new Hono<AppEnv>()
         }
       }
 
-      // Record action for "done" status; other transitions are considered manual adjustments
-      if (status === "done") {
-        await recordAction(db, {
-          userId: c.get("userId"),
-          partInstanceId,
-          processId,
-          action: "completed",
-        });
+      // Log every real transition so analytics can replay history (completed_at only holds the latest).
+      const action = transitionAction(prev?.status, status);
+      if (action) {
+        await recordAction(db, { userId: c.get("userId"), partInstanceId, processId, action });
       }
 
       return c.json(row);

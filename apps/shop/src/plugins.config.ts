@@ -1,4 +1,5 @@
 import { adminPlugin } from "./plugins/admin";
+import { analyticsPlugin } from "./plugins/analytics";
 import { boardPlugin } from "./plugins/board";
 import { bomPlugin } from "./plugins/bom";
 import { filesPlugin } from "./plugins/files";
@@ -16,6 +17,7 @@ export const plugins = [
   filesPlugin,
   adminPlugin,
   leaderboardPlugin,
+  analyticsPlugin,
   bomPlugin,
   partViewerPlugin,
 ];

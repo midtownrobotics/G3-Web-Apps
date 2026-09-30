@@ -1,4 +1,4 @@
-import { integer, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
+import { index, integer, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
 
 export const subsystems = sqliteTable("subsystems", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -34,6 +34,8 @@ export const partInstances = sqliteTable(
     instanceNumber: integer("instance_number").notNull(),
     isPriority: integer("is_priority").notNull().default(0),
     isStale: integer("is_stale").notNull().default(0),
+    // When the part was marked obsolete (null for current parts and parts obsoleted before this existed).
+    staleAt: integer("stale_at"),
     createdAt: integer("created_at").notNull(),
   },
   (t) => [unique().on(t.partDefinitionId, t.instanceNumber)],
@@ -89,19 +91,38 @@ export const partInstanceProcesses = sqliteTable(
   (t) => [unique().on(t.partInstanceId, t.index)],
 );
 
-/** Audit log of who moved which part instance through which process. */
-export const actions = sqliteTable("actions", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  userId: text("user_id").notNull(),
-  partInstanceId: integer("part_instance_id")
-    .notNull()
-    .references(() => partInstances.id),
-  processId: integer("process_id")
-    .notNull()
-    .references(() => processes.id),
-  action: text("action", { enum: ["started", "completed"] }).notNull(),
-  createdAt: integer("created_at").notNull(),
-});
+/**
+ * Every status change of a part's step: started (→ in progress), completed (→ done),
+ * unstarted (in progress → to do, incl. unstaging), reopened (done → back to an earlier state).
+ */
+export const ACTION_TYPES = ["started", "completed", "unstarted", "reopened"] as const;
+export type ActionType = (typeof ACTION_TYPES)[number];
+
+/**
+ * Audit log of who moved which part instance through which process. Permanent history: no
+ * foreign keys (parts and processes can be deleted freely), and each row snapshots the names it
+ * refers to at the time. Snapshot columns are null only if the referenced row was already gone.
+ */
+export const actions = sqliteTable(
+  "actions",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    userId: text("user_id").notNull(),
+    partInstanceId: integer("part_instance_id").notNull(),
+    processId: integer("process_id").notNull(),
+    action: text("action", { enum: ACTION_TYPES }).notNull(),
+    createdAt: integer("created_at").notNull(),
+    partDefinitionId: integer("part_definition_id"),
+    partNumber: text("part_number"),
+    partName: text("part_name"),
+    instanceNumber: integer("instance_number"),
+    processName: text("process_name"),
+  },
+  (t) => [
+    index("actions_created_at_idx").on(t.createdAt),
+    index("actions_part_instance_idx").on(t.partInstanceId, t.processId),
+  ],
+);
 
 /** Who is currently logged in at each kiosk device (heartbeat-refreshed). */
 export const kioskPresence = sqliteTable("kiosk_presence", {
