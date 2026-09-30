@@ -97,7 +97,10 @@ export function AdminPage() {
   return (
     <main className="min-h-screen bg-mist">
       <div className="max-w-4xl mx-auto px-6 py-8 space-y-5">
-        <h1 className="font-display text-4xl text-ink">Admin</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="font-display text-4xl text-ink">Admin</h1>
+          <DailyRundownButton />
+        </div>
 
         {error && <ErrorBanner message={error} />}
         {banner && <ErrorBanner message={banner} />}
@@ -602,8 +605,69 @@ function OnShapeConfig() {
   );
 }
 
+function DailyRundownButton() {
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
+
+  async function send() {
+    if (!window.confirm("Post today's shop rundown to the Slack summary channel?")) return;
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    setSending(true);
+    setResult(null);
+    try {
+      const res = await api.admin.slack["daily-summary"].$post({
+        json: {
+          since: startOfDay.getTime(),
+          dayLabel: startOfDay.toLocaleDateString("en-US", {
+            weekday: "long",
+            month: "short",
+            day: "numeric",
+          }),
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        },
+      });
+      if (!res.ok) {
+        setResult({ ok: false, text: await getErrorMessage(res as unknown as Response) });
+        return;
+      }
+      const { text } = (await res.json()) as { text: string };
+      setResult({ ok: true, text });
+    } catch (err) {
+      setResult({ ok: false, text: err instanceof Error ? err.message : "Failed to send" });
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-2 max-w-md">
+      <button
+        type="button"
+        onClick={send}
+        disabled={sending}
+        className="px-4 py-2 bg-crimson hover:bg-crimson-dark disabled:opacity-50 text-paper text-sm font-semibold rounded-lg transition-colors"
+      >
+        {sending ? "Sending…" : "Send today's rundown to Slack"}
+      </button>
+      {result && (
+        <div
+          className={`w-full text-xs rounded-lg px-3 py-2 whitespace-pre-wrap ${
+            result.ok
+              ? "text-emerald-800 bg-emerald-50 border border-emerald-300"
+              : "text-crimson-dark bg-crimson-50 border border-crimson-200"
+          }`}
+        >
+          {result.ok ? `Sent:\n${result.text}` : result.text}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SlackSettings() {
   const [channelId, setChannelId] = useState("");
+  const [summaryChannelId, setSummaryChannelId] = useState("");
   const [saving, setSaving] = useState(false);
   const [banner, setBanner] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -620,8 +684,12 @@ function SlackSettings() {
         setBanner(await getErrorMessage(res as unknown as Response));
         return;
       }
-      const config = (await res.json()) as { slackReleaseChannelId: string };
+      const config = (await res.json()) as {
+        slackReleaseChannelId: string;
+        slackSummaryChannelId: string;
+      };
       setChannelId(config.slackReleaseChannelId || "");
+      setSummaryChannelId(config.slackSummaryChannelId || "");
       setBanner(null);
       setLoaded(true);
     } catch (err) {
@@ -641,6 +709,7 @@ function SlackSettings() {
       const res = await (api as any).admin.slack.config.$post({
         json: {
           slackReleaseChannelId: channelId.trim(),
+          slackSummaryChannelId: summaryChannelId.trim(),
         },
       });
 
@@ -691,6 +760,24 @@ function SlackSettings() {
         <p className="text-xs text-steel">
           The Slack channel ID where release notifications are sent. Find it by clicking on the
           channel name in Slack.
+        </p>
+      </div>
+
+      <div className="space-y-1">
+        <label htmlFor="summary-channel-id" className="text-xs font-medium text-steel-dark">
+          Daily Rundown Channel ID
+        </label>
+        <input
+          id="summary-channel-id"
+          type="text"
+          value={summaryChannelId}
+          onChange={(e) => setSummaryChannelId(e.target.value)}
+          placeholder="e.g. C1709CVEF"
+          className="w-full bg-paper border border-steel/40 rounded-lg px-3 py-2 text-sm text-ink placeholder-steel focus:outline-none focus:border-crimson"
+        />
+        <p className="text-xs text-steel">
+          Where "Send today's rundown to Slack" posts. The Slack bot must be a member of the
+          channel.
         </p>
       </div>
 
