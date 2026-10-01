@@ -8,6 +8,7 @@
 - Shop Production Tracking Software
 - Skill Tree Software
 - Strategy and Scouting Software
+- Edge: The connection between hardware in the shop and our Cloudflare setup.
 
 ## Q/A
 
