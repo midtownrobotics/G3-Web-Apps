@@ -32,17 +32,33 @@ export interface PrintBackend {
   cancel(jobId: number): Promise<void>;
 }
 
+/**
+ * CUPS commands normally answer within seconds, but one waiting on a stuck
+ * printer could hang a request forever; give up after this long.
+ */
+const COMMAND_TIMEOUT_MS = 75_000;
+
 async function run(cmd: string, args: string[], stdin?: Uint8Array) {
   const proc = Bun.spawn([cmd, ...args], {
     stdin: stdin ?? "ignore",
     stdout: "pipe",
     stderr: "pipe",
   });
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    proc.kill();
+  }, COMMAND_TIMEOUT_MS);
   const [out, err, code] = await Promise.all([
     new Response(proc.stdout).text(),
     new Response(proc.stderr).text(),
     proc.exited,
-  ]);
+  ]).finally(() => clearTimeout(timer));
+  if (timedOut) {
+    throw new PrintError(
+      `CUPS didn't respond in time (${cmd}). The printer may be stuck; check it and try again.`,
+    );
+  }
   if (code !== 0) {
     // CUPS tools prefix errors with "<tool>: "; drop it for the UI.
     throw new PrintError(err.trim().replace(/^\w+: /, "") || `${cmd} failed (exit ${code})`);

@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { requireAuth } from "./middleware/auth";
+import { requireAgent, requireAuth } from "./middleware/auth";
 import { networkAgentRouter, networkRouter, networkScheduled } from "./modules/network";
 import { printRouter } from "./modules/print/routes";
 import { statusRouter } from "./routes/status";
@@ -23,7 +23,7 @@ base.use(
       if (origin.startsWith("http://localhost:")) return origin;
       return null;
     },
-    allowMethods: ["GET", "POST", "PATCH", "OPTIONS"],
+    allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowHeaders: ["Content-Type"],
     credentials: true,
   }),
@@ -42,6 +42,9 @@ const app = base
   .route("/network", networkRouter)
   .route("/print", printRouter)
   // Agent-facing routes (shared-key auth), one prefix per module.
+  // The agent calls this right after applying new state; requireAgent records the
+  // applied version (X-G3-Agent-State-Version) so the UI can clear "pending".
+  .post("/agent/ack", requireAgent, (c) => c.json({ ok: true }))
   .route("/agent/network", networkAgentRouter);
 
 export type EdgeApp = typeof app;

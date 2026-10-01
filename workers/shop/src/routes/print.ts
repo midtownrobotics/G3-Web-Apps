@@ -22,14 +22,27 @@ async function sendToPrinter(
         body,
       }),
     );
-    const data = (await res.json()) as { ok?: boolean; jobId?: number; error?: string };
+    const data = (await res.json()) as {
+      ok?: boolean;
+      jobId?: number;
+      error?: string;
+      alerts?: { severity: "error" | "warning"; message: string }[];
+    };
     if (!res.ok || !data.ok) {
       return c.json(
         { ok: false as const, error: data.error || "Print failed" },
         res.status >= 500 ? (res.status as 502 | 503) : 400,
       );
     }
-    return c.json({ ok: true as const, jobId: String(data.jobId) });
+    // The job is queued, but it won't come out until a printer problem (out of
+    // paper, jam, ...) is fixed. Minor ones like "toner is low" are left out.
+    const problems = (data.alerts ?? [])
+      .filter((a) => a.severity === "error")
+      .map((a) => a.message);
+    const warning = problems.length
+      ? `The printer needs attention: ${problems.join(", ")}. It'll print once that's fixed.`
+      : null;
+    return c.json({ ok: true as const, jobId: String(data.jobId), warning });
   } catch (err) {
     console.error("[Print Error]", err);
     return c.json(

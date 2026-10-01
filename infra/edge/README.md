@@ -20,11 +20,12 @@ Files under `etc/` mirror where they go on the box.
 | `etc/systemd/network/10-wan0.link` | Names the built-in port `wan0` (matched by hardware path) and pins its MAC, so the hotspot's DHCP lease is stable |
 | `etc/systemd/network/20-wan0.network` | DHCP on `wan0` |
 | `etc/sysctl.d/99-router.conf` | Turns on IPv4 forwarding |
-| `etc/nftables.conf` | Firewall, NAT, and the `inet acct` byte counters the agent reads (per client, and per client and remote IP for site stats) |
-| `etc/dnsmasq.d/lan.conf` | DHCP and DNS for the LAN, plus the query log used for site stats |
-| `etc/tmpfiles.d/g3-edge.conf` | Creates `/run/g3-edge-dns/` at boot for the query log (kept in RAM) |
+| `etc/nftables.conf` | Firewall, NAT, and the `inet acct` byte counters the agent reads (per client, and per client and remote IP for site stats). Reloading it leaves the agent's own `inet g3` table alone. |
+| `etc/dnsmasq.d/lan.conf` | DHCP and DNS for the LAN, the query log used for site stats, an include of the agent's generated config, and `drive.local` |
+| `etc/tmpfiles.d/g3-edge.conf` | Creates `/run/g3-edge-dns/` at boot for the query log (kept in RAM), and `/var/lib/g3-edge/dnsmasq/` for the agent's generated dnsmasq config |
 | `etc/logrotate.d/g3-edge-dns` | Rotates the query log daily |
 | `etc/systemd/system/g3-edge-agent.service` | Runs the agent as user `g3-edge` with only `CAP_NET_ADMIN` (nft) and `CAP_NET_BIND_SERVICE` (the shop drive on port 80) |
+| `etc/systemd/system/g3-edge-dnsmasq.{path,service}` | Restarts dnsmasq (after `dnsmasq --test`) when the agent changes its generated config, so the agent needs no extra privileges |
 | `etc/systemd/system/g3-drive-mdns.service` | Announces `drive.local` on the shop network over mDNS |
 | `setup-drive.sh` | Creates and mounts the 10 GB shop drive (one-time) |
 | `etc/g3-edge/agent.env.example` | Template for `/etc/g3-edge/agent.env` (agent config and shared key; root-only, mode 600) |
@@ -34,7 +35,7 @@ Files under `etc/` mirror where they go on the box.
 
 This repo is public. The committed `10-router.yaml` uses placeholder MACs (`02:00:00:00:00:0x`); the real one is in `local/`. Every other file is the same in both places. `check.sh` uses the `local/` copy of a file when there is one.
 
-> **Before go-live:** `nftables.conf` still has the `# TEMP` rule allowing SSH on `wan0`. Remove it (from both copies) once admin SSH through the tunnel is set up in Phase 2.
+SSH to the box works from the shop LAN, and for now also on `wan0` (the `# TEMP` rule in `nftables.conf`). Remove that rule, from both copies, before going live.
 
 ## First deployment
 
@@ -113,7 +114,7 @@ Usage appears on the Overview page within 10 minutes. The first hour of site sta
 
 Printing goes: Shop SW or Edge UI → `workers/edge` → Cloudflare Tunnel (`edge-agent.g3robotics.com`) → the agent's print module → CUPS on the box → the printer. Nothing is stored along the way. If the box can't be reached, printing fails right away with a clear error.
 
-This replaces the old print server behind `shoppi-print.g3robotics.com`, which runs on the same box. Keep it running until step 9 so the shop can print during the switch.
+This replaces the old print server behind `shoppi-print.g3robotics.com`, which ran on a separate device (not this box) and is retired in step 10.
 
 ### Box prerequisites
 
@@ -144,11 +145,11 @@ The worker reaches the agent through a Cloudflare Tunnel. If shoppi-print alread
    ```bash
    pnpm --filter @g3/worker-edge run deploy
    ```
-6. **Agent 0.2.0.** This adds the print module and puts `g3-edge` in the `lpadmin` group so it can manage printers.
+6. **Agent 0.2.0 or later** (currently 0.3.0). This adds the print module and puts `g3-edge` in the `lpadmin` group so it can manage printers.
    ```bash
    pnpm --filter @g3/edge-agent run build
    rsync -a infra/edge/ devices/edge-agent/dist/g3-edge-agent g3@192.168.50.1:~/edge-infra/
-   ssh -t g3@192.168.50.1 'cd ~/edge-infra && sudo ./install-agent.sh ./g3-edge-agent 0.2.0'
+   ssh -t g3@192.168.50.1 'cd ~/edge-infra && sudo ./install-agent.sh ./g3-edge-agent 0.3.0'
    ```
 7. **Set up the printer** in the Edge UI under **Print → Printers**. Click **Find printers**, then **Add** next to the shop printer; the first printer added becomes the default. If it isn't found, add it by IP address. Then click **Print test page**.
 
@@ -172,7 +173,7 @@ The worker reaches the agent through a Cloudflare Tunnel. If shoppi-print alread
 - **"The edge box isn't reachable"**: check the tunnel (step 4), `systemctl status cloudflared`, and `systemctl status g3-edge-agent` on the box.
 - **"rejected the worker's key"**: `EDGE_AGENT_KEY` in `/etc/g3-edge/agent.env` doesn't match the worker secret.
 - **Printer shows "Stopped"**: CUPS pauses a printer after errors, for example if it was off. Click **Resume** on the Printers page once it's back.
-- **On the box**: `lpstat -p -d` lists printers and the default; `lpstat -o` lists queued jobs; the CUPS log is `/var/log/cups/error_log`.
+- **On the box**: `lpstat -p -d` lists printers and the default; `lpstat -o` lists queued jobs; CUPS logs to the journal: `sudo journalctl -u cups -n 50`.
 
 ## Shop drive (http://drive.local)
 
@@ -200,6 +201,64 @@ There's **no login**: anyone on the shop network can upload, download, and delet
 
 If `drive.local` doesn't load on a device (some Android phones don't do mDNS), use `http://192.168.50.1`.
 
+## Phase 2 rollout (blocklists, exceptions, DNS hardening)
+
+For a box already running everything above (Phase 1, printing, and the shop drive). Do the cloud steps first: a new agent talking to an old worker just logs sync errors until the worker is updated.
+
+### Cloud
+
+1. **Database.** Apply the new migration (`0003_control.sql`):
+   ```bash
+   pnpm --filter @g3/worker-edge run db:migrate:remote
+   ```
+2. **Worker.** Deploy it. Besides printing, the worker now pokes the agent at `https://edge-agent.g3robotics.com/sync` whenever blocklists, exceptions, or the switches change.
+   ```bash
+   pnpm --filter @g3/worker-edge run deploy
+   ```
+3. **UI.** Push the branch so Pages rebuilds. Admins get **Network → Controls**, plus an **Exceptions** card on each device's page and a **Tunnel** card on the Edge Box page.
+
+### Tunnel
+
+4. **Nothing to set up.** Printing already uses the `edge-agent.g3robotics.com` tunnel hostname, and its path rule `^/(print|sync)(/.*)?$` already covers `/sync`. Check it from any machine; it should return `401` (the tunnel reached the agent; there's no key):
+   ```bash
+   curl -s -o /dev/null -w "%{http_code}\n" -X POST https://edge-agent.g3robotics.com/sync
+   ```
+   The **Tunnel** card on the Edge Box page runs the same check and should say **Connected**. Pokes are only a speed-up: without them the box still picks up changes within 5 minutes, since every upload response tells it the current settings version.
+
+### Box
+
+5. **Install agent 0.3.0.** From the repo root:
+   ```bash
+   pnpm --filter @g3/edge-agent run build
+   rsync -a infra/edge/ devices/edge-agent/dist/g3-edge-agent g3@192.168.50.1:~/edge-infra/
+   ssh -t g3@192.168.50.1
+   cd ~/edge-infra
+   sudo ./install-agent.sh ./g3-edge-agent 0.3.0
+   ```
+   This also installs the dnsmasq restart units and creates `/var/lib/g3-edge/dnsmasq/`. The agent writes its dnsmasq config there, but dnsmasq ignores it until step 7.
+6. **Validate:** `sudo ./check.sh`
+7. **Apply the base config changes.** nftables no longer clears the agent's table on reload, and dnsmasq includes the agent's config (the `drive.local` line and the temporary SSH-on-`wan0` rule are unchanged). Check with `diff local/etc/dnsmasq.d/lan.conf /etc/dnsmasq.d/lan.conf` first: the only difference should be the new `conf-dir=` block.
+    ```bash
+    sudo cp local/etc/nftables.conf /etc/nftables.conf
+    sudo nft -f /etc/nftables.conf
+    sudo cp local/etc/dnsmasq.d/lan.conf /etc/dnsmasq.d/
+    sudo systemctl restart dnsmasq
+    ```
+8. **Check.** The first command should list `table inet g3`. In the health output, `enforcement` should show `lastSyncError: null` and `appliedStateVersion` matching the version shown on the Edge Box page.
+    ```bash
+    sudo nft list tables
+    curl -s http://127.0.0.1:8700/health
+    ```
+9. **Try it.** In the UI, create a small blocklist (for example `example.com`), turn on **Enforce blocklists**, and open that site from a device on the shop network. It should fail to load within a few seconds; a device may need up to 5 minutes if it had the site's address cached. Then give that device an exception, and the site should load.
+
+To see what the agent has applied on the box:
+```bash
+sudo nft list table inet g3                           # rules; blocklist sets fill as devices look up sites
+sudo cat /var/lib/g3-edge/dnsmasq/g3-edge.conf        # generated dnsmasq config
+```
+
+**If something goes wrong:** turn off **Enforce blocklists** and **DNS hardening** in the UI; the box removes all blocking within seconds (or 5 minutes without the tunnel). If the UI or internet is unavailable, on the box: `sudo nft delete table inet g3` removes blocking until the agent's next cycle, and `sudo systemctl stop g3-edge-agent` keeps it off.
+
 ## Changing the network config later
 
 1. Edit the file in `local/`, and make the same change to the committed copy (keeping placeholder MACs).
@@ -214,9 +273,11 @@ The agent relies on:
 - the `inet acct` table and its sets `dl`, `ul`, `flows_dl`, and `flows_ul`;
 - the flows sets keeping a timeout of at least 1 hour;
 - the interfaces being named `wan0` and `lan0`;
-- the query log staying at `/run/g3-edge-dns/queries.log` and being rotated in `create` mode (not `copytruncate`).
+- the query log staying at `/run/g3-edge-dns/queries.log` and being rotated in `create` mode (not `copytruncate`);
+- `nftables.conf` never using `flush ruleset`, which would delete the agent's `inet g3` table (the agent recreates it within 5 minutes, but blocking stops until then);
+- `lan.conf` keeping its `conf-dir=/var/lib/g3-edge/dnsmasq/,*.conf` line.
 
-`nftables.conf` begins with `flush ruleset`, so every reload resets the counters. The agent handles this.
+Reloading `nftables.conf` resets the `inet acct` counters. The agent handles this.
 
 ## Upgrading the agent
 
@@ -248,12 +309,11 @@ If the hotspot is down, usage is buffered in `/var/lib/g3-edge/agent.db` and upl
 
 **Data budget check:** after a day, compare the "Edge box & overhead" line on the Overview page with total usage. It's WAN traffic not attributed to any LAN client (the box's own usage) and should stay small.
 
-**Site stats accuracy:** a large "(unknown)" share on the Sites page means devices are resolving names without the box's DNS, for example with DNS-over-HTTPS, iCloud Private Relay, or a VPN. Phase 2's DNS hardening addresses this.
+**Site stats accuracy:** a large "(unknown)" share on the Sites page means devices are resolving names without the box's DNS, for example with DNS-over-HTTPS, iCloud Private Relay, or a VPN. Turning on **DNS hardening** (Network → Controls) addresses most of this; VPNs can't be fully stopped.
 
 ## Fresh Armbian install (outline)
 
 1. Flash Armbian, create the `g3` user, and set the timezone to `America/New_York`.
 2. Disable NetworkManager and use `systemd-networkd`. Install `etc/netplan/10-router.yaml`, `etc/systemd/network/10-wan0.link`, and `etc/systemd/network/20-wan0.network` (all from `local/`, with real MACs), plus `etc/sysctl.d/99-router.conf`. Then run `sudo netplan apply && sudo sysctl --system`, and reboot so the `.link` file names `wan0`.
 3. Install `nftables` and `dnsmasq`, and enable both services.
-4. Follow "First deployment" steps 6–11.
-5. Phase 2 adds cloudflared, the tunnel, and SSH through it.
+4. Follow "First deployment" steps 6–11, then "Printing rollout" steps 1–7, "Shop drive", and "Phase 2 rollout" steps 5–8.

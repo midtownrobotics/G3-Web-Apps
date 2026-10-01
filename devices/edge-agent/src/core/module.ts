@@ -1,12 +1,13 @@
 import type { Database } from "bun:sqlite";
 import type { Hono } from "hono";
 import type { AgentConfig } from "./config";
-import type { WorkerClient } from "./worker-client";
+import type { SyncState, WorkerClient } from "./worker-client";
 
 export interface ModuleContext {
   config: AgentConfig;
   db: Database;
   worker: WorkerClient;
+  sync: SyncState;
 }
 
 /**
@@ -18,6 +19,8 @@ export interface EdgeModule {
   routes?: Hono;
   start(): void | Promise<void>;
   stop(): void | Promise<void>;
+  /** Fetch and apply desired state from the worker (after a POST /sync poke). */
+  sync?(): Promise<void>;
   /** Reported by GET /health. */
   status(): Record<string, unknown>;
 }

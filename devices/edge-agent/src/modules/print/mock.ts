@@ -75,7 +75,8 @@ export function mockBackend(): PrintBackend {
         isDefault: false,
         state: "idle",
         acceptingJobs: true,
-        stateReasons: [],
+        // e.g. EDGE_MOCK_PRINTER_REASONS=media-empty-error to try the "out of paper" UI.
+        stateReasons: (process.env.EDGE_MOCK_PRINTER_REASONS ?? "").split(",").filter(Boolean),
         stateMessage: null,
         markers: [{ name: "Black Toner", color: "#000000", level: 62 }],
       });

@@ -65,7 +65,7 @@ const APPS: App[] = [
   {
     label: "Public Site",
     href: "https://www.g3robotics.com",
-    bg: "bg-gray-400",
+    bg: "bg-red-300",
     logoSrc: g3Logo,
   },
   {

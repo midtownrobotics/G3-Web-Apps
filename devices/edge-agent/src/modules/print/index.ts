@@ -3,6 +3,7 @@ import {
   isValidDeviceUri,
   isValidPrinterName,
   parsePrintOptions,
+  printerAlerts,
 } from "@g3/worker-edge/print-types";
 import { type Context, Hono } from "hono";
 import type { EdgeModule, ModuleContext } from "../../core/module";
@@ -78,7 +79,13 @@ export function createPrintModule(ctx: ModuleContext): EdgeModule {
           throw new PrintError("The document is too large (50 MB max).");
         const { jobId, printer } = await backend.submit(options, data);
         console.log(`[print] job ${jobId} "${options.title}" -> ${printer} (${data.length} bytes)`);
-        return { ok: true, jobId, printer };
+        // The job is queued either way; also report anything wrong with the printer
+        // (out of paper, jam, ...) so whoever printed knows it won't come out yet.
+        const alerts = await backend
+          .printers()
+          .then((all) => printerAlerts(all.find((p) => p.name === printer)?.stateReasons ?? []))
+          .catch(() => []);
+        return { ok: true, jobId, printer, alerts };
       }),
     )
     .delete("/jobs/:id", (c) =>
