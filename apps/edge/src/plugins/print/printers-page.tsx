@@ -9,6 +9,7 @@ import {
   alertsFor,
   input,
   loadPrinters,
+  networkError,
   plainButton,
   primaryButton,
   printerStatus,
@@ -43,10 +44,15 @@ export function PrintersPage() {
     fn: () => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>,
   ) {
     setBusy(key);
-    const res = await fn();
-    setActionError(res.ok ? null : await getErrorMessage(res));
-    setBusy(null);
-    reload();
+    try {
+      const res = await fn();
+      setActionError(res.ok ? null : await getErrorMessage(res));
+    } catch (err) {
+      setActionError(networkError(err));
+    } finally {
+      setBusy(null);
+      reload();
+    }
   }
 
   return (
@@ -215,19 +221,36 @@ function AddPrinter({ onAdded, existing }: { onAdded: () => void; existing: Prin
   async function discover() {
     setSearching(true);
     setError(null);
-    const res = await api.print.discover.$post();
-    if (res.ok) setFound((await res.json()).printers);
-    else setError(await getErrorMessage(res));
-    setSearching(false);
+    try {
+      const res = await api.print.discover.$post();
+      if (res.ok) setFound((await res.json()).printers);
+      else setError(await getErrorMessage(res));
+    } catch (err) {
+      setError(networkError(err));
+    } finally {
+      setSearching(false);
+    }
   }
 
   async function add(uri: string, label: string) {
     setAdding(uri);
     setError(null);
-    const res = await api.print.printers.$post({
-      json: { name: queueName(label), uri, description: label, makeDefault: existing.length === 0 },
-    });
-    setAdding(null);
+    let res: Awaited<ReturnType<typeof api.print.printers.$post>>;
+    try {
+      res = await api.print.printers.$post({
+        json: {
+          name: queueName(label),
+          uri,
+          description: label,
+          makeDefault: existing.length === 0,
+        },
+      });
+    } catch (err) {
+      setError(networkError(err));
+      return;
+    } finally {
+      setAdding(null);
+    }
     if (!res.ok) {
       setError(await getErrorMessage(res));
       return;

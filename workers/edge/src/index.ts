@@ -23,7 +23,7 @@ base.use(
       if (origin.startsWith("http://localhost:")) return origin;
       return null;
     },
-    allowMethods: ["GET", "POST", "PATCH", "OPTIONS"],
+    allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowHeaders: ["Content-Type"],
     credentials: true,
   }),

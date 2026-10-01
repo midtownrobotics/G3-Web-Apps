@@ -31,3 +31,9 @@ export function printerStatus(p: PrinterRow) {
   if (p.state === "processing") return { dot: "bg-amber-400", label: "Printing" };
   return { dot: "bg-emerald-500", label: "Ready" };
 }
+
+/** Message for a request that never got a response (offline, blocked, server down). */
+export function networkError(err: unknown) {
+  const detail = err instanceof Error ? ` (${err.message})` : "";
+  return `Couldn't reach the Edge server${detail}. Check your connection and try again.`;
+}

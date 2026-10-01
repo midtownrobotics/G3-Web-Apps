@@ -11,6 +11,7 @@ import {
   alertsFor,
   input,
   loadPrinters,
+  networkError,
   plainButton,
   primaryButton,
   printerStatus,
@@ -327,10 +328,14 @@ function JobList({
                   type="button"
                   className={plainButton}
                   onClick={async () => {
-                    const res = await api.print.jobs[":id"].$delete({
-                      param: { id: String(j.id) },
-                    });
-                    setError(res.ok ? null : await getErrorMessage(res));
+                    try {
+                      const res = await api.print.jobs[":id"].$delete({
+                        param: { id: String(j.id) },
+                      });
+                      setError(res.ok ? null : await getErrorMessage(res));
+                    } catch (err) {
+                      setError(networkError(err));
+                    }
                     onChanged();
                   }}
                 >
