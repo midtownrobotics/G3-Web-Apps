@@ -16,8 +16,9 @@ Files under `etc/` mirror where they go on the box.
 
 | Path | Purpose |
 |---|---|
-| `etc/netplan/10-router.yaml` | Names `wan0` (built-in port, fixed MAC) and `lan0` (USB adapter, `192.168.50.1/24`) |
-| `etc/systemd/network/20-wan0.network` | Unused. Netplan's generated `10-netplan-wan0.network` matches `wan0` first, so this file never takes effect. Safe to delete from the box. |
+| `etc/netplan/10-router.yaml` | Names and configures `lan0` (USB adapter, `192.168.50.1/24`) only |
+| `etc/systemd/network/10-wan0.link` | Names the built-in port `wan0` (matched by hardware path) and pins its MAC, so the hotspot's DHCP lease is stable |
+| `etc/systemd/network/20-wan0.network` | DHCP on `wan0` |
 | `etc/sysctl.d/99-router.conf` | Turns on IPv4 forwarding |
 | `etc/nftables.conf` | Firewall, NAT, and the `inet acct` byte counters the agent reads (per client, and per client and remote IP for site stats) |
 | `etc/dnsmasq.d/lan.conf` | DHCP and DNS for the LAN, plus the query log used for site stats |
@@ -173,7 +174,6 @@ The worker reaches the agent through a Cloudflare Tunnel. If shoppi-print alread
 - **Printer shows "Stopped"**: CUPS pauses a printer after errors, for example if it was off. Click **Resume** on the Printers page once it's back.
 - **On the box**: `lpstat -p -d` lists printers and the default; `lpstat -o` lists queued jobs; the CUPS log is `/var/log/cups/error_log`.
 
-## Changing the network config later
 ## Shop drive (http://drive.local)
 
 A shared 10 GB folder on the box for big files, so they only come over the hotspot once. The box serves it on the shop network at `http://drive.local` (and `http://192.168.50.1`), and the Edge dashboard's **Drive** page links there. Uploads and downloads go directly between devices and the box: it's never reachable through the tunnel, and the firewall drops port 80 from `wan0`.
@@ -200,11 +200,13 @@ There's **no login**: anyone on the shop network can upload, download, and delet
 
 If `drive.local` doesn't load on a device (some Android phones don't do mDNS), use `http://192.168.50.1`.
 
+## Changing the network config later
 
 1. Edit the file in `local/`, and make the same change to the committed copy (keeping placeholder MACs).
 2. Copy this folder to the box (`rsync` as in step 6) and run `sudo ./check.sh`.
 3. Apply one file at a time on the box:
-   - **netplan:** `sudo cp local/etc/netplan/10-router.yaml /etc/netplan/ && sudo netplan try`. `netplan try` rolls back automatically unless you confirm within 120 seconds, so a mistake can't lock you out.
+   - **netplan (`lan0`):** `sudo cp local/etc/netplan/10-router.yaml /etc/netplan/ && sudo netplan try`. `netplan try` rolls back automatically unless you confirm within 120 seconds, so a mistake can't lock you out.
+   - **`wan0` (`10-wan0.link`, `20-wan0.network`):** `netplan try` doesn't cover these, so keep the HDMI keyboard handy. Copy them to `/etc/systemd/network/`, then check the `.link` file parses (no "Unknown key" lines): `sudo udevadm test-builtin net_setup_link /sys/class/net/wan0 2>&1 | grep -iE "unknown|wan0.link|MAC"`. `.network` changes apply with `sudo networkctl reload`; `.link` changes (name, MAC) apply at the next boot.
    - **nftables:** `sudo cp local/etc/nftables.conf /etc/ && sudo nft -f /etc/nftables.conf`
    - **dnsmasq:** `sudo cp local/etc/dnsmasq.d/lan.conf /etc/dnsmasq.d/ && sudo systemctl restart dnsmasq`
 
@@ -251,7 +253,7 @@ If the hotspot is down, usage is buffered in `/var/lib/g3-edge/agent.db` and upl
 ## Fresh Armbian install (outline)
 
 1. Flash Armbian, create the `g3` user, and set the timezone to `America/New_York`.
-2. Disable NetworkManager and use `systemd-networkd`. Install `etc/netplan/10-router.yaml` (real MACs) and `etc/sysctl.d/99-router.conf`, then run `sudo netplan apply && sudo sysctl --system`.
+2. Disable NetworkManager and use `systemd-networkd`. Install `etc/netplan/10-router.yaml`, `etc/systemd/network/10-wan0.link`, and `etc/systemd/network/20-wan0.network` (all from `local/`, with real MACs), plus `etc/sysctl.d/99-router.conf`. Then run `sudo netplan apply && sudo sysctl --system`, and reboot so the `.link` file names `wan0`.
 3. Install `nftables` and `dnsmasq`, and enable both services.
 4. Follow "First deployment" steps 6–11.
 5. Phase 2 adds cloudflared, the tunnel, and SSH through it.
