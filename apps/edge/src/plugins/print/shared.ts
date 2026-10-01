@@ -1,3 +1,4 @@
+import { printerAlerts } from "@g3/worker-edge/print-types";
 import { api, getErrorMessage } from "../../shared/api";
 
 export async function loadPrinters() {
@@ -14,18 +15,19 @@ export const primaryButton = `${button} bg-primary-500 hover:bg-primary-600 text
 export const plainButton = `${button} text-secondary-600 hover:text-secondary-900 hover:bg-secondary-100`;
 export const input = "border border-secondary-300 rounded-lg px-2 py-1 text-sm bg-white";
 
-/** "idle" → green, "processing" → amber, "stopped" → grey, with a short label. */
+/** Plain-English problems this printer reports (out of paper, jam, ...), errors first. */
+export function alertsFor(p: PrinterRow) {
+  return printerAlerts(p.stateReasons);
+}
+
+/** Green "Ready", amber "Printing", red "Needs attention", or grey "Stopped". */
 export function printerStatus(p: PrinterRow) {
+  if (alertsFor(p).some((a) => a.severity === "error")) {
+    return { dot: "bg-primary-500", label: "Needs attention" };
+  }
   if (p.state === "stopped" || !p.acceptingJobs) {
     return { dot: "bg-secondary-300", label: p.acceptingJobs ? "Stopped" : "Not accepting jobs" };
   }
   if (p.state === "processing") return { dot: "bg-amber-400", label: "Printing" };
   return { dot: "bg-emerald-500", label: "Ready" };
-}
-
-/** CUPS state reasons worth showing ("media-empty-error" → "media empty"). */
-export function readableReasons(reasons: string[]) {
-  return reasons
-    .filter((r) => !["none", "cups-waiting-for-job-completed"].includes(r))
-    .map((r) => r.replace(/-(report|warning|error)$/, "").replace(/-/g, " "));
 }

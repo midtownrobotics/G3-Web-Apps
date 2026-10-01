@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { isValidDeviceUri, parsePrintOptions } from "@g3/worker-edge/print-types";
+import { isValidDeviceUri, parsePrintOptions, printerAlerts } from "@g3/worker-edge/print-types";
 import { parseLpinfo, parseRequestId, toJob, toPrinter } from "./cups";
 import { OP, VALUE, decodeResponse, encodeRequest } from "./ipp";
 
@@ -193,5 +193,37 @@ describe("print options", () => {
     expect(isValidDeviceUri("file:///etc/passwd")).toBe(false);
     expect(isValidDeviceUri("usb://Canon/LBP")).toBe(false);
     expect(isValidDeviceUri("ipp://x/ y")).toBe(false);
+  });
+});
+
+describe("printerAlerts", () => {
+  test("what the shop printer reported when it ran out of paper", () => {
+    expect(printerAlerts(["media-empty-error", "media-needed-error"])).toEqual([
+      { severity: "error", message: "Out of paper" },
+    ]);
+  });
+
+  test("errors first, warnings kept, internal and unknown non-errors dropped", () => {
+    expect(
+      printerAlerts([
+        "none",
+        "toner-low-warning",
+        "cups-waiting-for-job-completed",
+        "media-jam-error",
+        "something-odd-report",
+        "door-open-report",
+        "weird-thing-error",
+      ]),
+    ).toEqual([
+      { severity: "error", message: "Paper jam" },
+      { severity: "error", message: "A door is open" },
+      { severity: "error", message: "weird thing" },
+      { severity: "warning", message: "Toner is low" },
+    ]);
+  });
+
+  test("nothing to report", () => {
+    expect(printerAlerts([])).toEqual([]);
+    expect(printerAlerts(["none"])).toEqual([]);
   });
 });

@@ -1,10 +1,20 @@
+import type { PrinterAlert } from "@g3/worker-edge/print-types";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, getErrorMessage } from "../../shared/api";
 import { formatAgo, formatBytes } from "../../shared/format";
 import { Card, ErrorBanner, Loading, Page } from "../../shared/ui";
 import { useLoad } from "../../shared/use-load";
-import { input, loadPrinters, plainButton, primaryButton, printerStatus } from "./shared";
+import { PrinterAlerts } from "./alerts";
+import {
+  type PrinterRow,
+  alertsFor,
+  input,
+  loadPrinters,
+  plainButton,
+  primaryButton,
+  printerStatus,
+} from "./shared";
 
 const MAX_BYTES = 50 * 1024 * 1024;
 const ACCEPT = ".pdf,.txt,.jpg,.jpeg,.png,application/pdf,text/plain,image/jpeg,image/png";
@@ -42,13 +52,16 @@ export function PrintPage() {
           onPrinted={() => {
             setWatchUntil(Date.now());
             jobs.reload();
+            printers.reload();
           }}
         />
       )}
       <Card title="Queue">
         {jobs.error && <ErrorBanner message={jobs.error} />}
         {!jobs.data && !jobs.error && <Loading />}
-        {jobs.data && <JobList jobs={jobs.data} onChanged={jobs.reload} />}
+        {jobs.data && (
+          <JobList jobs={jobs.data} printers={printers.data ?? []} onChanged={jobs.reload} />
+        )}
       </Card>
     </Page>
   );
@@ -70,7 +83,10 @@ function PrintForm({
   const [media, setMedia] = useState("na_letter_8.5x11in");
   const [pageRanges, setPageRanges] = useState("");
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<{ error: boolean; text: string } | null>(null);
+  const [message, setMessage] = useState<{
+    tone: "ok" | "warning" | "error";
+    text: string;
+  } | null>(null);
 
   if (printers.length === 0) {
     return (
@@ -89,7 +105,7 @@ function PrintForm({
   async function print() {
     if (!file) return;
     if (file.size > MAX_BYTES) {
-      setMessage({ error: true, text: "The file is too large (50 MB max)." });
+      setMessage({ tone: "error", text: "The file is too large (50 MB max)." });
       return;
     }
     setBusy(true);
@@ -103,18 +119,30 @@ function PrintForm({
         body: file,
         credentials: "include",
       });
-      const data = (await res.json()) as { ok?: boolean; jobId?: number; error?: string };
+      const data = (await res.json()) as {
+        ok?: boolean;
+        jobId?: number;
+        error?: string;
+        alerts?: PrinterAlert[];
+      };
       if (!res.ok || !data.ok) {
-        setMessage({ error: true, text: data.error ?? (await getErrorMessage(res)) });
+        setMessage({ tone: "error", text: data.error ?? (await getErrorMessage(res)) });
       } else {
-        setMessage({
-          error: false,
-          text: `Sent "${file.name}" to ${printer} (job ${data.jobId}).`,
-        });
+        const problems = (data.alerts ?? [])
+          .filter((a) => a.severity === "error")
+          .map((a) => a.message);
+        setMessage(
+          problems.length
+            ? {
+                tone: "warning",
+                text: `Sent "${file.name}" (job ${data.jobId}), but the printer needs attention: ${problems.join(", ")}. It'll print once that's fixed.`,
+              }
+            : { tone: "ok", text: `Sent "${file.name}" to ${printer} (job ${data.jobId}).` },
+        );
         onPrinted();
       }
     } catch (err) {
-      setMessage({ error: true, text: err instanceof Error ? err.message : "Print failed." });
+      setMessage({ tone: "error", text: err instanceof Error ? err.message : "Print failed." });
     } finally {
       setBusy(false);
     }
@@ -208,11 +236,29 @@ function PrintForm({
             </span>
           )}
           {message && (
-            <span className={`text-sm ${message.error ? "text-primary-600" : "text-emerald-700"}`}>
+            <span
+              className={`text-sm ${
+                message.tone === "error"
+                  ? "text-primary-600"
+                  : message.tone === "warning"
+                    ? "text-amber-800"
+                    : "text-emerald-700"
+              }`}
+            >
               {message.text}
             </span>
           )}
         </div>
+        {selected && alertsFor(selected).length > 0 && (
+          <div className="space-y-1">
+            <PrinterAlerts alerts={alertsFor(selected)} />
+            {alertsFor(selected).some((a) => a.severity === "error") && (
+              <p className="text-xs text-secondary-500">
+                Jobs sent now will wait until this is fixed at the printer.
+              </p>
+            )}
+          </div>
+        )}
       </form>
     </Card>
   );
@@ -230,8 +276,22 @@ const JOB_STATE_LABELS: Record<string, string> = {
 
 function JobList({
   jobs,
+  printers,
   onChanged,
-}: { jobs: Awaited<ReturnType<typeof loadJobs>>; onChanged: () => void }) {
+}: {
+  jobs: Awaited<ReturnType<typeof loadJobs>>;
+  printers: PrinterRow[];
+  onChanged: () => void;
+}) {
+  // A job that's waiting or "printing" on a printer with a problem is stuck on it.
+  const problems = new Map(
+    printers.map((p) => [
+      p.name,
+      alertsFor(p)
+        .filter((a) => a.severity === "error")
+        .map((a) => a.message),
+    ]),
+  );
   const [error, setError] = useState<string | null>(null);
   if (jobs.length === 0) return <p className="text-sm text-secondary-400">No recent print jobs.</p>;
   const now = Date.now() / 1000;
@@ -251,6 +311,11 @@ function JobList({
               >
                 {JOB_STATE_LABELS[j.state] ?? j.state}
               </span>
+              {open && (problems.get(j.printer)?.length ?? 0) > 0 && (
+                <span className="text-sm font-medium text-amber-800">
+                  Waiting on: {problems.get(j.printer)?.join(", ")}
+                </span>
+              )}
               <span className="text-xs text-secondary-400 flex-1 truncate">
                 {j.printer}
                 {j.userName ? ` · ${j.userName}` : ""}

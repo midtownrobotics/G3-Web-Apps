@@ -94,13 +94,19 @@ export function FilesPage() {
       const printRes = await api.print.drawing[":partNumber"][":revision"].$post({
         param: { partNumber: drawing.partNumber, revision: drawing.revision },
       });
-      const printData = (await printRes.json()) as { ok: boolean; jobId?: string; error?: string };
+      const printData = (await printRes.json()) as {
+        ok: boolean;
+        jobId?: string;
+        error?: string;
+        warning?: string | null;
+      };
       if (!printData.ok) {
         setError(`Print failed: ${printData.error}`);
         return;
       }
 
-      // Success - no need to show a popup, just silently succeed
+      // Queued; mention a printer problem (out of paper, jam, ...) if there is one.
+      if (printData.warning) setError(printData.warning);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to print drawing");
     } finally {
@@ -128,14 +134,19 @@ export function FilesPage() {
         },
       );
 
-      const printData = (await printRes.json()) as { ok: boolean; jobId?: string; error?: string };
+      const printData = (await printRes.json()) as {
+        ok: boolean;
+        jobId?: string;
+        error?: string;
+        warning?: string | null;
+      };
       if (!printData.ok) {
         setError(`Test print failed: ${printData.error}`);
         return;
       }
 
-      // Success - show brief feedback
-      setError(null);
+      // Queued; show a printer problem (out of paper, jam, ...) if there is one.
+      setError(printData.warning ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send test print");
     } finally {

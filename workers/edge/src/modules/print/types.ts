@@ -131,3 +131,62 @@ export function isValidPrinterName(name: string) {
 export function isValidDeviceUri(uri: string) {
   return /^(ipp|ipps|dnssd|socket|lpd):\/\/[^\s'"\\]{1,500}$/.test(uri);
 }
+
+export interface PrinterAlert {
+  /** "error": the printer can't print until someone fixes it. "warning": it still prints. */
+  severity: "error" | "warning";
+  message: string;
+}
+
+// CUPS/IPP printer-state-reasons keywords (without the -error/-warning/-report
+// suffix) in plain English. Severity comes from the suffix unless given here.
+const ALERTS: Record<string, { message: string; severity?: PrinterAlert["severity"] }> = {
+  "media-empty": { message: "Out of paper", severity: "error" },
+  "media-needed": { message: "Out of paper", severity: "error" },
+  "media-low": { message: "Paper is low", severity: "warning" },
+  "media-jam": { message: "Paper jam", severity: "error" },
+  "toner-empty": { message: "Out of toner", severity: "error" },
+  "marker-supply-empty": { message: "Out of toner or ink", severity: "error" },
+  "toner-low": { message: "Toner is low", severity: "warning" },
+  "marker-supply-low": { message: "Toner or ink is low", severity: "warning" },
+  "marker-waste-full": { message: "Waste toner container is full", severity: "error" },
+  "door-open": { message: "A door is open", severity: "error" },
+  "cover-open": { message: "A cover is open", severity: "error" },
+  "input-tray-missing": { message: "The paper tray is missing", severity: "error" },
+  "output-area-full": { message: "The output tray is full", severity: "error" },
+  "output-tray-missing": { message: "The output tray is missing", severity: "error" },
+  offline: { message: "Can't reach the printer (is it on and connected?)", severity: "error" },
+  "connecting-to-device": { message: "Trying to reach the printer…", severity: "warning" },
+  "timed-out": { message: "Can't reach the printer (is it on and connected?)", severity: "error" },
+  shutdown: { message: "The printer is turned off", severity: "error" },
+  paused: { message: "Paused", severity: "error" },
+  "spool-area-full": { message: "The printer's memory is full", severity: "error" },
+  "fuser-over-temp": { message: "The printer is overheating", severity: "error" },
+};
+
+/**
+ * Turns CUPS printer-state-reasons (e.g. "media-empty-error") into plain-English
+ * alerts, errors first. Unknown "-error" reasons are shown as-is; other unknown
+ * or internal ("cups-...") reasons are ignored.
+ */
+export function printerAlerts(stateReasons: string[]): PrinterAlert[] {
+  const seen = new Map<string, PrinterAlert>();
+  for (const reason of stateReasons) {
+    if (reason === "none" || reason === "other" || reason.startsWith("cups-")) continue;
+    const suffix = /-(error|warning|report)$/.exec(reason)?.[1];
+    const base = suffix ? reason.slice(0, -suffix.length - 1) : reason;
+    const known = ALERTS[base];
+    if (!known && suffix !== "error") continue;
+    const alert: PrinterAlert = {
+      message: known?.message ?? base.replace(/-/g, " "),
+      severity: known?.severity ?? (suffix === "error" ? "error" : "warning"),
+    };
+    const existing = seen.get(alert.message);
+    if (!existing || (existing.severity === "warning" && alert.severity === "error")) {
+      seen.set(alert.message, alert);
+    }
+  }
+  return [...seen.values()].sort(
+    (a, b) => Number(b.severity === "error") - Number(a.severity === "error"),
+  );
+}

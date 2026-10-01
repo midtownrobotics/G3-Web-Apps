@@ -3,14 +3,15 @@ import { api, getErrorMessage } from "../../shared/api";
 import { useAuthUser } from "../../shared/auth";
 import { Card, ErrorBanner, Loading, Page } from "../../shared/ui";
 import { useLoad } from "../../shared/use-load";
+import { PrinterAlerts } from "./alerts";
 import {
   type PrinterRow,
+  alertsFor,
   input,
   loadPrinters,
   plainButton,
   primaryButton,
   printerStatus,
-  readableReasons,
 } from "./shared";
 
 type Discovered = {
@@ -94,7 +95,7 @@ function PrinterItem({
   ) => Promise<void>;
 }) {
   const status = printerStatus(p);
-  const reasons = readableReasons(p.stateReasons);
+  const alerts = alertsFor(p);
   const param = { param: { name: p.name } };
   const printerApi = api.print.printers[":name"];
   return (
@@ -114,10 +115,9 @@ function PrinterItem({
       <p className="text-xs text-secondary-400">
         {[p.makeAndModel, p.location, p.name].filter(Boolean).join(" · ")}
       </p>
-      {(reasons.length > 0 || p.stateMessage) && (
-        <p className="text-sm text-amber-700">
-          {[p.stateMessage, ...reasons].filter(Boolean).join(" · ")}
-        </p>
+      <PrinterAlerts alerts={alerts} />
+      {p.stateMessage && (
+        <p className="text-xs text-secondary-500">Printer says: {p.stateMessage}</p>
       )}
       {p.markers.length > 0 && (
         <div className="flex flex-wrap gap-4">
