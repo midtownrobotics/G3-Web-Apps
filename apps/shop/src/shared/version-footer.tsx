@@ -4,7 +4,7 @@
 export function VersionFooter() {
   return (
     <div className="fixed bottom-4 right-4 text-xs text-secondary-500 opacity-60 pointer-events-none">
-      v1.2.2
+      v1.2.3
     </div>
   );
 }

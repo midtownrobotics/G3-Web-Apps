@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../../shared/api";
 import { getErrorMessage } from "../../shared/api-error";
+import { PrintDrawingButton } from "../../shared/print-drawing-button";
 import { ErrorBanner, PageLoading } from "../../shared/ui";
 
 interface PartDefinition {
@@ -299,16 +300,24 @@ export function PartDetailPage() {
                   </div>
                 </div>
 
-                {def.partDrawingUrl && (
-                  <div className="pt-3 border-t border-steel/25">
-                    <a
-                      href={def.partDrawingUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs font-medium text-crimson hover:text-crimson-dark underline"
-                    >
-                      View Drawing →
-                    </a>
+                {(def.partDrawingUrl || def.revision) && (
+                  <div className="pt-3 border-t border-steel/25 flex flex-wrap items-center gap-4">
+                    {def.partDrawingUrl && (
+                      <a
+                        href={def.partDrawingUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs font-medium text-crimson hover:text-crimson-dark underline"
+                      >
+                        View Drawing →
+                      </a>
+                    )}
+                    {def.revision && (
+                      <PrintDrawingButton
+                        partNumber={def.onshapePartNumber}
+                        revision={def.revision}
+                      />
+                    )}
                   </div>
                 )}
 

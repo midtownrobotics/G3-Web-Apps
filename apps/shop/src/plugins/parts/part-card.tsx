@@ -4,6 +4,7 @@ import { api } from "../../shared/api";
 import { getErrorMessage } from "../../shared/api-error";
 import type { InstanceRow } from "../../shared/derive";
 import { processPath } from "../../shared/nav";
+import { PrintDrawingButton } from "../../shared/print-drawing-button";
 import type { ShopData } from "../../shared/use-shop-data";
 import { useUserNames } from "../../shared/use-user-names";
 import { PartFilesPanel } from "../files/part-files-panel";
@@ -204,10 +205,18 @@ export function PartCard({
           )}
 
           {/* The released drawing, when R2 has one for this revision. */}
-          <DrawingPreview
-            partNumber={row.definition.onshapePartNumber}
-            revision={row.definition.revision}
-          />
+          <div className="space-y-2">
+            <DrawingPreview
+              partNumber={row.definition.onshapePartNumber}
+              revision={row.definition.revision}
+            />
+            <div className="flex justify-end">
+              <PrintDrawingButton
+                partNumber={row.definition.onshapePartNumber}
+                revision={row.definition.revision}
+              />
+            </div>
+          </div>
 
           {/* Information */}
           <Section title="Information">

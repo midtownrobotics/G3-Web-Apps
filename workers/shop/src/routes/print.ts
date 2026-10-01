@@ -1,43 +1,69 @@
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
 import { requireAuth } from "../middleware/auth";
 import type { AppEnv } from "../types";
 
 /**
- * Prints a document on the shop printer through the edge box (workers/edge
- * → tunnel → CUPS on the box). Shop prints are always one-sided black and
- * white on the default printer. Body: the file (PDF or plain text); query:
- * `title`. Response: { ok, jobId } or { ok: false, error }.
+ * Sends a document to the shop printer through the edge box (workers/edge →
+ * tunnel → CUPS on the box). Shop prints are always one-sided black and white
+ * on the default printer, as the logged-in user.
  */
-export const printRouter = new Hono<AppEnv>().post("/", requireAuth, async (c) => {
+async function sendToPrinter(
+  c: Context<AppEnv>,
+  title: string,
+  contentType: string,
+  body: BodyInit | null,
+) {
   try {
-    const query = new URLSearchParams({
-      title: c.req.query("title") ?? "Shop print",
-      sides: "one-sided",
-      color: "monochrome",
-    });
+    const query = new URLSearchParams({ title, sides: "one-sided", color: "monochrome" });
     const res = await c.env.EDGE.fetch(
       new Request(`http://edge/print/jobs?${query}`, {
         method: "POST",
-        headers: {
-          cookie: c.req.header("Cookie") ?? "",
-          "content-type": c.req.header("Content-Type") ?? "application/pdf",
-        },
-        body: c.req.raw.body,
+        headers: { cookie: c.req.header("Cookie") ?? "", "content-type": contentType },
+        body,
       }),
     );
     const data = (await res.json()) as { ok?: boolean; jobId?: number; error?: string };
     if (!res.ok || !data.ok) {
       return c.json(
-        { ok: false, error: data.error || "Print failed" },
+        { ok: false as const, error: data.error || "Print failed" },
         res.status >= 500 ? (res.status as 502 | 503) : 400,
       );
     }
-    return c.json({ ok: true, jobId: String(data.jobId) });
+    return c.json({ ok: true as const, jobId: String(data.jobId) });
   } catch (err) {
     console.error("[Print Error]", err);
     return c.json(
-      { ok: false, error: err instanceof Error ? err.message : "Print request failed" },
+      { ok: false as const, error: err instanceof Error ? err.message : "Print request failed" },
       500,
     );
   }
-});
+}
+
+/** Response: { ok: true, jobId } or { ok: false, error }. */
+export const printRouter = new Hono<AppEnv>()
+  // Body: the file (PDF or plain text); query: `title`.
+  .post("/", requireAuth, (c) =>
+    sendToPrinter(
+      c,
+      c.req.query("title") ?? "Shop print",
+      c.req.header("Content-Type") ?? "application/pdf",
+      c.req.raw.body,
+    ),
+  )
+  // Prints a part revision's released drawing straight from R2 (already
+  // barcode-stamped at export), so the PDF crosses the shop's metered hotspot
+  // once, to the box, instead of down to the kiosk and back up again.
+  .post("/drawing/:partNumber/:revision", requireAuth, async (c) => {
+    const { partNumber, revision } = c.req.param();
+    const file = await c.env.DRAWINGS.get(`drawings/${partNumber}/${revision}/drawing.pdf`);
+    if (!file) {
+      return c.json({ ok: false as const, error: "There's no drawing for this revision." }, 404);
+    }
+    // Drawings are a few MB at most; read it whole, like the drawing route does.
+    return sendToPrinter(
+      c,
+      `${partNumber} Rev ${revision}`,
+      "application/pdf",
+      await file.arrayBuffer(),
+    );
+  });
