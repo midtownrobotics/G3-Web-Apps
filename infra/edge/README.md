@@ -23,7 +23,9 @@ Files under `etc/` mirror where they go on the box.
 | `etc/dnsmasq.d/lan.conf` | DHCP and DNS for the LAN, plus the query log used for site stats |
 | `etc/tmpfiles.d/g3-edge.conf` | Creates `/run/g3-edge-dns/` at boot for the query log (kept in RAM) |
 | `etc/logrotate.d/g3-edge-dns` | Rotates the query log daily |
-| `etc/systemd/system/g3-edge-agent.service` | Runs the agent as user `g3-edge` with only `CAP_NET_ADMIN` |
+| `etc/systemd/system/g3-edge-agent.service` | Runs the agent as user `g3-edge` with only `CAP_NET_ADMIN` (nft) and `CAP_NET_BIND_SERVICE` (the shop drive on port 80) |
+| `etc/systemd/system/g3-drive-mdns.service` | Announces `drive.local` on the shop network over mDNS |
+| `setup-drive.sh` | Creates and mounts the 10 GB shop drive (one-time) |
 | `etc/g3-edge/agent.env.example` | Template for `/etc/g3-edge/agent.env` (agent config and shared key; root-only, mode 600) |
 | `install-agent.sh` | Installs or upgrades the agent binary |
 | `check.sh` | Validates nftables, dnsmasq, and netplan configs before you apply them |
@@ -172,6 +174,32 @@ The worker reaches the agent through a Cloudflare Tunnel. If shoppi-print alread
 - **On the box**: `lpstat -p -d` lists printers and the default; `lpstat -o` lists queued jobs; the CUPS log is `/var/log/cups/error_log`.
 
 ## Changing the network config later
+## Shop drive (http://drive.local)
+
+A shared 10 GB folder on the box for big files, so they only come over the hotspot once. The box serves it on the shop network at `http://drive.local` (and `http://192.168.50.1`), and the Edge dashboard's **Drive** page links there. Uploads and downloads go directly between devices and the box: it's never reachable through the tunnel, and the firewall drops port 80 from `wan0`.
+
+There's **no login**: anyone on the shop network can upload, download, and delete. It's a 10 GB filesystem image mounted at `/srv/g3-drive`, so filling it can't fill the box's main disk. If the image isn't mounted, the agent refuses to store anything rather than writing to the main disk. Files aren't backed up.
+
+1. **Agent 0.2.0 or later** (`install-agent.sh`, as in "Printing rollout" step 6). Its systemd unit now allows port 80 and writing to `/srv/g3-drive`.
+2. **Create the drive.** This makes the 10 GB image, adds it to `/etc/fstab`, mounts it, installs `avahi-utils` if needed, starts the `drive.local` mDNS announcement, and restarts the agent:
+   ```bash
+   cd ~/edge-infra && sudo ./setup-drive.sh
+   ```
+3. **DNS fallback.** `drive.local` is mostly resolved over mDNS. The `address=/drive.local/…` line in `lan.conf` covers devices that ask regular DNS instead:
+   ```bash
+   sudo ./check.sh
+   sudo cp local/etc/dnsmasq.d/lan.conf /etc/dnsmasq.d/ && sudo systemctl restart dnsmasq
+   ```
+   Before copying, check that the box's current `/etc/dnsmasq.d/lan.conf` has no lines that `local/` is missing, for example a `conf-dir=` line from the Phase 2 branch. `diff local/etc/dnsmasq.d/lan.conf /etc/dnsmasq.d/lan.conf` shows any difference.
+4. **Optional: keep mDNS on the shop side only.** By default avahi also announces on `wan0` (the hotspot's network). To limit it to the LAN:
+   ```bash
+   sudo sed -i 's/^#\?allow-interfaces=.*/allow-interfaces=lan0/' /etc/avahi/avahi-daemon.conf
+   sudo systemctl restart avahi-daemon g3-drive-mdns
+   ```
+5. **Check it.** On the box, `curl -s http://127.0.0.1:8700/health` should show the `drive` module with `"listening": true` and `"storage": { "ok": true, ... }`. Then open `http://drive.local` from a laptop or phone on the shop network.
+
+If `drive.local` doesn't load on a device (some Android phones don't do mDNS), use `http://192.168.50.1`.
+
 
 1. Edit the file in `local/`, and make the same change to the committed copy (keeping placeholder MACs).
 2. Copy this folder to the box (`rsync` as in step 6) and run `sudo ./check.sh`.

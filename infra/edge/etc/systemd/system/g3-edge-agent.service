@@ -13,14 +13,17 @@ ExecStart=/opt/g3-edge/current/g3-edge-agent
 Restart=always
 RestartSec=5
 
-# nft needs CAP_NET_ADMIN; nothing else is granted.
-AmbientCapabilities=CAP_NET_ADMIN
-CapabilityBoundingSet=CAP_NET_ADMIN
+# nft needs CAP_NET_ADMIN; the shop drive's web page listens on port 80
+# (CAP_NET_BIND_SERVICE). Nothing else is granted.
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
 NoNewPrivileges=yes
 
-# /var/lib/g3-edge, owned by g3-edge. Everything else is read-only.
+# /var/lib/g3-edge, owned by g3-edge, and the shop drive (setup-drive.sh; the
+# "-" means it's fine if it doesn't exist yet). Everything else is read-only.
 StateDirectory=g3-edge
 StateDirectoryMode=0750
+ReadWritePaths=-/srv/g3-drive
 ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes

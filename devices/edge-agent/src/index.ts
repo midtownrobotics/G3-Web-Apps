@@ -4,6 +4,7 @@ import type { EdgeModule, ModuleContext } from "./core/module";
 import { startServer } from "./core/server";
 import { AGENT_VERSION } from "./core/version";
 import { createWorkerClient } from "./core/worker-client";
+import { createDriveModule } from "./modules/drive";
 import { createNetworkModule } from "./modules/network";
 import { createPrintModule } from "./modules/print";
 
@@ -15,7 +16,11 @@ const ctx: ModuleContext = {
   worker: createWorkerClient(config, startedAt),
 };
 
-const modules: EdgeModule[] = [createNetworkModule(ctx), createPrintModule(ctx)];
+const modules: EdgeModule[] = [
+  createNetworkModule(ctx),
+  createPrintModule(ctx),
+  createDriveModule(ctx),
+];
 
 for (const m of modules) await m.start();
 const server = startServer(config.httpPort, modules, startedAt, config.agentKey);
