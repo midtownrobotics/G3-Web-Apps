@@ -182,6 +182,20 @@ table inet acct {
 3. **Updates:** CI releases, the update endpoint, rollback.
 4. **Later modules:** `print` (printing over WAN) and others, reusing core (auth, tunnel, sync, updates).
 
+### Print module (as built)
+
+- Drop-in replacement for the old shoppi-print server on the same box. The Shop SW's `POST /print?title=` is unchanged; the shop worker now forwards to the edge worker through a service binding and forces one-sided black and white on the default printer.
+- **No caching or storage**: the edge worker streams the file through the tunnel straight to the agent, which pipes it to `lp`. There's no R2 and no job table. If the box is unreachable, the request fails immediately (503).
+- CUPS on the box is the source of truth for printers and the queue. The Edge UI (**Print**) lets anyone print a file with options (copies, sides, color, paper, pages) and see the queue; admins find printers (DNS-SD via `lpinfo`), add them driverless (`lpadmin -m everywhere`), set the default, send a test page, resume, and remove.
+- The agent's module routes are behind the shared key; the tunnel forwards only `^/(print|sync)`.
+
+### Shop drive (as built)
+
+- A shared 10 GB "drive" on the box for big files, so they only come over the hotspot once. Served by the agent's `drive` module **directly on the LAN** at `http://drive.local` (mDNS, with a dnsmasq fallback) and `http://192.168.50.1`, port 80, on the LAN address only. It's never exposed through the tunnel, so file bytes never cross the internet. This is a deliberate exception to "the UI is never served from the box": the page uses no WAN data.
+- No login (low-risk files): anyone on the shop network can upload, download (resumable), and delete. Flat file list; clashing names become `name (1).ext`.
+- Storage is a loop-mounted ext4 image (`/var/lib/g3-drive.img` at `/srv/g3-drive`), so it can't fill the main disk; the agent refuses to store files if it isn't mounted. Not backed up.
+- The Edge dashboard's **Drive** page just links there: an https page can't call a plain-http LAN address, and HTTPS on the box would need a public DNS record and certificate, which wasn't worth it for unauthenticated files.
+
 ## Open questions to confirm with Gray before building
 - Exact G3ID role names for admin vs member, and how other workers check them.
 - The hotspot's billing cycle start day.

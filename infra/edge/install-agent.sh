@@ -17,6 +17,12 @@ if ! id g3-edge &>/dev/null; then
   useradd --system --no-create-home --shell /usr/sbin/nologin g3-edge
   echo "Created user g3-edge"
 fi
+# The print module manages CUPS printers and sees all jobs, which needs lpadmin.
+if getent group lpadmin >/dev/null; then
+  usermod -aG lpadmin g3-edge
+else
+  echo "Warning: no lpadmin group (is CUPS installed?); printing won't work." >&2
+fi
 
 # 2. Binary: /opt/g3-edge/versions/<version>/g3-edge-agent, with `current` pointing at it.
 install -d -m 755 "$BASE/versions/$VERSION"

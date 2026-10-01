@@ -1,11 +1,38 @@
+import { sendMessage } from "@g3/slack";
 import { eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import { createShopDb } from "../db";
 import * as schema from "../db/schema";
+import {
+  formatOverview,
+  formatReflection,
+  getOverviewStats,
+  getReflectionStats,
+} from "../lib/daily-summary";
 import { exportDrawingAsPDF, storeDrawingInR2 } from "../lib/onshape-export";
 import { registerOnShapeWebhook, unregisterOnShapeWebhooks } from "../lib/onshape-webhook";
 import { requireAdmin, requireAuth } from "../middleware/auth";
 import type { AppEnv } from "../types";
+
+const RELEASE_CHANNEL_KEY = "slack_release_channel_id";
+const SUMMARY_CHANNEL_KEY = "slack_summary_channel_id";
+
+async function getSetting(db: ReturnType<typeof createShopDb>, key: string) {
+  const row = await db
+    .select({ value: schema.adminSettings.value })
+    .from(schema.adminSettings)
+    .where(eq(schema.adminSettings.key, key))
+    .get();
+  return row?.value || null;
+}
+
+async function setSetting(db: ReturnType<typeof createShopDb>, key: string, value: string) {
+  const updatedAt = Math.floor(Date.now() / 1000);
+  await db
+    .insert(schema.adminSettings)
+    .values({ key, value, updatedAt })
+    .onConflictDoUpdate({ target: schema.adminSettings.key, set: { value, updatedAt } });
+}
 
 export const adminPartsRouter = new Hono<AppEnv>()
   .get("/parts/pending", requireAuth, async (c) => {
@@ -367,54 +394,101 @@ export const adminPartsRouter = new Hono<AppEnv>()
   })
   .get("/slack/config", requireAdmin, async (c) => {
     const db = createShopDb(c.env.SHOP_DB);
-    const setting = await db
-      .select()
-      .from(schema.adminSettings)
-      .where(eq(schema.adminSettings.key, "slack_release_channel_id"))
-      .get();
-
-    return c.json({
-      slackReleaseChannelId: setting?.value || "",
-    });
+    const [release, summary] = await Promise.all([
+      getSetting(db, RELEASE_CHANNEL_KEY),
+      getSetting(db, SUMMARY_CHANNEL_KEY),
+    ]);
+    return c.json({ slackReleaseChannelId: release ?? "", slackSummaryChannelId: summary ?? "" });
   })
   .post("/slack/config", requireAdmin, async (c) => {
     const db = createShopDb(c.env.SHOP_DB);
-    const body = await c.req.json<{ slackReleaseChannelId: string }>();
+    const body = await c.req.json<{
+      slackReleaseChannelId?: string;
+      slackSummaryChannelId?: string;
+    }>();
+    const release = body.slackReleaseChannelId?.trim();
+    const summary = body.slackSummaryChannelId?.trim();
 
-    if (!body.slackReleaseChannelId?.trim()) {
+    if (!release) {
       return c.json({ error: "Slack channel ID is required" }, 400);
     }
 
     try {
-      const existing = await db
-        .select()
-        .from(schema.adminSettings)
-        .where(eq(schema.adminSettings.key, "slack_release_channel_id"))
-        .get();
-
-      if (existing) {
-        await db
-          .update(schema.adminSettings)
-          .set({
-            value: body.slackReleaseChannelId.trim(),
-            updatedAt: Math.floor(Date.now() / 1000),
-          })
-          .where(eq(schema.adminSettings.key, "slack_release_channel_id"));
-      } else {
-        await db.insert(schema.adminSettings).values({
-          key: "slack_release_channel_id",
-          value: body.slackReleaseChannelId.trim(),
-          updatedAt: Math.floor(Date.now() / 1000),
-        });
-      }
-
-      return c.json({ slackReleaseChannelId: body.slackReleaseChannelId.trim() });
+      await setSetting(db, RELEASE_CHANNEL_KEY, release);
+      if (summary) await setSetting(db, SUMMARY_CHANNEL_KEY, summary);
+      return c.json({ slackReleaseChannelId: release, slackSummaryChannelId: summary ?? "" });
     } catch (err) {
       return c.json(
         { error: err instanceof Error ? err.message : "Failed to update setting" },
         500,
       );
     }
+  })
+  // Posts the Overview (start of day) or Reflection (end of day) to the summary channel. The
+  // browser sends the start of its local day and its time zone, since the worker runs in UTC.
+  .post("/slack/daily-summary", requireAdmin, async (c) => {
+    const body = await c.req.json<{
+      kind?: unknown;
+      since?: unknown;
+      dayLabel?: unknown;
+      timeZone?: unknown;
+    }>();
+    if (body.kind !== "overview" && body.kind !== "reflection") {
+      return c.json({ error: 'kind must be "overview" or "reflection".' }, 400);
+    }
+    const now = Date.now();
+    const since = Number(body.since);
+    if (!Number.isFinite(since) || since > now || since < now - 36 * 60 * 60 * 1000) {
+      return c.json({ error: "since must be the start of today (ms)." }, 400);
+    }
+    const dayLabel =
+      typeof body.dayLabel === "string" && body.dayLabel.trim()
+        ? body.dayLabel.trim().slice(0, 60)
+        : new Date(since).toDateString();
+    let timeZone = "UTC";
+    if (typeof body.timeZone === "string") {
+      try {
+        new Intl.DateTimeFormat("en-US", { timeZone: body.timeZone });
+        timeZone = body.timeZone;
+      } catch {}
+    }
+
+    const db = createShopDb(c.env.SHOP_DB);
+    const channel = await getSetting(db, SUMMARY_CHANNEL_KEY);
+    if (!channel) {
+      return c.json({ error: "Set the daily summary channel in Slack Configuration first." }, 400);
+    }
+
+    let text: string;
+    if (body.kind === "overview") {
+      text = formatOverview(await getOverviewStats(db), { dayLabel, now });
+    } else {
+      const stats = await getReflectionStats(db, since);
+      const names = new Map<string, string>();
+      const ids = stats.byUser.slice(0, 3).map((u) => u.userId);
+      if (ids.length > 0) {
+        const res = await c.env.G3ID.fetch(
+          new Request(`http://g3id/auth/users?ids=${encodeURIComponent(ids.join(","))}`, {
+            headers: { cookie: c.req.header("Cookie") ?? "" },
+          }),
+        );
+        if (res.ok) {
+          for (const u of (await res.json()) as { id: string; displayName: string }[]) {
+            names.set(u.id, u.displayName);
+          }
+        }
+      }
+      text = formatReflection(stats, { dayLabel, timeZone, names });
+    }
+
+    try {
+      await sendMessage(channel, text, c.env);
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : "Slack request failed";
+      const hint = reason.includes("not_in_channel") ? " Invite the Slack bot to the channel." : "";
+      return c.json({ error: `Couldn't post to Slack: ${reason}.${hint}` }, 502);
+    }
+    return c.json({ text, channel });
   })
   .post("/dev/test-drawing/:partNumber/:revision", async (c) => {
     try {

@@ -4,7 +4,9 @@ import type { EdgeModule, ModuleContext } from "./core/module";
 import { startServer } from "./core/server";
 import { AGENT_VERSION } from "./core/version";
 import { type SyncState, createWorkerClient } from "./core/worker-client";
+import { createDriveModule } from "./modules/drive";
 import { createNetworkModule } from "./modules/network";
+import { createPrintModule } from "./modules/print";
 
 const config = loadConfig();
 const startedAt = Math.floor(Date.now() / 1000);
@@ -17,7 +19,11 @@ const ctx: ModuleContext = {
   worker: createWorkerClient(config, startedAt, sync),
 };
 
-const modules: EdgeModule[] = [createNetworkModule(ctx)];
+const modules: EdgeModule[] = [
+  createNetworkModule(ctx),
+  createPrintModule(ctx),
+  createDriveModule(ctx),
+];
 
 for (const m of modules) await m.start();
 const server = startServer(config.httpPort, modules, startedAt, config.agentKey);

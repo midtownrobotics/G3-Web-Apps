@@ -17,6 +17,11 @@ export interface AgentConfig {
   /** dnsmasq query log (log-queries=extra), used to name the sites clients use. */
   dnsLogPath: string;
   collectIntervalSeconds: number;
+  /** Shop drive storage: the mounted 10 GB image. */
+  driveDir: string;
+  /** Where the shop drive's web page listens: the box's LAN address only (never the tunnel). */
+  driveHost: string;
+  drivePort: number;
 }
 
 function required(name: string) {
@@ -48,5 +53,8 @@ export function loadConfig(): AgentConfig {
     dnsmasqConfPath: process.env.EDGE_DNSMASQ_CONF ?? "/var/lib/g3-edge/dnsmasq/g3-edge.conf",
     dnsLogPath: process.env.EDGE_DNS_LOG ?? "/run/g3-edge-dns/queries.log",
     collectIntervalSeconds: int("EDGE_COLLECT_INTERVAL", 300),
+    driveDir: process.env.EDGE_DRIVE_DIR ?? "/srv/g3-drive",
+    driveHost: process.env.EDGE_DRIVE_HOST ?? "192.168.50.1",
+    drivePort: int("EDGE_DRIVE_PORT", 80),
   };
 }
