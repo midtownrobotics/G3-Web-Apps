@@ -2,38 +2,39 @@ import { Hono } from "hono";
 import { requireAuth } from "../middleware/auth";
 import type { AppEnv } from "../types";
 
+/**
+ * Prints a document on the shop printer through the edge box (workers/edge
+ * → tunnel → CUPS on the box). Shop prints are always one-sided black and
+ * white on the default printer. Body: the file (PDF or plain text); query:
+ * `title`. Response: { ok, jobId } or { ok: false, error }.
+ */
 export const printRouter = new Hono<AppEnv>().post("/", requireAuth, async (c) => {
   try {
-    const body = await c.req.arrayBuffer();
-    const query = c.req.query();
-
-    const qs = new URLSearchParams(query).toString();
-    const url = `https://shoppi-print.g3robotics.com/print${qs ? `?${qs}` : ""}`;
-
-    const printToken = c.env.PRINT_TOKEN || "";
-    const printRes = await fetch(url, {
-      method: "POST",
-      headers: {
-        "content-type": "application/pdf",
-        authorization: `Bearer ${printToken}`,
-      },
-      body,
+    const query = new URLSearchParams({
+      title: c.req.query("title") ?? "Shop print",
+      sides: "one-sided",
+      color: "monochrome",
     });
-
-    const printData = (await printRes.json()) as {
-      ok: boolean;
-      jobId?: string;
-      bytes?: number;
-      error?: string;
-    };
-
-    if (!printData.ok) {
-      return c.json({ ok: false, error: printData.error || "Print failed" }, 400);
+    const res = await c.env.EDGE.fetch(
+      new Request(`http://edge/print/jobs?${query}`, {
+        method: "POST",
+        headers: {
+          cookie: c.req.header("Cookie") ?? "",
+          "content-type": c.req.header("Content-Type") ?? "application/pdf",
+        },
+        body: c.req.raw.body,
+      }),
+    );
+    const data = (await res.json()) as { ok?: boolean; jobId?: number; error?: string };
+    if (!res.ok || !data.ok) {
+      return c.json(
+        { ok: false, error: data.error || "Print failed" },
+        res.status >= 500 ? (res.status as 502 | 503) : 400,
+      );
     }
-
-    return c.json(printData);
+    return c.json({ ok: true, jobId: String(data.jobId) });
   } catch (err) {
-    console.error("[Print Proxy Error]", err);
+    console.error("[Print Error]", err);
     return c.json(
       { ok: false, error: err instanceof Error ? err.message : "Print request failed" },
       500,

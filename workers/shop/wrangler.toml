@@ -6,6 +6,11 @@ compatibility_date = "2026-05-17"
 binding = "G3ID"
 service = "g3id"
 
+# Printing goes through the edge box (workers/edge -> tunnel -> CUPS).
+[[services]]
+binding = "EDGE"
+service = "edge"
+
 [[kv_namespaces]]
 binding = "SESSIONS"
 id = "c27ba19a75fb4eb6b93f9d2d47de6c0f"
@@ -36,6 +41,10 @@ name = "shop-production"
 [[env.production.services]]
 binding = "G3ID"
 service = "g3id-production"
+
+[[env.production.services]]
+binding = "EDGE"
+service = "edge-production"
 
 [[env.production.kv_namespaces]]
 binding = "SESSIONS"

@@ -1,0 +1,11 @@
+# Names the built-in Ethernet port wan0 (to the hotspot) and pins its MAC, so
+# the hotspot's DHCP lease is stable. Matched by hardware path: matching by
+# driver (as netplan did) was unreliable on this board. Applied when the port
+# appears, i.e. at boot. Placeholder MAC in the repo; the real file is in
+# infra/edge/local/etc/systemd/network/.
+[Match]
+Path=platform-fe1c0000.ethernet
+
+[Link]
+Name=wan0
+MACAddress=02:00:00:00:00:01

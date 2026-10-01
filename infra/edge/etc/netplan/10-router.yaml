@@ -1,14 +1,11 @@
-# Placeholder MACs: this repo is public. The real file is in local/etc/netplan/.
+# Only lan0 is configured here. wan0 (the built-in port) is set up by
+# /etc/systemd/network/10-wan0.link and 20-wan0.network: netplan matching it by
+# driver was unreliable on this board. In the repo, MACs are placeholders
+# (public repo); the real file is infra/edge/local/etc/netplan/10-router.yaml.
 network:
   version: 2
   renderer: networkd
   ethernets:
-    wan0:
-      match: { driver: "rk_gmac-dwmac" }
-      # Fixed MAC for the built-in port, so the hotspot's DHCP lease is stable.
-      macaddress: "02:00:00:00:00:01"
-      set-name: wan0
-      dhcp4: true
     lan0:
       # The USB gigabit adapter.
       match: { macaddress: "02:00:00:00:00:02" }

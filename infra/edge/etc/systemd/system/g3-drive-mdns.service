@@ -1,0 +1,15 @@
+[Unit]
+Description=Announce drive.local (the shop drive) on the shop network over mDNS
+After=avahi-daemon.service
+Requires=avahi-daemon.service
+
+[Service]
+# Needs the avahi-utils package. Keeps drive.local -> the box's LAN address
+# published for as long as it runs.
+ExecStart=/usr/bin/avahi-publish --address --no-reverse drive.local 192.168.50.1
+Restart=always
+RestartSec=10
+DynamicUser=yes
+
+[Install]
+WantedBy=multi-user.target

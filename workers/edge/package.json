@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./print-types": "./src/modules/print/types.ts"
   },
   "scripts": {
     "dev": "wrangler dev --port 8793 --inspector-port 9235",
