@@ -106,6 +106,71 @@ Do these in order. Steps 1–5 are from a dev machine logged in to Cloudflare (`
 
 Usage appears on the Overview page within 10 minutes. The first hour of site stats appears on the Sites page about 70 minutes after step 10.
 
+## Printing rollout (replaces shoppi-print)
+
+Printing goes: Shop SW or Edge UI → `workers/edge` → Cloudflare Tunnel (`edge-agent.g3robotics.com`) → the agent's print module → CUPS on the box → the printer. Nothing is stored along the way. If the box can't be reached, printing fails right away with a clear error.
+
+This replaces the old print server behind `shoppi-print.g3robotics.com`, which runs on the same box. Keep it running until step 9 so the shop can print during the switch.
+
+### Box prerequisites
+
+1. **CUPS and printer discovery.** CUPS is probably already installed for shoppi-print. Install whatever is missing (one-time, about 50–100 MB over the hotspot):
+   ```bash
+   sudo apt install cups cups-filters avahi-daemon
+   sudo systemctl enable --now cups avahi-daemon
+   ```
+   `avahi-daemon` lets CUPS find printers on the shop network (DNS-SD) and set them up without drivers.
+
+### Tunnel
+
+The worker reaches the agent through a Cloudflare Tunnel. If shoppi-print already uses a tunnel on this box, add the new hostname to that tunnel instead of creating another one.
+
+2. **Create or reuse a tunnel.** In the Cloudflare dashboard, go to **Zero Trust → Networks → Tunnels**. To create one, choose **Cloudflared**, name it `g3-edge`, and run the `sudo cloudflared service install <token>` command it shows on the box. The token is a secret; don't commit it.
+3. **Add a public hostname** to the tunnel:
+   - Subdomain `edge-agent`, domain `g3robotics.com`
+   - Path: `^/(print|sync)(/.*)?$` (only these agent routes are reachable; `/health` stays local)
+   - Service: `HTTP`, URL `localhost:8700`
+4. **Check it** from any machine. You should get `401`: the tunnel reached the agent, and the agent refused because there's no key.
+   ```bash
+   curl -s -o /dev/null -w "%{http_code}\n" https://edge-agent.g3robotics.com/print/printers
+   ```
+
+### Deploy
+
+5. **Edge worker.** It now calls `https://edge-agent.g3robotics.com` (`EDGE_AGENT_URL` in `wrangler.toml`) with the existing `EDGE_AGENT_KEY`.
+   ```bash
+   pnpm --filter @g3/worker-edge run deploy
+   ```
+6. **Agent 0.2.0.** This adds the print module and puts `g3-edge` in the `lpadmin` group so it can manage printers.
+   ```bash
+   pnpm --filter @g3/edge-agent run build
+   rsync -a infra/edge/ devices/edge-agent/dist/g3-edge-agent g3@192.168.50.1:~/edge-infra/
+   ssh -t g3@192.168.50.1 'cd ~/edge-infra && sudo ./install-agent.sh ./g3-edge-agent 0.2.0'
+   ```
+7. **Set up the printer** in the Edge UI under **Print → Printers**. Click **Find printers**, then **Add** next to the shop printer; the first printer added becomes the default. If it isn't found, add it by IP address. Then click **Print test page**.
+
+   If shoppi-print already created a CUPS queue for this printer, it shows up here too. You can make it the default instead of adding the printer again.
+8. **Try a print** from **Print → Print** in the Edge UI.
+9. **Switch the Shop SW over.** Deploy the shop worker. Its `/print` route now sends jobs to the edge worker (one-sided, black and white, default printer) through the `EDGE` service binding, instead of to shoppi-print.
+   ```bash
+   pnpm --filter @g3/worker-shop run deploy
+   ```
+   Print a drawing from the Shop SW Files page to confirm.
+
+### Retire shoppi-print
+
+10. Once shop printing works through the edge box:
+    - stop and disable the old print server's service on the box;
+    - remove the `shoppi-print.g3robotics.com` hostname from its tunnel (and the tunnel itself, if nothing else uses it);
+    - delete the shop worker's old secret: `pnpm --filter @g3/worker-shop exec wrangler secret delete PRINT_TOKEN --env production`.
+
+### Troubleshooting
+
+- **"The edge box isn't reachable"**: check the tunnel (step 4), `systemctl status cloudflared`, and `systemctl status g3-edge-agent` on the box.
+- **"rejected the worker's key"**: `EDGE_AGENT_KEY` in `/etc/g3-edge/agent.env` doesn't match the worker secret.
+- **Printer shows "Stopped"**: CUPS pauses a printer after errors, for example if it was off. Click **Resume** on the Printers page once it's back.
+- **On the box**: `lpstat -p -d` lists printers and the default; `lpstat -o` lists queued jobs; the CUPS log is `/var/log/cups/error_log`.
+
 ## Changing the network config later
 
 1. Edit the file in `local/`, and make the same change to the committed copy (keeping placeholder MACs).

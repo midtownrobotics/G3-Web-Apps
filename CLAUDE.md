@@ -62,7 +62,8 @@ Design brief: `docs/edge.md`. On-site Orange Pi 5 (hostname `orangepi5`, login u
 - `apps/edge`: plugin-based UI; nav items are grouped by module.
 - Agent and app both use Hono RPC types from `@g3/worker-edge` (no shared schema package).
 - **Site data is admin-only** in both the worker and the UI (it is per-student browsing data). Hourly rows kept 30 days, then daily for a year.
-- **Single edge device, no HMAC, no Cloudflare Access.** The agent never touches base netplan, nftables, or dnsmasq config.
+- **Printing:** replaces the old shoppi-print server. Shop worker `/print` (unchanged API; forces one-sided black and white) → `EDGE` service binding → edge worker `/print/*` → `agentFetch` (`EDGE_AGENT_URL` + `EDGE_AGENT_KEY`, through the tunnel) → agent `modules/print` → CUPS (`lp`/`lpadmin` to change things, a small IPP client in `ipp.ts` to read printers and jobs). **Nothing is stored**: no R2, no job table; CUPS on the box is the source of truth, and an unreachable box is an immediate 503. Anyone logged in can print; admins manage printers; members cancel only their own jobs (jobs are submitted with `lp -U <G3ID user id>`). Wire types live in `workers/edge/src/modules/print/types.ts`, exported as `@g3/worker-edge/print-types`. The agent needs to be in the `lpadmin` group.
+- **Single edge device, no HMAC, no Cloudflare Access.** The agent never touches base netplan, nftables, or dnsmasq config. Agent module routes (`/print/*`) require the shared key; `/health` is local-only (the tunnel forwards only `^/(print|sync)`).
 - Local dev: `pnpm --filter @g3/edge-agent run dev:mock` runs the agent with fake counters against the local worker (copy `workers/edge/.dev.vars.example` to `.dev.vars`).
 
 ### Color Implementation

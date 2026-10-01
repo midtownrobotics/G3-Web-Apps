@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { requireAuth } from "./middleware/auth";
 import { networkAgentRouter, networkRouter, networkScheduled } from "./modules/network";
+import { printRouter } from "./modules/print/routes";
 import { statusRouter } from "./routes/status";
 import type { AppEnv } from "./types";
 
@@ -39,6 +40,7 @@ const app = base
   )
   .route("/status", statusRouter)
   .route("/network", networkRouter)
+  .route("/print", printRouter)
   // Agent-facing routes (shared-key auth), one prefix per module.
   .route("/agent/network", networkAgentRouter);
 
