@@ -109,7 +109,7 @@ export function Analysis({ initialReportId }: { initialReportId?: string | null 
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [blankPathIds, setBlankPathIds] = useState<Set<string>>(() => new Set());
-  const [reportSort, setReportSort] = useState<"match" | "newest" | "starred">("match");
+  const [reportSort, setReportSort] = useState<"team" | "match" | "newest" | "starred">("team");
   const [tab, setTab] = useState<"stats" | "matches" | "auto" | "compare">("stats");
   const [expandedReportId, setExpandedReportId] = useState<string | null>(initialReportId ?? null);
   const [selectedPath, setSelectedPath] = useState<{
@@ -250,6 +250,15 @@ export function Analysis({ initialReportId }: { initialReportId?: string | null 
   const visibleReports = reports
     .filter((report) => competition === "all" || (report.eventKey || "Unassigned") === competition)
     .sort((left, right) => {
+      if (reportSort === "team") {
+        const leftTeam = Number(left.teamName);
+        const rightTeam = Number(right.teamName);
+        const teamOrder =
+          Number.isFinite(leftTeam) && Number.isFinite(rightTeam)
+            ? leftTeam - rightTeam
+            : left.teamName.localeCompare(right.teamName, undefined, { numeric: true });
+        return teamOrder || right.createdAt - left.createdAt;
+      }
       if (reportSort === "newest") return right.createdAt - left.createdAt;
       if (reportSort === "starred") {
         const starOrder =
@@ -421,9 +430,10 @@ export function Analysis({ initialReportId }: { initialReportId?: string | null 
               <select
                 value={reportSort}
                 onChange={(event) =>
-                  setReportSort(event.target.value as "match" | "newest" | "starred")
+                  setReportSort(event.target.value as "team" | "match" | "newest" | "starred")
                 }
               >
+                <option value="team">Team number, newest first</option>
                 <option value="match">Competition and match</option>
                 <option value="newest">Newest first</option>
                 <option value="starred">Highlights first</option>

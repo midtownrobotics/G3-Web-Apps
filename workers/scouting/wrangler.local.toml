@@ -2,6 +2,9 @@ name = "scouting-local"
 main = "src/index.ts"
 compatibility_date = "2026-05-17"
 
+[triggers]
+crons = ["*/5 * * * *"]
+
 [ai]
 binding = "AI"
 
