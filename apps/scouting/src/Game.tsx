@@ -1,10 +1,10 @@
-import { Coins, Loader2, RefreshCw, Trophy } from "lucide-react";
+import { Coins, Loader2, Radio, RefreshCw, Trophy } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "./api";
 
 type Market = "spread";
 type Selection = "red" | "blue";
-type GameMatch = {
+type SportsbookMatch = {
   key: string;
   label: string;
   matchNumber: number;
@@ -16,7 +16,7 @@ type GameMatch = {
     spread: { red: number; blue: number; redOdds: number; blueOdds: number };
   };
 };
-type GameData = {
+type SportsbookData = {
   eventKey: string;
   account: { balance: number; earned: number; wagered: number };
   leaderboard: { display_name: string; balance: number; earned: number; wagered: number }[];
@@ -47,11 +47,11 @@ type GameData = {
       status: "open" | "won" | "lost" | "push";
     }[];
   }[];
-  matches: GameMatch[];
+  matches: SportsbookMatch[];
   statsError: string;
 };
 type BetSlip = {
-  match: GameMatch;
+  match: SportsbookMatch;
   market: Market;
   selection: Selection;
   line: number;
@@ -74,8 +74,8 @@ function combinedOdds(legs: BetSlip[]) {
     : -Math.round(100 / Math.max(0.01, decimal - 1));
 }
 
-export function Game() {
-  const [data, setData] = useState<GameData | null>(null);
+export function Sportsbook() {
+  const [data, setData] = useState<SportsbookData | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [placing, setPlacing] = useState(false);
@@ -86,9 +86,9 @@ export function Game() {
   const load = useCallback(async () => {
     setError("");
     try {
-      setData(await api<GameData>("/game"));
+      setData(await api<SportsbookData>("/game"));
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not load the game.");
+      setError(cause instanceof Error ? cause.message : "Could not load the sportsbook.");
     } finally {
       setLoading(false);
     }
@@ -158,7 +158,7 @@ export function Game() {
   if (loading)
     return (
       <section className="page game-page game-loading">
-        <Loader2 className="spin" /> Loading BoyleBucks Exchange…
+        <Loader2 className="spin" /> Loading G3 Sportsbook…
       </section>
     );
 
@@ -166,15 +166,28 @@ export function Game() {
     <section className="page game-page">
       <div className="game-hero">
         <div>
-          <h1>Game</h1>
-          <span>{data?.eventKey || "No event"}</span>
+          <p className="sportsbook-kicker">
+            <Radio size={13} /> Live robotics markets
+          </p>
+          <h1>G3 Sportsbook</h1>
+          <span>{data?.eventKey ? `Event: ${data.eventKey}` : "No active event"}</span>
         </div>
-        <div className="game-balance" aria-label={`${data?.account.balance ?? 0} Boyle Bucks`}>
-          <Coins size={18} />
-          <span>
-            <strong>{data?.account.balance ?? 0} BB</strong>
-            <small>Boyle Bucks</small>
+        <div className="sportsbook-account">
+          <span className={`sportsbook-market-status${data?.statsError ? " paused" : ""}`}>
+            <i />
+            {data?.statsError
+              ? "Markets paused"
+              : data?.matches.length
+                ? "Markets open"
+                : "Awaiting markets"}
           </span>
+          <div className="game-balance" aria-label={`${data?.account.balance ?? 0} Boyle Bucks`}>
+            <Coins size={18} />
+            <span>
+              <strong>{data?.account.balance ?? 0} BB</strong>
+              <small>Available balance</small>
+            </span>
+          </div>
         </div>
       </div>
 
@@ -183,7 +196,7 @@ export function Game() {
         <div className="form-message error">Markets paused: {data.statsError}</div>
       )}
 
-      <div className="game-tabs" role="tablist" aria-label="Game sections">
+      <div className="game-tabs" role="tablist" aria-label="Sportsbook sections">
         <button
           type="button"
           role="tab"
@@ -191,7 +204,7 @@ export function Game() {
           className={section === "sportsbook" ? "active" : ""}
           onClick={() => setSection("sportsbook")}
         >
-          Sportsbook
+          Odds Board
         </button>
         <button
           type="button"
@@ -200,7 +213,7 @@ export function Game() {
           className={section === "leaderboard" ? "active" : ""}
           onClick={() => setSection("leaderboard")}
         >
-          Boyle Bucks Leaderboard
+          Boyle Bucks Standings
         </button>
       </div>
 
@@ -208,7 +221,10 @@ export function Game() {
         <div className="game-layout">
           <div className="game-main">
             <div className="game-section-heading">
-              <h2>Matches</h2>
+              <div>
+                <span className="sportsbook-subhead">Upcoming markets</span>
+                <h2>Match Lines</h2>
+              </div>
               <button type="button" className="secondary-button" onClick={load}>
                 <RefreshCw size={16} /> Refresh
               </button>
@@ -224,8 +240,8 @@ export function Game() {
                       <strong>{match.label}</strong>
                     </header>
                     <div className="sportsbook-columns" aria-hidden="true">
-                      <span>Alliance</span>
-                      <span>Spread</span>
+                      <span>Matchup</span>
+                      <span>Spread / odds</span>
                     </div>
                     <div className="sportsbook-row red">
                       <div className="sportsbook-team">
@@ -281,7 +297,7 @@ export function Game() {
 
           <aside className="game-sidebar">
             <section className="game-slip">
-              <h2>Bet slip {slip.length > 1 ? `(${slip.length}-leg parlay)` : ""}</h2>
+              <h2>Betslip {slip.length > 1 ? `(${slip.length}-leg parlay)` : ""}</h2>
               {slip.length ? (
                 <>
                   <div className="parlay-legs">
@@ -345,7 +361,7 @@ export function Game() {
                   </button>
                 </>
               ) : (
-                <p>Choose odds to add a bet.</p>
+                <p>Select a line to add it to your betslip.</p>
               )}
             </section>
           </aside>
@@ -353,7 +369,7 @@ export function Game() {
       ) : (
         <section className="game-leaderboard game-leaderboard-full" role="tabpanel">
           <h2>
-            <Trophy size={19} /> Boyle Bucks Leaderboard
+            <Trophy size={19} /> Boyle Bucks Standings
           </h2>
           <div className="game-leaderboard-table">
             <div className="game-leaderboard-head">
@@ -378,7 +394,7 @@ export function Game() {
 
       {section === "sportsbook" && !!(data?.bets.length || data?.parlays.length) && (
         <section className="game-history">
-          <h2>Your bets</h2>
+          <h2>Open &amp; settled bets</h2>
           <div className="game-history-grid">
             {data.parlays.map((parlay) => (
               <div key={parlay.id}>

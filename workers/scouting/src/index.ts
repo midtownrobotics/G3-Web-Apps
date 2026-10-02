@@ -1824,7 +1824,7 @@ app.get("/game", requireAuth, async (c) => {
       c.env.SCOUTING_DB.prepare(
         `INSERT OR IGNORE INTO boylebucks_ledger
           (id, user_id, amount, reason, reference_id, created_at)
-         VALUES (?, ?, 250, 'Local game test credit', ?, ?)`,
+         VALUES (?, ?, 250, 'Local sportsbook test credit', ?, ?)`,
       ).bind(id("ledger"), c.get("userId"), reference, now),
     ]);
   }

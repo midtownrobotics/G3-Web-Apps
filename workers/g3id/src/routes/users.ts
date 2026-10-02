@@ -26,11 +26,11 @@ export const usersRouter = new Hono<AppEnv>()
     const users = await db
       .select({ id: coreUsers.id, displayName: coreUsers.displayName })
       .from(coreUsers)
-      .where(
-        and(eq(coreUsers.status, "active"), eq(coreUsers.isAdmin, 0), isNull(coreUsers.deletedAt)),
-      )
+      .where(and(eq(coreUsers.status, "active"), isNull(coreUsers.deletedAt)))
       .all();
-    return c.json({ users });
+    return c.json({
+      users: users.filter((user) => user.displayName.trim().toLowerCase() !== "admin"),
+    });
   })
   .get("/", requireAdmin, async (c) => {
     const db = createDb(c.env.DB);
