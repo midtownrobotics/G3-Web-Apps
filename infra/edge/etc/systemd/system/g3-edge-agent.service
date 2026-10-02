@@ -1,7 +1,8 @@
 [Unit]
 Description=G3 Edge agent (usage collector and local API)
-After=network-online.target nftables.service dnsmasq.service
+After=network-online.target nftables.service dnsmasq.service g3-door-gpio.service
 Wants=network-online.target
+Requires=g3-door-gpio.service
 
 [Service]
 Type=simple
@@ -23,7 +24,7 @@ NoNewPrivileges=yes
 # "-" means it's fine if it doesn't exist yet). Everything else is read-only.
 StateDirectory=g3-edge
 StateDirectoryMode=0750
-ReadWritePaths=-/srv/g3-drive
+ReadWritePaths=-/srv/g3-drive -/srv/g3-sounds
 ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes

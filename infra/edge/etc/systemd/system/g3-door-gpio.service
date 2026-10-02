@@ -1,0 +1,11 @@
+[Unit]
+Description=Configure Orange Pi 5 door microswitch GPIO
+Before=g3-edge-agent.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/g3-edge/prepare-switch-gpio.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

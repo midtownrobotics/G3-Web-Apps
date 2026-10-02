@@ -22,6 +22,18 @@ export interface AgentConfig {
   /** Where the shop drive's web page listens: the box's LAN address only (never the tunnel). */
   driveHost: string;
   drivePort: number;
+  /** Polling/debounce settings for the closed-to-ground door microswitch. */
+  switchPollMilliseconds: number;
+  switchDebounceMilliseconds: number;
+  /** WAV files played in rotation whenever the switch changes from on to off. */
+  switchSounds: string[];
+  switchAudioPlayer: string;
+  /** ALSA PCM target; defaults to the most recently connected BlueALSA A2DP device. */
+  switchAudioDevice: string;
+  /** Directory managed by the switch module for uploaded WAV files. */
+  switchSoundDir: string;
+  /** Linux sysfs value file for Orange Pi 5 GPIO2_D4 (GPIO 92). */
+  switchGpioValuePath: string;
 }
 
 function required(name: string) {
@@ -56,5 +68,15 @@ export function loadConfig(): AgentConfig {
     driveDir: process.env.EDGE_DRIVE_DIR ?? "/srv/g3-drive",
     driveHost: process.env.EDGE_DRIVE_HOST ?? "192.168.50.1",
     drivePort: int("EDGE_DRIVE_PORT", 80),
+    switchPollMilliseconds: int("EDGE_SWITCH_POLL_MS", 25),
+    switchDebounceMilliseconds: int("EDGE_SWITCH_DEBOUNCE_MS", 75),
+    switchSounds: (process.env.EDGE_SWITCH_SOUNDS ?? "/srv/g3-sounds/switch.wav")
+      .split(",")
+      .map((path) => path.trim())
+      .filter(Boolean),
+    switchAudioPlayer: process.env.EDGE_SWITCH_AUDIO_PLAYER ?? "aplay",
+    switchAudioDevice: process.env.EDGE_SWITCH_AUDIO_DEVICE ?? "bluealsa",
+    switchSoundDir: process.env.EDGE_SWITCH_SOUND_DIR ?? "/srv/g3-sounds",
+    switchGpioValuePath: process.env.EDGE_SWITCH_GPIO_VALUE_PATH ?? "/sys/class/gpio/gpio92/value",
   };
 }

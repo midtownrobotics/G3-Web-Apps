@@ -26,6 +26,7 @@ Files under `etc/` mirror where they go on the box.
 | `etc/logrotate.d/g3-edge-dns` | Rotates the query log daily |
 | `etc/systemd/system/g3-edge-agent.service` | Runs the agent as user `g3-edge` with only `CAP_NET_ADMIN` (nft) and `CAP_NET_BIND_SERVICE` (the shop drive on port 80) |
 | `etc/systemd/system/g3-edge-dnsmasq.{path,service}` | Restarts dnsmasq (after `dnsmasq --test`) when the agent changes its generated config, so the agent needs no extra privileges |
+| `etc/systemd/system/g3-door-gpio.service` | Configures Orange Pi 5 GPIO2_D4 as a pulled-up input before the agent starts |
 | `etc/systemd/system/g3-drive-mdns.service` | Announces `drive.local` on the shop network over mDNS |
 | `setup-drive.sh` | Creates and mounts the 10 GB shop drive (one-time) |
 | `etc/g3-edge/agent.env.example` | Template for `/etc/g3-edge/agent.env` (agent config and shared key; root-only, mode 600) |
@@ -132,7 +133,7 @@ The worker reaches the agent through a Cloudflare Tunnel. If shoppi-print alread
 2. **Create or reuse a tunnel.** In the Cloudflare dashboard, go to **Zero Trust → Networks → Tunnels**. To create one, choose **Cloudflared**, name it `g3-edge`, and run the `sudo cloudflared service install <token>` command it shows on the box. The token is a secret; don't commit it.
 3. **Add a public hostname** to the tunnel:
    - Subdomain `edge-agent`, domain `g3robotics.com`
-   - Path: `^/(print|sync)(/.*)?$` (only these agent routes are reachable; `/health` stays local)
+   - Path: `^/(print|switch|sync)(/.*)?$` (only these agent routes are reachable; `/health` stays local)
    - Service: `HTTP`, URL `localhost:8700`
 4. **Check it** from any machine. You should get `401`: the tunnel reached the agent, and the agent refused because there's no key.
    ```bash
@@ -219,7 +220,7 @@ For a box already running everything above (Phase 1, printing, and the shop driv
 
 ### Tunnel
 
-4. **Nothing to set up.** Printing already uses the `edge-agent.g3robotics.com` tunnel hostname, and its path rule `^/(print|sync)(/.*)?$` already covers `/sync`. Check it from any machine; it should return `401` (the tunnel reached the agent; there's no key):
+4. **Nothing to set up.** Printing already uses the `edge-agent.g3robotics.com` tunnel hostname, and its path rule `^/(print|switch|sync)(/.*)?$` already covers `/sync`. Check it from any machine; it should return `401` (the tunnel reached the agent; there's no key):
    ```bash
    curl -s -o /dev/null -w "%{http_code}\n" -X POST https://edge-agent.g3robotics.com/sync
    ```
@@ -258,6 +259,58 @@ sudo cat /var/lib/g3-edge/dnsmasq/g3-edge.conf        # generated dnsmasq config
 ```
 
 **If something goes wrong:** turn off **Enforce blocklists** and **DNS hardening** in the UI; the box removes all blocking within seconds (or 5 minutes without the tunnel). If the UI or internet is unavailable, on the box: `sudo nft delete table inet g3` removes blocking until the agent's next cycle, and `sudo systemctl stop g3-edge-agent` keeps it off.
+
+## Door microswitch sounds
+
+The agent's `switch` module reads **GPIO2_D4** on the Orange Pi 5: physical header pin 22,
+wiringOP pin 13, Linux GPIO 92. Wire the microswitch between physical pin 22 and a GND pin
+(pin 20 is adjacent). The door is closed when the switch shorts the input to ground. The setup
+script enables the internal pull-up, so opening the door changes the input high and plays a WAV
+file. Never connect the GPIO pin to 5 V.
+
+A 75 ms debounce prevents contact bounce from playing duplicates; closing the door rearms the
+next opening. If the agent starts while the door is already open, it records that initial state
+without playing a startup sound.
+
+1. Ensure wiringOP's `gpio` command, ALSA's `aplay`, and BlueALSA are installed. The Orange Pi
+   images normally include wiringOP; `aplay` is provided by `alsa-utils`. BlueALSA must provide
+   the `bluealsa` ALSA PCM and its system service must be running.
+2. Run `install-agent.sh`. It installs `prepare-switch-gpio.sh`, gives the `g3-edge` service user
+   GPIO read and audio-device access, and creates writable `/srv/g3-sounds` storage.
+3. Pair, trust, and connect the speaker using `bluetoothctl`. By default, the agent sends A2DP
+   audio to BlueALSA's most recently connected speaker. For a fixed speaker, set this in
+   `/etc/g3-edge/agent.env` and restart the agent:
+
+   ```bash
+   EDGE_SWITCH_AUDIO_DEVICE=bluealsa:DEV=AA:BB:CC:DD:EE:FF,PROFILE=a2dp
+   sudo systemctl restart g3-edge-agent
+   ```
+
+   Verify the same path outside the app with
+   `sudo -u g3-edge aplay -q -D 'bluealsa:DEV=AA:BB:CC:DD:EE:FF,PROFILE=a2dp' test.wav`.
+4. In the Edge web app, open **Edge Box → Door Sounds** as an admin. Upload RIFF/WAVE files up to
+   10 MB, then use **Test on Orange Pi** to confirm the selected audio output. Uploaded files join
+   the door-opening rotation immediately and survive agent upgrades.
+5. In the Cloudflare tunnel's public-hostname route, ensure the path is
+   `^/(print|switch|sync)(/.*)?$`; older installs may still have a rule without `switch`.
+
+`EDGE_SWITCH_SOUNDS` can additionally name comma-separated WAV paths outside the managed upload
+directory. Optional paths, polling, debounce, and player overrides are documented in
+`agent.env.example`.
+
+In mock mode only, simulate closing and opening through the authenticated local API:
+
+```bash
+curl -X POST http://127.0.0.1:8700/switch/input \
+  -H "Authorization: Bearer $EDGE_AGENT_KEY" -H "Content-Type: application/json" \
+  -d '{"grounded":true}'
+curl -X POST http://127.0.0.1:8700/switch/input \
+  -H "Authorization: Bearer $EDGE_AGENT_KEY" -H "Content-Type: application/json" \
+  -d '{"grounded":false}'
+```
+
+`GET /switch/state` and the normal `/health` response report the input state, trigger count,
+last sound, and GPIO or playback errors.
 
 ## Changing the network config later
 
