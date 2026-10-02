@@ -23,6 +23,21 @@ if getent group lpadmin >/dev/null; then
 else
   echo "Warning: no lpadmin group (is CUPS installed?); printing won't work." >&2
 fi
+# The door-switch module uses aplay to write to the Orange Pi's audio device.
+if getent group audio >/dev/null; then
+  usermod -aG audio g3-edge
+else
+  echo "Warning: no audio group; door-open sounds may not play." >&2
+fi
+install -d -m 755 -o g3-edge -g g3-edge /srv/g3-sounds
+if ! command -v gpio >/dev/null; then
+  echo "wiringOP's gpio command is required for GPIO2_D4. Install wiringOP, then retry." >&2
+  exit 1
+fi
+if ! command -v aplay >/dev/null; then
+  echo "aplay is required for door sounds. Install it with: apt install alsa-utils" >&2
+  exit 1
+fi
 
 # 2. Binary: /opt/g3-edge/versions/<version>/g3-edge-agent, with `current` pointing at it.
 install -d -m 755 "$BASE/versions/$VERSION"
@@ -54,7 +69,9 @@ fi
 
 # 5. systemd units: the agent, plus the path unit that restarts dnsmasq when
 #    the agent changes its generated config (so the agent needs no privileges).
-for unit in g3-edge-agent.service g3-edge-dnsmasq.path g3-edge-dnsmasq.service; do
+install -d -m 755 /usr/local/lib/g3-edge
+install -m 755 "$HERE/prepare-switch-gpio.sh" /usr/local/lib/g3-edge/prepare-switch-gpio.sh
+for unit in g3-edge-agent.service g3-edge-dnsmasq.path g3-edge-dnsmasq.service g3-door-gpio.service; do
   install -m 644 "$HERE/etc/systemd/system/$unit" "/etc/systemd/system/$unit"
 done
 install -m 644 "$HERE/etc/tmpfiles.d/g3-edge.conf" /etc/tmpfiles.d/g3-edge.conf
@@ -69,6 +86,8 @@ if systemctl list-unit-files g3-usage.timer &>/dev/null && systemctl is-enabled 
 fi
 
 systemctl enable g3-edge-agent
+systemctl enable g3-door-gpio.service
+systemctl restart g3-door-gpio.service
 systemctl restart g3-edge-agent
 sleep 2
 systemctl --no-pager --lines=10 status g3-edge-agent || true
