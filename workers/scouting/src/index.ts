@@ -39,6 +39,20 @@ type TbaMatch = {
   };
 };
 type TbaTeam = { key: string; team_number: number; nickname: string | null; name: string };
+type GameMatch = {
+  key: string;
+  label: string;
+  matchNumber: number;
+  status: string;
+  startTime: number | null;
+  redTeams: string[];
+  blueTeams: string[];
+  redScore: number;
+  blueScore: number;
+  redWinProbability: number;
+  actualRedScore: number | null;
+  actualBlueScore: number | null;
+};
 const app = new Hono<AppEnv>();
 
 app.onError((error, c) => {
@@ -105,6 +119,420 @@ function parseJson<T>(value: unknown, fallback: T): T {
   } catch {
     return fallback;
   }
+}
+
+function finiteNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() && Number.isFinite(Number(value)))
+    return Number(value);
+  return null;
+}
+
+function record(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+}
+
+function nested(value: unknown, ...path: string[]) {
+  let current: unknown = value;
+  for (const key of path) current = record(current)[key];
+  return current;
+}
+
+function nonZeroEntry(value: unknown) {
+  if (typeof value === "number") return Number.isFinite(value) && value !== 0;
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") return value.trim() !== "" && Number(value.trim()) !== 0;
+  if (Array.isArray(value)) return value.length > 0 && value.every(nonZeroEntry);
+  return false;
+}
+
+function validScoutingEntry(field: ScoutingField, value: unknown) {
+  if (field.type === "slider" || field.type === "counter") {
+    const numeric = finiteNumber(value);
+    const min = Number.isFinite(field.min) ? field.min : 0;
+    const max = Number.isFinite(field.max) ? field.max : 10;
+    const step = Number.isFinite(field.step) && field.step > 0 ? field.step : 1;
+    if (numeric === null || numeric === 0 || numeric < min || numeric > max) return false;
+    if (field.type === "counter" && !Number.isInteger(numeric)) return false;
+    const steps = (numeric - min) / step;
+    return Math.abs(steps - Math.round(steps)) < 1e-9;
+  }
+  if (field.type === "mcq")
+    return typeof value === "string" && field.options.includes(value) && nonZeroEntry(value);
+  if (field.type === "multiSelect") {
+    const selected = stringArray(value, 30);
+    return (
+      selected.length > 0 &&
+      selected.every((option) => field.options.includes(option) && nonZeroEntry(option))
+    );
+  }
+  return nonZeroEntry(value);
+}
+
+function betProfit(stake: number, odds: number) {
+  return Math.floor(odds > 0 ? (stake * odds) / 100 : (stake * 100) / Math.abs(odds));
+}
+
+function americanToDecimal(odds: number) {
+  return odds > 0 ? 1 + odds / 100 : 1 + 100 / Math.abs(odds);
+}
+
+function decimalToAmerican(decimal: number) {
+  return decimal >= 2
+    ? Math.round((decimal - 1) * 100)
+    : -Math.round(100 / Math.max(0.01, decimal - 1));
+}
+
+function combinedAmericanOdds(odds: number[]) {
+  return decimalToAmerican(
+    odds.reduce((combined, value) => combined * americanToDecimal(value), 1),
+  );
+}
+
+function settleSelection(
+  match: GameMatch,
+  market: string,
+  selection: string,
+  line: number,
+): "won" | "lost" | "push" | null {
+  if (match.actualRedScore === null || match.actualBlueScore === null) return null;
+  const redMargin = match.actualRedScore - match.actualBlueScore;
+  const total = match.actualRedScore + match.actualBlueScore;
+  let result = 0;
+  if (market === "spread") result = selection === "red" ? redMargin + line : -redMargin - line;
+  else if (market === "total") result = selection === "over" ? total - line : line - total;
+  else result = selection === "red" ? redMargin : -redMargin;
+  return result > 0 ? "won" : result < 0 ? "lost" : "push";
+}
+
+function gameLine(match: GameMatch) {
+  const predictedMargin = match.redScore - match.blueScore;
+  return {
+    spread: -(Math.sign(predictedMargin) * Math.round(Math.abs(predictedMargin) * 2)) / 2,
+  };
+}
+
+function gameMatchIsOpen(match: GameMatch, now: number, currentMatchNumber: number) {
+  if (match.actualRedScore !== null) return false;
+  const status = match.status.toLowerCase();
+  if (status && status !== "scheduled") return false;
+  if (match.startTime) {
+    const milliseconds =
+      match.startTime < 10_000_000_000 ? match.startTime * 1000 : match.startTime;
+    return milliseconds > now + 120_000;
+  }
+  return match.matchNumber > currentMatchNumber;
+}
+
+function normalizeGameMatch(value: unknown): GameMatch | null {
+  const raw = record(value);
+  const prediction = record(raw.pred ?? raw.prediction);
+  const alliances = record(raw.alliances);
+  const redAlliance = record(alliances.red);
+  const blueAlliance = record(alliances.blue);
+  const result = record(raw.result);
+  const key = text(raw.key ?? raw.match, 100);
+  const matchNumber = finiteNumber(raw.match_number ?? raw.matchNumber) ?? 0;
+  const redScore = finiteNumber(prediction.red_score ?? prediction.redScore);
+  const blueScore = finiteNumber(prediction.blue_score ?? prediction.blueScore);
+  const redWinProbability = finiteNumber(
+    prediction.red_win_prob ?? prediction.redWinProbability ?? prediction.red_win_probability,
+  );
+  if (!key || !matchNumber || redScore === null || blueScore === null || redWinProbability === null)
+    return null;
+  const teamKeys = (alliance: Record<string, unknown>) => {
+    const candidates = alliance.team_keys ?? alliance.teams;
+    return (Array.isArray(candidates) ? candidates : [])
+      .slice(0, 3)
+      .map((team) => teamNumber(team, false))
+      .filter(Boolean);
+  };
+  const actualRedScore = finiteNumber(
+    result.red_score ?? result.redScore ?? redAlliance.score ?? nested(raw, "actual", "red_score"),
+  );
+  const actualBlueScore = finiteNumber(
+    result.blue_score ??
+      result.blueScore ??
+      blueAlliance.score ??
+      nested(raw, "actual", "blue_score"),
+  );
+  const level =
+    text(raw.comp_level ?? raw.compLevel, 10) ||
+    key
+      .split("_")
+      .at(-1)
+      ?.match(/^[a-z]+/)?.[0] ||
+    "qm";
+  return {
+    key,
+    label:
+      text(raw.match_name ?? raw.matchName, 100) ||
+      (level === "qm" ? `Qualification ${matchNumber}` : `${level.toUpperCase()} ${matchNumber}`),
+    matchNumber,
+    status: text(raw.status, 30),
+    startTime: finiteNumber(raw.predicted_time ?? raw.time ?? raw.scheduled_time),
+    redTeams: teamKeys(redAlliance),
+    blueTeams: teamKeys(blueAlliance),
+    redScore,
+    blueScore,
+    redWinProbability: Math.min(1, Math.max(0, redWinProbability)),
+    actualRedScore:
+      actualRedScore !== null &&
+      actualRedScore >= 0 &&
+      actualBlueScore !== null &&
+      actualBlueScore >= 0
+        ? actualRedScore
+        : null,
+    actualBlueScore:
+      actualRedScore !== null &&
+      actualRedScore >= 0 &&
+      actualBlueScore !== null &&
+      actualBlueScore >= 0
+        ? actualBlueScore
+        : null,
+  };
+}
+
+async function getStatboticsMatches(eventKey: string) {
+  const url = `https://api.statbotics.io/v3/matches?event=${encodeURIComponent(eventKey)}&limit=500`;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    const response = await fetch(url, {
+      headers: { Accept: "application/json", "User-Agent": "G3-Strategy/1.0" },
+    });
+    if (response.ok) {
+      const body = (await response.json()) as unknown;
+      if (!Array.isArray(body)) throw new Error("Statbotics returned an unexpected response.");
+      return body
+        .map(normalizeGameMatch)
+        .filter((match): match is GameMatch => Boolean(match))
+        .sort(
+          (left, right) =>
+            (left.startTime ?? Number.MAX_SAFE_INTEGER) -
+              (right.startTime ?? Number.MAX_SAFE_INTEGER) || left.key.localeCompare(right.key),
+        );
+    }
+    if (attempt === 3 || (response.status !== 429 && response.status < 500))
+      throw new Error(`Statbotics returned ${response.status}.`);
+    await new Promise((resolve) => setTimeout(resolve, attempt * 300));
+  }
+  return [];
+}
+
+function localDemoGameMatches(): GameMatch[] {
+  const now = Date.now();
+  return [
+    {
+      redTeams: ["1648", "1771", "2974"],
+      blueTeams: ["4910", "6829", "8736"],
+      redScore: 142.4,
+      blueScore: 135.1,
+      redWinProbability: 0.63,
+    },
+    {
+      redTeams: ["1261", "1683", "5900"],
+      blueTeams: ["1746", "3635", "4188"],
+      redScore: 128.7,
+      blueScore: 139.8,
+      redWinProbability: 0.31,
+    },
+    {
+      redTeams: ["1002", "1414", "6340"],
+      blueTeams: ["2415", "4026", "5293"],
+      redScore: 151.2,
+      blueScore: 149.5,
+      redWinProbability: 0.53,
+    },
+    {
+      redTeams: ["1648", "4188", "6829"],
+      blueTeams: ["1771", "4910", "5900"],
+      redScore: 146.9,
+      blueScore: 141.3,
+      redWinProbability: 0.59,
+    },
+  ].map((match, index) => ({
+    ...match,
+    key: `local-demo_qm${index + 1}`,
+    label: `Qualification ${index + 1}`,
+    matchNumber: index + 1,
+    status: "Scheduled",
+    startTime: now + (index + 1) * 900_000,
+    actualRedScore: null,
+    actualBlueScore: null,
+  }));
+}
+
+async function gameMatches(env: AppEnv["Bindings"], eventKey: string) {
+  if (env.LOCAL_AUTH_BYPASS === "true" && eventKey === "local-demo") return localDemoGameMatches();
+  return getStatboticsMatches(eventKey);
+}
+
+async function settleGameBets(db: D1Database, eventKey: string, matches: GameMatch[]) {
+  const completed = new Map(
+    matches
+      .filter((match) => match.actualRedScore !== null && match.actualBlueScore !== null)
+      .map((match) => [match.key, match]),
+  );
+  if (!completed.size) return;
+  const open = await db
+    .prepare(
+      "SELECT id, user_id, match_key, market, selection, line, odds, stake FROM game_bets WHERE event_key = ? AND status = 'open'",
+    )
+    .bind(eventKey)
+    .all<Record<string, unknown>>();
+  for (const bet of open.results) {
+    const match = completed.get(String(bet.match_key));
+    if (!match) continue;
+    const status = settleSelection(
+      match,
+      String(bet.market),
+      String(bet.selection),
+      Number(bet.line),
+    );
+    if (!status) continue;
+    const stake = Number(bet.stake);
+    const payout =
+      status === "won" ? stake + betProfit(stake, Number(bet.odds)) : status === "push" ? stake : 0;
+    const now = Date.now();
+    const statements = [
+      db
+        .prepare(
+          "UPDATE game_bets SET status = ?, payout = ?, settled_at = ? WHERE id = ? AND status = 'open'",
+        )
+        .bind(status, payout, now, bet.id),
+    ];
+    if (payout > 0) {
+      statements.push(
+        db
+          .prepare(
+            `UPDATE boylebucks_accounts
+              SET balance = balance + ?, updated_at = ?
+            WHERE user_id = ?
+              AND EXISTS (
+                SELECT 1 FROM game_bets
+                 WHERE id = ? AND status = ? AND settled_at = ?
+              )
+              AND NOT EXISTS (
+                SELECT 1 FROM boylebucks_ledger WHERE reference_id = ?
+              )`,
+          )
+          .bind(payout, now, bet.user_id, bet.id, status, now, `bet:${bet.id}`),
+        db
+          .prepare(
+            "INSERT OR IGNORE INTO boylebucks_ledger (id, user_id, amount, reason, reference_id, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+          )
+          .bind(
+            id("ledger"),
+            bet.user_id,
+            payout,
+            status === "push" ? "Bet refunded" : "Bet won",
+            `bet:${bet.id}`,
+            now,
+          ),
+      );
+    }
+    await db.batch(statements);
+  }
+}
+
+async function settleGameParlays(db: D1Database, eventKey: string, matches: GameMatch[]) {
+  const matchMap = new Map(matches.map((match) => [match.key, match]));
+  const open = await db
+    .prepare(
+      `SELECT p.id, p.user_id, p.stake, l.id AS leg_id, l.match_key, l.market,
+            l.selection, l.line, l.odds, l.status
+       FROM game_parlays p
+       JOIN game_parlay_legs l ON l.parlay_id = p.id
+      WHERE p.event_key = ? AND p.status = 'open'
+      ORDER BY p.id`,
+    )
+    .bind(eventKey)
+    .all<Record<string, unknown>>();
+  const grouped = new Map<string, Record<string, unknown>[]>();
+  for (const row of open.results)
+    grouped.set(String(row.id), [...(grouped.get(String(row.id)) ?? []), row]);
+  for (const [parlayId, legs] of Array.from(grouped.entries())) {
+    const updates: D1PreparedStatement[] = [];
+    const results = legs.map((leg) => {
+      if (String(leg.status) !== "open") return String(leg.status) as "won" | "lost" | "push";
+      const match = matchMap.get(String(leg.match_key));
+      if (!match) return null;
+      const result = settleSelection(
+        match,
+        String(leg.market),
+        String(leg.selection),
+        Number(leg.line),
+      );
+      if (result)
+        updates.push(
+          db
+            .prepare("UPDATE game_parlay_legs SET status = ? WHERE id = ? AND status = 'open'")
+            .bind(result, leg.leg_id),
+        );
+      return result;
+    });
+    if (updates.length) await db.batch(updates);
+    const hasLostLeg = results.includes("lost");
+    if (!hasLostLeg && results.some((result) => result === null)) continue;
+    const finalStatus = hasLostLeg
+      ? "lost"
+      : results.every((result) => result === "push")
+        ? "push"
+        : "won";
+    const activeOdds = legs
+      .filter((_, index) => results[index] === "won")
+      .map((leg) => Number(leg.odds));
+    const stake = Number(legs[0].stake);
+    const payout =
+      finalStatus === "won"
+        ? stake + betProfit(stake, combinedAmericanOdds(activeOdds))
+        : finalStatus === "push"
+          ? stake
+          : 0;
+    const now = Date.now();
+    const statements = [
+      db
+        .prepare(
+          "UPDATE game_parlays SET status = ?, payout = ?, settled_at = ? WHERE id = ? AND status = 'open'",
+        )
+        .bind(finalStatus, payout, now, parlayId),
+    ];
+    if (payout > 0) {
+      statements.push(
+        db
+          .prepare(
+            `UPDATE boylebucks_accounts
+              SET balance = balance + ?, updated_at = ?
+            WHERE user_id = ?
+              AND EXISTS (SELECT 1 FROM game_parlays WHERE id = ? AND settled_at = ?)
+              AND NOT EXISTS (SELECT 1 FROM boylebucks_ledger WHERE reference_id = ?)`,
+          )
+          .bind(payout, now, legs[0].user_id, parlayId, now, `parlay:${parlayId}`),
+        db
+          .prepare(
+            "INSERT OR IGNORE INTO boylebucks_ledger (id, user_id, amount, reason, reference_id, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+          )
+          .bind(
+            id("ledger"),
+            legs[0].user_id,
+            payout,
+            finalStatus === "push" ? "Parlay refunded" : "Parlay won",
+            `parlay:${parlayId}`,
+            now,
+          ),
+      );
+    }
+    await db.batch(statements);
+  }
+}
+
+async function settleConfiguredGame(env: AppEnv["Bindings"]) {
+  const config = await env.SCOUTING_DB.prepare(
+    "SELECT event_key FROM strategy_event_config WHERE id = 1",
+  ).first<{ event_key: string }>();
+  if (!config?.event_key) return;
+  const matches = await gameMatches(env, config.event_key);
+  await settleGameBets(env.SCOUTING_DB, config.event_key, matches);
+  await settleGameParlays(env.SCOUTING_DB, config.event_key, matches);
 }
 
 function firstJsonObject(value: string) {
@@ -1364,10 +1792,355 @@ function parseScoutingFields(value: unknown): ScoutingField[] | null {
             : 1,
     };
   });
-  if (fields.some((field) => !field.id || !field.label || !allowedTypes.has(field.type)))
+  if (
+    fields.some((field) => !field.id || !field.label || !allowedTypes.has(field.type)) ||
+    new Set(fields.map((field) => field.id)).size !== fields.length
+  )
     return null;
   return fields;
 }
+
+app.get("/game", requireAuth, async (c) => {
+  const now = Date.now();
+  await c.env.SCOUTING_DB.prepare(
+    `INSERT INTO boylebucks_accounts (user_id, display_name, balance, earned, wagered, updated_at)
+     VALUES (?, ?, 0, 0, 0, ?)
+     ON CONFLICT(user_id) DO UPDATE SET display_name = excluded.display_name, updated_at = excluded.updated_at`,
+  )
+    .bind(c.get("userId"), c.get("userDisplayName"), now)
+    .run();
+  const config = await c.env.SCOUTING_DB.prepare(
+    "SELECT event_key, current_match_number FROM strategy_event_config WHERE id = 1",
+  ).first<{ event_key: string; current_match_number: number | null }>();
+  if (c.env.LOCAL_AUTH_BYPASS === "true" && config?.event_key === "local-demo") {
+    const reference = `local-demo-credit:${c.get("userId")}`;
+    await c.env.SCOUTING_DB.batch([
+      c.env.SCOUTING_DB.prepare(
+        `UPDATE boylebucks_accounts
+            SET balance = balance + 250, updated_at = ?
+          WHERE user_id = ?
+            AND NOT EXISTS (SELECT 1 FROM boylebucks_ledger WHERE reference_id = ?)`,
+      ).bind(now, c.get("userId"), reference),
+      c.env.SCOUTING_DB.prepare(
+        `INSERT OR IGNORE INTO boylebucks_ledger
+          (id, user_id, amount, reason, reference_id, created_at)
+         VALUES (?, ?, 250, 'Local game test credit', ?, ?)`,
+      ).bind(id("ledger"), c.get("userId"), reference, now),
+    ]);
+  }
+  let matches: GameMatch[] = [];
+  let statsError = "";
+  if (config?.event_key) {
+    try {
+      matches = await gameMatches(c.env, config.event_key);
+      await settleGameBets(c.env.SCOUTING_DB, config.event_key, matches);
+      await settleGameParlays(c.env.SCOUTING_DB, config.event_key, matches);
+    } catch (error) {
+      statsError = error instanceof Error ? error.message : "Statbotics is unavailable.";
+    }
+  }
+  const account = await c.env.SCOUTING_DB.prepare(
+    "SELECT balance, earned, wagered FROM boylebucks_accounts WHERE user_id = ?",
+  )
+    .bind(c.get("userId"))
+    .first<Record<string, number>>();
+  const leaderboard = await c.env.SCOUTING_DB.prepare(
+    `SELECT display_name, balance, earned, wagered
+       FROM boylebucks_accounts
+      ORDER BY balance DESC, earned DESC, display_name`,
+  ).all<Record<string, unknown>>();
+  const bets = await c.env.SCOUTING_DB.prepare(
+    `SELECT id, match_key, match_label, market, selection, line, odds, stake, status, payout, placed_at
+       FROM game_bets WHERE user_id = ? ORDER BY placed_at DESC LIMIT 30`,
+  )
+    .bind(c.get("userId"))
+    .all<Record<string, unknown>>();
+  const parlayRows = await c.env.SCOUTING_DB.prepare(
+    `SELECT p.id, p.odds, p.stake, p.status, p.payout, p.placed_at,
+            l.match_label, l.market, l.selection, l.line, l.odds AS leg_odds, l.status AS leg_status
+       FROM game_parlays p
+       JOIN game_parlay_legs l ON l.parlay_id = p.id
+      WHERE p.user_id = ?
+        AND p.id IN (SELECT id FROM game_parlays WHERE user_id = ? ORDER BY placed_at DESC LIMIT 20)
+      ORDER BY p.placed_at DESC, l.match_label`,
+  )
+    .bind(c.get("userId"), c.get("userId"))
+    .all<Record<string, unknown>>();
+  const parlays = Array.from(
+    parlayRows.results.reduce(
+      (grouped, row) => {
+        const parlayId = String(row.id);
+        const existing = grouped.get(parlayId) ?? {
+          id: parlayId,
+          odds: Number(row.odds),
+          stake: Number(row.stake),
+          status: String(row.status),
+          payout: Number(row.payout),
+          placed_at: Number(row.placed_at),
+          legs: [] as Record<string, unknown>[],
+        };
+        existing.legs.push({
+          match_label: row.match_label,
+          market: row.market,
+          selection: row.selection,
+          line: row.line,
+          odds: row.leg_odds,
+          status: row.leg_status,
+        });
+        grouped.set(parlayId, existing);
+        return grouped;
+      },
+      new Map<
+        string,
+        {
+          id: string;
+          odds: number;
+          stake: number;
+          status: string;
+          payout: number;
+          placed_at: number;
+          legs: Record<string, unknown>[];
+        }
+      >(),
+    ),
+  ).map(([, parlay]) => parlay);
+  const currentMatchNumber = config?.current_match_number ?? 0;
+  const availableMatches = matches
+    .filter((match) => gameMatchIsOpen(match, now, currentMatchNumber))
+    .slice(0, 18)
+    .map((match) => {
+      const line = gameLine(match);
+      return {
+        key: match.key,
+        label: match.label,
+        matchNumber: match.matchNumber,
+        startTime: match.startTime,
+        redTeams: match.redTeams,
+        blueTeams: match.blueTeams,
+        prediction: {
+          redScore: Math.round(match.redScore * 10) / 10,
+          blueScore: Math.round(match.blueScore * 10) / 10,
+          redWinProbability: Math.round(match.redWinProbability * 1000) / 1000,
+        },
+        markets: {
+          spread: {
+            red: line.spread,
+            blue: -line.spread,
+            redOdds: -110,
+            blueOdds: -110,
+          },
+        },
+      };
+    });
+  return c.json({
+    eventKey: config?.event_key ?? "",
+    account: account ?? { balance: 0, earned: 0, wagered: 0 },
+    leaderboard: leaderboard.results,
+    bets: bets.results,
+    parlays,
+    matches: availableMatches,
+    statsError,
+  });
+});
+
+app.post("/game/bets", requireAuth, async (c) => {
+  const body = await c.req.json<Record<string, unknown>>();
+  const matchKey = text(body.matchKey, 100);
+  const market = text(body.market, 20);
+  const selection = text(body.selection, 20);
+  const expectedLine = finiteNumber(body.expectedLine);
+  const stake = Math.floor(finiteNumber(body.stake) ?? 0);
+  if (!matchKey || market !== "spread")
+    return c.json({ error: "Only spread bets are available." }, 400);
+  if (!["red", "blue"].includes(selection)) return c.json({ error: "Choose a valid spread." }, 400);
+  if (stake < 1 || stake > 10_000)
+    return c.json({ error: "Bet between 1 and 10,000 BoyleBucks." }, 400);
+  const config = await c.env.SCOUTING_DB.prepare(
+    "SELECT event_key, current_match_number FROM strategy_event_config WHERE id = 1",
+  ).first<{ event_key: string; current_match_number: number | null }>();
+  if (!config?.event_key) return c.json({ error: "No event is configured." }, 409);
+  let matches: GameMatch[];
+  try {
+    matches = await gameMatches(c.env, config.event_key);
+  } catch (error) {
+    return c.json(
+      { error: error instanceof Error ? error.message : "Statbotics is unavailable." },
+      503,
+    );
+  }
+  const match = matches.find((candidate) => candidate.key === matchKey);
+  if (!match || !gameMatchIsOpen(match, Date.now(), config.current_match_number ?? 0))
+    return c.json({ error: "That match is no longer open for betting." }, 409);
+  const account = await c.env.SCOUTING_DB.prepare(
+    "SELECT balance FROM boylebucks_accounts WHERE user_id = ?",
+  )
+    .bind(c.get("userId"))
+    .first<{ balance: number }>();
+  if (!account || account.balance < stake)
+    return c.json({ error: "You do not have enough BoyleBucks." }, 409);
+  const line = gameLine(match);
+  const betLine = line.spread;
+  const selectedLine = selection === "red" ? betLine : -betLine;
+  if (expectedLine === null || Math.abs(expectedLine - selectedLine) > 1e-9)
+    return c.json({ error: "The spread moved. Refresh and choose the new line." }, 409);
+  const odds = -110;
+  const betId = id("bet");
+  const placedAt = Date.now();
+  try {
+    await c.env.SCOUTING_DB.batch([
+      c.env.SCOUTING_DB.prepare(
+        `INSERT INTO game_bets
+          (id, user_id, user_name, event_key, match_key, match_label, market, selection, line, odds, stake, status, payout, placed_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', 0, ?)`,
+      ).bind(
+        betId,
+        c.get("userId"),
+        c.get("userDisplayName"),
+        config.event_key,
+        match.key,
+        match.label,
+        market,
+        selection,
+        betLine,
+        odds,
+        stake,
+        placedAt,
+      ),
+      c.env.SCOUTING_DB.prepare(
+        "UPDATE boylebucks_accounts SET balance = balance - ?, wagered = wagered + ?, display_name = ?, updated_at = ? WHERE user_id = ? AND balance >= ?",
+      ).bind(stake, stake, c.get("userDisplayName"), placedAt, c.get("userId"), stake),
+      c.env.SCOUTING_DB.prepare(
+        "INSERT INTO boylebucks_ledger (id, user_id, amount, reason, reference_id, created_at) VALUES (?, ?, ?, 'Bet placed', ?, ?)",
+      ).bind(id("ledger"), c.get("userId"), -stake, `wager:${betId}`, placedAt),
+    ]);
+  } catch (error) {
+    if (String(error).includes("UNIQUE"))
+      return c.json({ error: "You already placed this type of bet on that match." }, 409);
+    if (String(error).includes("insufficient BoyleBucks"))
+      return c.json({ error: "You do not have enough BoyleBucks." }, 409);
+    throw error;
+  }
+  return c.json({ ok: true, betId }, 201);
+});
+
+app.post("/game/parlays", requireAuth, async (c) => {
+  const body = await c.req.json<Record<string, unknown>>();
+  const inputs = Array.isArray(body.legs) ? body.legs.slice(0, 9) : [];
+  const stake = Math.floor(finiteNumber(body.stake) ?? 0);
+  if (inputs.length < 2 || inputs.length > 8)
+    return c.json({ error: "A parlay needs 2 to 8 matches." }, 400);
+  if (stake < 1 || stake > 10_000)
+    return c.json({ error: "Bet between 1 and 10,000 BoyleBucks." }, 400);
+  const requested = inputs.map((input) => {
+    const leg = record(input);
+    return {
+      matchKey: text(leg.matchKey, 100),
+      market: text(leg.market, 20),
+      selection: text(leg.selection, 20),
+      expectedLine: finiteNumber(leg.expectedLine),
+    };
+  });
+  if (new Set(requested.map((leg) => leg.matchKey)).size !== requested.length)
+    return c.json({ error: "Choose only one bet from each match in a parlay." }, 400);
+  if (
+    requested.some(
+      (leg) =>
+        !leg.matchKey ||
+        leg.market !== "spread" ||
+        !["red", "blue"].includes(leg.selection) ||
+        leg.expectedLine === null,
+    )
+  )
+    return c.json({ error: "One or more parlay legs are invalid." }, 400);
+  const config = await c.env.SCOUTING_DB.prepare(
+    "SELECT event_key, current_match_number FROM strategy_event_config WHERE id = 1",
+  ).first<{ event_key: string; current_match_number: number | null }>();
+  if (!config?.event_key) return c.json({ error: "No event is configured." }, 409);
+  let matches: GameMatch[];
+  try {
+    matches = await gameMatches(c.env, config.event_key);
+  } catch (error) {
+    return c.json(
+      { error: error instanceof Error ? error.message : "Statbotics is unavailable." },
+      503,
+    );
+  }
+  const now = Date.now();
+  for (const request of requested) {
+    const match = matches.find((candidate) => candidate.key === request.matchKey);
+    if (!match || !gameMatchIsOpen(match, now, config.current_match_number ?? 0))
+      return c.json({ error: `${match?.label ?? "A match"} is no longer open for betting.` }, 409);
+    const currentLine = gameLine(match).spread;
+    const selectedLine = request.selection === "red" ? currentLine : -currentLine;
+    if (Math.abs((request.expectedLine as number) - selectedLine) > 1e-9)
+      return c.json({ error: `${match.label}'s spread moved. Refresh your bet slip.` }, 409);
+  }
+  const matchMap = new Map(matches.map((match) => [match.key, match]));
+  const legs = requested.map((request) => {
+    const match = matchMap.get(request.matchKey);
+    if (!match) throw new Error("Validated parlay match is missing.");
+    const calculated = gameLine(match);
+    return {
+      ...request,
+      match,
+      line: calculated.spread,
+      odds: -110,
+    };
+  });
+  const usedTeams = new Set<string>();
+  for (const leg of legs) {
+    const teams = [...leg.match.redTeams, ...leg.match.blueTeams];
+    if (teams.some((team) => usedTeams.has(team)))
+      return c.json({ error: "Parlay legs cannot contain the same team more than once." }, 400);
+    for (const team of teams) usedTeams.add(team);
+  }
+  const account = await c.env.SCOUTING_DB.prepare(
+    "SELECT balance FROM boylebucks_accounts WHERE user_id = ?",
+  )
+    .bind(c.get("userId"))
+    .first<{ balance: number }>();
+  if (!account || account.balance < stake)
+    return c.json({ error: "You do not have enough BoyleBucks." }, 409);
+  const parlayId = id("parlay");
+  const odds = combinedAmericanOdds(legs.map((leg) => leg.odds));
+  const statements = [
+    c.env.SCOUTING_DB.prepare(
+      `INSERT INTO game_parlays
+        (id, user_id, user_name, event_key, odds, stake, status, payout, placed_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'open', 0, ?)`,
+    ).bind(parlayId, c.get("userId"), c.get("userDisplayName"), config.event_key, odds, stake, now),
+    ...legs.map((leg) =>
+      c.env.SCOUTING_DB.prepare(
+        `INSERT INTO game_parlay_legs
+          (id, parlay_id, match_key, match_label, market, selection, line, odds, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open')`,
+      ).bind(
+        id("leg"),
+        parlayId,
+        leg.match.key,
+        leg.match.label,
+        leg.market,
+        leg.selection,
+        leg.line,
+        leg.odds,
+      ),
+    ),
+    c.env.SCOUTING_DB.prepare(
+      "UPDATE boylebucks_accounts SET balance = balance - ?, wagered = wagered + ?, updated_at = ? WHERE user_id = ? AND balance >= ?",
+    ).bind(stake, stake, now, c.get("userId"), stake),
+    c.env.SCOUTING_DB.prepare(
+      "INSERT INTO boylebucks_ledger (id, user_id, amount, reason, reference_id, created_at) VALUES (?, ?, ?, 'Parlay placed', ?, ?)",
+    ).bind(id("ledger"), c.get("userId"), -stake, `wager:${parlayId}`, now),
+  ];
+  try {
+    await c.env.SCOUTING_DB.batch(statements);
+  } catch (error) {
+    if (String(error).includes("insufficient BoyleBucks"))
+      return c.json({ error: "You do not have enough BoyleBucks." }, 409);
+    throw error;
+  }
+  return c.json({ ok: true, parlayId, odds }, 201);
+});
 
 app.get("/scouting-forms", requireAuth, async (c) => {
   const query =
@@ -1456,6 +2229,8 @@ app.post("/scouting-forms/:id/submissions", requireAuth, async (c) => {
   const fields = parseJson<ScoutingField[]>(formDefinition.fields_json, []);
   const eventLink = await resolveEventLink(c);
   if (formDefinition.form_kind === "scouting") {
+    if (!fields.length)
+      return c.json({ error: "This scouting form has no fields and cannot earn BoyleBucks." }, 409);
     if (!eventLink.eventKey || !eventLink.matchNumber)
       return c.json({ error: "No current match is configured." }, 409);
     const existing = await c.env.SCOUTING_DB.prepare(
@@ -1483,6 +2258,18 @@ app.post("/scouting-forms/:id/submissions", requireAuth, async (c) => {
   const cleanAnswers: Record<string, string | number | boolean | string[]> = {};
   for (const field of fields) {
     const value = answers[field.id];
+    if (
+      formDefinition.form_kind === "scouting" &&
+      field.type !== "fieldMap" &&
+      !validScoutingEntry(field, value)
+    ) {
+      return c.json(
+        {
+          error: `${field.label} must have a value other than 0 before this form can be submitted.`,
+        },
+        400,
+      );
+    }
     if (
       field.required &&
       field.type !== "fieldMap" &&
@@ -1518,7 +2305,8 @@ app.post("/scouting-forms/:id/submissions", requireAuth, async (c) => {
   for (const field of fields.filter((candidate) => candidate.type === "fieldMap")) {
     const fieldDrawing = form.get(`drawing:${field.id}`);
     if (!(fieldDrawing instanceof File) || fieldDrawing.size === 0) {
-      if (field.required) return c.json({ error: `${field.label} is required.` }, 400);
+      if (field.required || formDefinition.form_kind === "scouting")
+        return c.json({ error: `${field.label} is required.` }, 400);
       continue;
     }
     if (!fieldDrawing.type.startsWith("image/") || fieldDrawing.size > 12 * 1024 * 1024)
@@ -1530,27 +2318,62 @@ app.post("/scouting-forms/:id/submissions", requireAuth, async (c) => {
     drawingFields[field.id] = { key, contentType: fieldDrawing.type };
   }
   const submittedAt = Date.now();
-  await c.env.SCOUTING_DB.prepare(
+  const submissionStatement = c.env.SCOUTING_DB.prepare(
     "INSERT INTO scouting_form_submissions (id, form_id, fields_json, answers_json, drawing_r2_key, drawing_content_type, submitted_by, submitted_by_name, created_at, team_name, drawing_fields_json, event_key, match_key, match_number) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-  )
-    .bind(
-      submissionId,
-      c.req.param("id"),
-      formDefinition.fields_json,
-      JSON.stringify(cleanAnswers),
+  ).bind(
+    submissionId,
+    c.req.param("id"),
+    formDefinition.fields_json,
+    JSON.stringify(cleanAnswers),
+    drawingKey,
+    drawingType,
+    c.get("userId"),
+    c.get("userDisplayName"),
+    submittedAt,
+    teamName,
+    JSON.stringify(drawingFields),
+    eventLink.eventKey,
+    eventLink.matchKey,
+    eventLink.matchNumber,
+  );
+  let boyleBucksAwarded = 0;
+  try {
+    if (formDefinition.form_kind === "scouting") {
+      const rewardReference = `submission:${submissionId}`;
+      await c.env.SCOUTING_DB.batch([
+        submissionStatement,
+        c.env.SCOUTING_DB.prepare(
+          `INSERT INTO boylebucks_accounts (user_id, display_name, balance, earned, wagered, updated_at)
+           VALUES (?, ?, 0, 0, 0, ?)
+           ON CONFLICT(user_id) DO UPDATE SET display_name = excluded.display_name`,
+        ).bind(c.get("userId"), c.get("userDisplayName"), submittedAt),
+        c.env.SCOUTING_DB.prepare(
+          `UPDATE boylebucks_accounts
+              SET balance = balance + 10, earned = earned + 10, updated_at = ?
+            WHERE user_id = ?
+              AND NOT EXISTS (SELECT 1 FROM boylebucks_ledger WHERE reference_id = ?)`,
+        ).bind(submittedAt, c.get("userId"), rewardReference),
+        c.env.SCOUTING_DB.prepare(
+          `INSERT OR IGNORE INTO boylebucks_ledger
+            (id, user_id, amount, reason, reference_id, created_at)
+           VALUES (?, ?, 10, 'Valid scouting form', ?, ?)`,
+        ).bind(id("ledger"), c.get("userId"), rewardReference, submittedAt),
+      ]);
+      boyleBucksAwarded = 10;
+    } else {
+      await submissionStatement.run();
+    }
+  } catch (error) {
+    const uploadedKeys = [
       drawingKey,
-      drawingType,
-      c.get("userId"),
-      c.get("userDisplayName"),
-      submittedAt,
-      teamName,
-      JSON.stringify(drawingFields),
-      eventLink.eventKey,
-      eventLink.matchKey,
-      eventLink.matchNumber,
-    )
-    .run();
-  return c.json({ id: submissionId }, 201);
+      ...Object.values(drawingFields).map((item) => item.key),
+    ].filter((key): key is string => Boolean(key));
+    if (uploadedKeys.length) await c.env.FIELD_MAPS.delete(uploadedKeys);
+    if (String(error).includes("one scouting submission per match"))
+      return c.json({ error: "You already submitted a scouting form for this match." }, 409);
+    throw error;
+  }
+  return c.json({ id: submissionId, boyleBucksAwarded }, 201);
 });
 
 app.get("/scouting-forms/:id/submissions", requireAuth, async (c) => {
@@ -2424,4 +3247,9 @@ app.delete("/service-helpers/:id", requireAuth, async (c) => {
 const worker = new Hono<AppEnv>().route("/scouting", app);
 
 export type ScoutingApp = typeof worker;
-export default worker;
+export default {
+  fetch: worker.fetch,
+  scheduled: (_event: ScheduledController, env: AppEnv["Bindings"], ctx: ExecutionContext) => {
+    ctx.waitUntil(settleConfiguredGame(env));
+  },
+};
