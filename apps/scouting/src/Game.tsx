@@ -213,15 +213,6 @@ export function Game() {
                 <RefreshCw size={16} /> Refresh
               </button>
             </div>
-            <div className="odds-key">
-              <span>
-                Spread <b>-7.5</b>: win by 8 or more
-              </span>
-              <span>
-                Odds <b>-110</b>: bet 110 to profit 100
-              </span>
-            </div>
-
             {!data?.matches.length && !data?.statsError && (
               <div className="forms-empty">No upcoming Statbotics markets are available.</div>
             )}

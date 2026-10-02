@@ -276,19 +276,6 @@ aside.game-sidebar {
   font-size: 18px;
 }
 
-.odds-key {
-  display: flex;
-  gap: 6px 18px;
-  flex-wrap: wrap;
-  margin: -2px 0 9px;
-  color: var(--muted);
-  font-size: 11px;
-}
-
-.odds-key b {
-  color: #dfe8f3;
-}
-
 .game-match-list {
   gap: 8px;
 }
