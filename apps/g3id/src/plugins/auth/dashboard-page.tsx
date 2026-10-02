@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { FaGithub, FaGoogle, FaSlack, FaSteam } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../../lib/api";
+import { AttendanceLeaderboard } from "./attendance-leaderboard";
 
 type Identity = {
   id: string;
@@ -38,6 +39,7 @@ export function DashboardPage() {
   const navigate = useNavigate();
   const [me, setMe] = useState<Me | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"account" | "attendance">("account");
 
   const [slackCode, setSlackCode] = useState<string | null>(null);
   const [slackError, setSlackError] = useState<string | null>(null);
@@ -224,7 +226,30 @@ export function DashboardPage() {
     <main className="flex-1 px-6 py-8 max-w-lg mx-auto w-full">
       <h1 className="text-5xl font-bold text-white mb-4 text-center">Dashboard</h1>
 
-      <div className="bg-secondary-700 border border-secondary-600 rounded-lg divide-y divide-gray-800 mt-4">
+      <div className="mb-4 flex border-b border-secondary-600" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "account"}
+          onClick={() => setActiveTab("account")}
+          className={`px-4 py-2 text-sm font-medium ${activeTab === "account" ? "border-b-2 border-primary-400 text-white" : "text-secondary-300 hover:text-white"}`}
+        >
+          Account
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "attendance"}
+          onClick={() => setActiveTab("attendance")}
+          className={`px-4 py-2 text-sm font-medium ${activeTab === "attendance" ? "border-b-2 border-primary-400 text-white" : "text-secondary-300 hover:text-white"}`}
+        >
+          Attendance Leaderboard
+        </button>
+      </div>
+
+      <div
+        className={`bg-secondary-700 border border-secondary-600 rounded-lg divide-y divide-gray-800 mt-4 ${activeTab === "account" ? "" : "hidden"}`}
+      >
         <div className="px-5 py-4 flex items-center gap-4">
           <div className="w-12 h-12 rounded-full bg-primary-500 flex items-center justify-center text-lg font-semibold text-white shrink-0">
             {me.displayName.charAt(0).toUpperCase()}
@@ -436,6 +461,7 @@ export function DashboardPage() {
           </div>
         </div>
       </div>
+      {activeTab === "attendance" && <AttendanceLeaderboard />}
     </main>
   );
 }

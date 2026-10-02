@@ -154,6 +154,74 @@ async function refreshTotal(fs: Firestore, memberId: string, year: string) {
   return totalMs / 3_600_000;
 }
 
+async function attendanceSummaries(fs: Firestore, year: string) {
+  const [members, allSessions] = await Promise.all([
+    fs.listCollection("members"),
+    fs.collectionGroupQuery("sessions", []),
+  ]);
+  const sessionsByMember = new Map<string, typeof allSessions>();
+  for (const session of allSessions) {
+    const match = session.path.match(/\/members\/([^/]+)\/sessions\//);
+    if (!match) continue;
+    const memberSessions = sessionsByMember.get(match[1]) ?? [];
+    memberSessions.push(session);
+    sessionsByMember.set(match[1], memberSessions);
+  }
+
+  return members.map((member) => {
+    const sessions = sessionsByMember.get(member.id) ?? [];
+    let latestSignIn: Date | null = null;
+    let totalMs = 0;
+    let signedIn = false;
+    for (const session of sessions) {
+      const signInRaw = session.data.signIn;
+      const signIn = signInRaw instanceof Date ? signInRaw : new Date(signInRaw as string);
+      if (Number.isNaN(signIn.getTime())) continue;
+      if (session.data.status !== "manual-adjustment" && (!latestSignIn || signIn > latestSignIn))
+        latestSignIn = signIn;
+      if (schoolYear(signIn) !== year) continue;
+
+      const isOpen = session.data.status === "open" || session.data.signOut == null;
+      if (isOpen) {
+        const elapsedMs = Date.now() - signIn.getTime();
+        if (elapsedMs < AUTO_SIGNOUT_MS) {
+          signedIn = true;
+          totalMs += Math.max(0, elapsedMs);
+        }
+        continue;
+      }
+      if (session.data.status === "auto-closed") continue;
+      if (session.data.status === "manual-adjustment") {
+        const adjustmentMs = session.data.adjustmentMs;
+        const legacyDurationMs = session.data.durationMs;
+        if (typeof adjustmentMs === "number" && Number.isFinite(adjustmentMs))
+          totalMs += adjustmentMs;
+        else if (typeof legacyDurationMs === "number" && Number.isFinite(legacyDurationMs))
+          totalMs += Math.max(0, legacyDurationMs);
+        continue;
+      }
+      const durationMs = session.data.durationMs;
+      if (typeof durationMs === "number" && Number.isFinite(durationMs)) {
+        totalMs += Math.max(0, durationMs);
+        continue;
+      }
+      const signOutRaw = session.data.signOut;
+      const signOut = signOutRaw instanceof Date ? signOutRaw : new Date(signOutRaw as string);
+      if (!Number.isNaN(signOut.getTime()))
+        totalMs += Math.max(0, signOut.getTime() - signIn.getTime());
+    }
+    return {
+      id: member.id,
+      userId: (member.data.userId as string) ?? "",
+      displayName: (member.data.displayName as string) ?? member.id,
+      email: (member.data.email as string) ?? "",
+      signedIn,
+      lastSignIn: latestSignIn?.toISOString() ?? null,
+      totalHours: Math.max(0, totalMs) / 3_600_000,
+    };
+  });
+}
+
 const app = base
   .get("/health", (c) => c.json({ status: "ok", service: "attendance" }))
 
@@ -309,88 +377,44 @@ const app = base
 
     const fs = db(c.env);
     const year = schoolYear(new Date());
-    const members = await fs.listCollection("members");
-    // Avoid a per-member Firestore request. This remains two reads even as the
-    // roster grows: one for members and one for all session subcollections.
-    const allSessions = await fs.collectionGroupQuery("sessions", []);
-    const sessionsByMember = new Map<string, typeof allSessions>();
-    for (const session of allSessions) {
-      const match = session.path.match(/\/members\/([^/]+)\/sessions\//);
-      if (!match) continue;
-      const memberSessions = sessionsByMember.get(match[1]) ?? [];
-      memberSessions.push(session);
-      sessionsByMember.set(match[1], memberSessions);
-    }
-
-    const summaries = members.map((member) => {
-      const memberId = member.id;
-      const sessions = sessionsByMember.get(memberId) ?? [];
-      let latestSignIn: Date | null = null;
-      let totalMs = 0;
-      let signedIn = false;
-
-      for (const session of sessions) {
-        const signInRaw = session.data.signIn;
-        const signIn = signInRaw instanceof Date ? signInRaw : new Date(signInRaw as string);
-        if (Number.isNaN(signIn.getTime())) continue;
-
-        if (
-          session.data.status !== "manual-adjustment" &&
-          (!latestSignIn || signIn > latestSignIn)
-        ) {
-          latestSignIn = signIn;
-        }
-        if (schoolYear(signIn) !== year) continue;
-
-        const isOpen = session.data.status === "open" || session.data.signOut == null;
-        if (isOpen) {
-          const elapsedMs = Date.now() - signIn.getTime();
-          if (elapsedMs < AUTO_SIGNOUT_MS) {
-            signedIn = true;
-            totalMs += Math.max(0, elapsedMs);
-          }
-          continue;
-        }
-
-        if (session.data.status === "auto-closed") continue;
-
-        if (session.data.status === "manual-adjustment") {
-          const adjustmentMs = session.data.adjustmentMs;
-          const legacyDurationMs = session.data.durationMs;
-          if (typeof adjustmentMs === "number" && Number.isFinite(adjustmentMs)) {
-            totalMs += adjustmentMs;
-          } else if (typeof legacyDurationMs === "number" && Number.isFinite(legacyDurationMs)) {
-            totalMs += Math.max(0, legacyDurationMs);
-          }
-          continue;
-        }
-
-        const durationMs = session.data.durationMs;
-        if (typeof durationMs === "number" && Number.isFinite(durationMs)) {
-          totalMs += Math.max(0, durationMs);
-          continue;
-        }
-
-        const signOutRaw = session.data.signOut;
-        const signOut = signOutRaw instanceof Date ? signOutRaw : new Date(signOutRaw as string);
-        if (!Number.isNaN(signOut.getTime())) {
-          totalMs += Math.max(0, signOut.getTime() - signIn.getTime());
-        }
-      }
-
-      return {
-        id: memberId,
-        displayName: (member.data.displayName as string) ?? memberId,
-        email: (member.data.email as string) ?? "",
-        signedIn,
-        lastSignIn: latestSignIn?.toISOString() ?? null,
-        totalHours: Math.max(0, totalMs) / 3_600_000,
-      };
-    });
+    const summaries = await attendanceSummaries(fs, year);
 
     summaries.sort((a, b) => a.displayName.localeCompare(b.displayName));
 
     return c.json({ year, members: summaries });
+  })
+  .get("/leaderboard", requireAuth, async (c) => {
+    await autoSignOut(c.env);
+    const eligibilityResponse = await c.env.G3ID.fetch(
+      new Request("http://g3id/users/attendance-eligible", {
+        headers: { cookie: c.req.header("Cookie") ?? "" },
+      }),
+    );
+    if (!eligibilityResponse.ok)
+      return c.json({ error: "Unable to verify attendance eligibility." }, 502);
+    const eligibility = (await eligibilityResponse.json()) as {
+      users: { id: string; displayName: string }[];
+    };
+    const eligibleNames = new Map(eligibility.users.map((user) => [user.id, user.displayName]));
+    const year = schoolYear(new Date());
+    const summaries = await attendanceSummaries(db(c.env), year);
+    const totals = new Map<string, { displayName: string; totalHours: number }>();
+    for (const summary of summaries) {
+      const displayName = eligibleNames.get(summary.userId);
+      if (!displayName) continue;
+      const current = totals.get(summary.userId);
+      totals.set(summary.userId, {
+        displayName,
+        totalHours: (current?.totalHours ?? 0) + summary.totalHours,
+      });
+    }
+    const leaderboard = Array.from(totals.values())
+      .sort(
+        (left, right) =>
+          right.totalHours - left.totalHours || left.displayName.localeCompare(right.displayName),
+      )
+      .map((member, index) => ({ rank: index + 1, ...member }));
+    return c.json({ year, leaderboard });
   })
   // Who's currently signed in — any logged-in user can view.
   .get("/status", requireAuth, async (c) => {
