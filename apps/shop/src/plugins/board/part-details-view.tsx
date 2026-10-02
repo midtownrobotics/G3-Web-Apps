@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { InstanceRow } from "../../shared/derive";
+import { PrintDrawingButton } from "../../shared/print-drawing-button";
 import type { ShopData } from "../../shared/use-shop-data";
 import { DrawingPreview } from "../parts/drawing-preview";
 
@@ -102,10 +103,15 @@ export function PartDetailsView({
 
           {/* Buttons */}
           <div className="space-y-3 pt-6 border-t border-steel/30 mt-6">
+            <PrintDrawingButton
+              partNumber={row.definition.onshapePartNumber}
+              revision={row.definition.revision}
+              size="kiosk"
+            />
             <button
               type="button"
               onClick={onClose}
-              className="w-full px-6 py-4 text-lg font-semibold text-steel bg-steel-tint border border-steel/30 hover:border-steel/50 hover:text-ink rounded-lg transition-colors"
+              className="w-full px-6 py-4 text-lg font-semibold text-steel-dark bg-steel-tint border border-steel/30 hover:bg-steel/20 hover:border-steel/50 active:bg-steel/30 rounded-lg transition-colors"
             >
               Close
             </button>

@@ -1,6 +1,7 @@
+import { eq } from "drizzle-orm";
 import { createMiddleware } from "hono/factory";
 import { createEdgeDb } from "../db";
-import { edgeStatus } from "../db/schema";
+import { edgeStatus, netSettings } from "../db/schema";
 import type { AppEnv } from "../types";
 
 async function loadUser(c: {
@@ -49,8 +50,10 @@ async function keysMatch(expected: string, provided: string) {
 
 /**
  * Authenticates the edge agent by its shared key (Authorization: Bearer <key>).
- * Also records the agent's version and last-seen time, which is how the UI
- * knows whether the box is online.
+ * Also records the agent's version, last-seen time, and applied state version
+ * (how the UI knows the box is online and whether changes are pending), and
+ * returns the desired state version in X-G3-State-Version so the agent
+ * re-syncs if it missed a poke.
  */
 export const requireAgent = createMiddleware<AppEnv>(async (c, next) => {
   const key = c.env.EDGE_AGENT_KEY;
@@ -61,16 +64,26 @@ export const requireAgent = createMiddleware<AppEnv>(async (c, next) => {
 
   await next();
 
+  const db = createEdgeDb(c.env.EDGE_DB);
+  const settings = await db
+    .select({ stateVersion: netSettings.stateVersion })
+    .from(netSettings)
+    .where(eq(netSettings.id, 1))
+    .get();
+  if (settings) c.res.headers.set("X-G3-State-Version", String(settings.stateVersion));
+
   const version = c.req.header("X-G3-Agent-Version");
   const startedAt = Number(c.req.header("X-G3-Agent-Started"));
+  const applied = Number(c.req.header("X-G3-Agent-State-Version") ?? 0);
   if (version && Number.isInteger(startedAt)) {
     const values = {
       agentVersion: version,
       agentStartedAt: startedAt,
       lastSeenAt: Math.floor(Date.now() / 1000),
+      appliedStateVersion: Number.isInteger(applied) ? applied : 0,
     };
     c.executionCtx.waitUntil(
-      createEdgeDb(c.env.EDGE_DB)
+      db
         .insert(edgeStatus)
         .values({ id: 1, ...values })
         .onConflictDoUpdate({ target: edgeStatus.id, set: values })

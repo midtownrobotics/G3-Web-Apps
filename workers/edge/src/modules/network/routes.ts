@@ -8,6 +8,8 @@ import { DAY, billingCycle } from "../../lib/time";
 import { requireAdmin, requireAgent, requireAuth } from "../../middleware/auth";
 import { type AppEnv, WAN_KEY } from "../../types";
 import { clientName, getSettings } from "./common";
+import { desiredState } from "./control";
+import { controlRouter } from "./control-routes";
 import { ingestUsage, parseUsageBatch } from "./ingest";
 import { ingestSites, parseSiteBatch } from "./sites";
 import { sitesRouter } from "./sites-routes";
@@ -17,6 +19,8 @@ const now = () => Math.floor(Date.now() / 1000);
 
 /** Routes called by the edge agent (shared-key auth). */
 export const networkAgentRouter = new Hono<AppEnv>()
+  // Full desired state (blocklists, grants, switches); fetched after a sync poke.
+  .get("/state", requireAgent, async (c) => c.json(await desiredState(createEdgeDb(c.env.EDGE_DB))))
   .post(
     "/usage",
     requireAgent,
@@ -44,6 +48,7 @@ export const networkAgentRouter = new Hono<AppEnv>()
 /** Routes for the UI (G3ID session). Everyone can read; admins can edit. */
 export const networkRouter = new Hono<AppEnv>()
   .route("/sites", sitesRouter)
+  .route("/control", controlRouter)
   .get("/overview", requireAuth, async (c) => {
     const db = createEdgeDb(c.env.EDGE_DB);
     const t = now();

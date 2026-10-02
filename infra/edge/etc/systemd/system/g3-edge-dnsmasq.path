@@ -1,0 +1,11 @@
+[Unit]
+Description=Watch the g3-edge agent's generated dnsmasq config
+
+[Path]
+# The agent writes g3-edge.conf.new, validates it, then renames it over
+# g3-edge.conf, so this fires once per completed change.
+PathChanged=/var/lib/g3-edge/dnsmasq/g3-edge.conf
+Unit=g3-edge-dnsmasq.service
+
+[Install]
+WantedBy=multi-user.target

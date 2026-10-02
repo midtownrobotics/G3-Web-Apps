@@ -1,4 +1,4 @@
-import type { WorkerClient } from "../../core/worker-client";
+import { type WorkerClient, desiredVersion } from "../../core/worker-client";
 import { WAN_KEY } from "./deltas";
 import type { SiteStore } from "./site-store";
 import type { UsageStore } from "./store";
@@ -28,6 +28,8 @@ export class Pusher {
     private store: UsageStore,
     private sites: SiteStore,
     private worker: WorkerClient,
+    /** Called with the desired-state version from each worker response. */
+    private onStateVersion: (version: number) => void = () => {},
   ) {}
 
   flush(): Promise<void> {
@@ -71,6 +73,7 @@ export class Pusher {
         },
       });
       if (!res.ok) throw new Error(`usage push: worker returned HTTP ${res.status}`);
+      this.onStateVersion(desiredVersion(res));
       this.store.markSent(rows);
       if (rows.length < BATCH_SIZE) return;
     }
@@ -85,6 +88,7 @@ export class Pusher {
         json: { rows: this.sites.rowsFor(hours, TOP_SITES_PER_CLIENT_HOUR) },
       });
       if (!res.ok) throw new Error(`sites push: worker returned HTTP ${res.status}`);
+      this.onStateVersion(desiredVersion(res));
       this.sites.markHoursSent(hours);
     }
   }

@@ -52,9 +52,15 @@ if [[ -f $LEASES ]] && ! sudo -u g3-edge test -r "$LEASES"; then
   echo "Warning: g3-edge can't read $LEASES; clients will show as ip:<addr>." >&2
 fi
 
-# 5. systemd unit.
-install -m 644 "$HERE/etc/systemd/system/g3-edge-agent.service" /etc/systemd/system/g3-edge-agent.service
+# 5. systemd units: the agent, plus the path unit that restarts dnsmasq when
+#    the agent changes its generated config (so the agent needs no privileges).
+for unit in g3-edge-agent.service g3-edge-dnsmasq.path g3-edge-dnsmasq.service; do
+  install -m 644 "$HERE/etc/systemd/system/$unit" "/etc/systemd/system/$unit"
+done
+install -m 644 "$HERE/etc/tmpfiles.d/g3-edge.conf" /etc/tmpfiles.d/g3-edge.conf
+systemd-tmpfiles --create /etc/tmpfiles.d/g3-edge.conf
 systemctl daemon-reload
+systemctl enable --now g3-edge-dnsmasq.path
 
 # 6. Retire the old collector (script and its database are left in place).
 if systemctl list-unit-files g3-usage.timer &>/dev/null && systemctl is-enabled g3-usage.timer &>/dev/null; then

@@ -52,3 +52,16 @@ export function formatDuration(seconds: number): string {
   if (h > 0) return `${h}h ${m}m`;
   return `${m}m`;
 }
+
+/** "in 45 min", "in 3 h 20 min", or a date/time when further out. */
+export function formatUntil(ts: number, now = Date.now() / 1000): string {
+  const s = Math.max(0, Math.round(ts - now));
+  if (s < 60) return "in under a minute";
+  if (s < 3600) return `in ${Math.ceil(s / 60)} min`;
+  if (s < 12 * 3600) {
+    const h = Math.floor(s / 3600);
+    const m = Math.round((s % 3600) / 60);
+    return m ? `in ${h} h ${m} min` : `in ${h} h`;
+  }
+  return `until ${formatDateTime(ts)}`;
+}

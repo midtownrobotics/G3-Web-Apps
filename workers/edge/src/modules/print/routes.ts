@@ -9,6 +9,7 @@ import {
   PRINT_CONTENT_TYPES,
   type PrintJob,
   type Printer,
+  type PrinterAlert,
   isValidDeviceUri,
   isValidPrinterName,
   parsePrintOptions,
@@ -99,14 +100,24 @@ export const printRouter = new Hono<AppEnv>()
     for (const [k, v] of Object.entries({ ...options, user: c.get("userId") })) {
       if (v !== undefined) query.set(k, String(v));
     }
-    const r = await relay<{ ok: true; jobId: number; printer: string }>(c, `/jobs?${query}`, {
-      method: "POST",
-      headers: { "Content-Type": type },
-      body: c.req.raw.body,
-      timeoutMs: 60_000,
-    });
+    const r = await relay<{ ok: true; jobId: number; printer: string; alerts?: PrinterAlert[] }>(
+      c,
+      `/jobs?${query}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": type },
+        body: c.req.raw.body,
+        timeoutMs: 60_000,
+      },
+    );
     if ("error" in r) return c.json({ ok: false, error: r.error }, r.status);
-    return c.json({ ok: true, jobId: r.data.jobId, printer: r.data.printer });
+    // alerts: problems with the printer right now (e.g. out of paper); the job is still queued.
+    return c.json({
+      ok: true,
+      jobId: r.data.jobId,
+      printer: r.data.printer,
+      alerts: r.data.alerts ?? [],
+    });
   })
   .delete("/jobs/:id", requireAuth, async (c) => {
     const id = Number(c.req.param("id"));
@@ -120,7 +131,8 @@ export const printRouter = new Hono<AppEnv>()
         return c.json({ error: "You can only cancel your own print jobs." }, 403);
       }
     }
-    const r = await relay(c, `/jobs/${id}`, { method: "DELETE" });
+    // A job on a stuck printer can take a while to stop.
+    const r = await relay(c, `/jobs/${id}`, { method: "DELETE", timeoutMs: 90_000 });
     if ("error" in r) return c.json({ error: r.error }, r.status);
     return c.json({ ok: true });
   })
@@ -173,14 +185,19 @@ export const printRouter = new Hono<AppEnv>()
   .delete("/printers/:name", requireAdmin, async (c) => {
     const name = printerParam(c);
     if (!name) return c.json({ error: "Invalid printer name." }, 400);
-    const r = await relay(c, `/printers/${name}`, { method: "DELETE" });
+    // Removing a printer first stops its current job, which can be slow.
+    const r = await relay(c, `/printers/${name}`, { method: "DELETE", timeoutMs: 90_000 });
     if ("error" in r) return c.json({ error: r.error }, r.status);
     return c.json({ ok: true });
   })
   .post("/printers/:name/:action{default|resume|test}", requireAdmin, async (c) => {
     const name = printerParam(c);
     if (!name) return c.json({ error: "Invalid printer name." }, 400);
-    const r = await relay(c, `/printers/${name}/${c.req.param("action")}`, { method: "POST" });
+    // Longer than the agent's own 75s limit on CUPS commands, so its clearer error wins.
+    const r = await relay(c, `/printers/${name}/${c.req.param("action")}`, {
+      method: "POST",
+      timeoutMs: 90_000,
+    });
     if ("error" in r) return c.json({ error: r.error }, r.status);
     return c.json({ ok: true });
   });

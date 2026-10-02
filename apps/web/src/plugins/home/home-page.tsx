@@ -57,15 +57,15 @@ const APPS: App[] = [
     bg: "bg-slate-900",
   },
   {
-    label: "Infra",
-    href: "https://scouting.g3robotics.com",
+    label: "Edge",
+    href: "https://edge.g3robotics.com",
     icon: FaNetworkWired,
-    bg: "bg-slate-900",
+    bg: "bg-red-300",
   },
   {
     label: "Public Site",
     href: "https://www.g3robotics.com",
-    bg: "bg-gray-400",
+    bg: "bg-red-300",
     logoSrc: g3Logo,
   },
   {

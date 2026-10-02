@@ -6,6 +6,7 @@ import { formatBytes, formatDateTime, formatDayKey } from "../../shared/format";
 import { Card, ErrorBanner, Loading, Page, Stat } from "../../shared/ui";
 import { useLoad } from "../../shared/use-load";
 import { BarChart, ChartLegend } from "./bar-chart";
+import { ClientExceptions } from "./client-exceptions";
 import { isPseudoSite, sitePath } from "./sites-page";
 
 const hourFormat = new Intl.DateTimeFormat("en-US", {
@@ -92,6 +93,7 @@ export function ClientDetailPage() {
         />
       </Card>
 
+      <ClientExceptions mac={client.mac} />
       <ClientSites mac={client.mac} />
     </Page>
   );

@@ -3,6 +3,7 @@ import type { AgentConfig } from "../../core/config";
 import type { Counters } from "./deltas";
 import { DnsLogTailer } from "./dns-log";
 import { flowKey, parseFlowKey } from "./flows";
+import { nft } from "./nft";
 import { type Lease, parseLeases, parseNftFlowSet, parseNftSet } from "./parse";
 
 /** Where the collector reads counters and leases from. */
@@ -20,21 +21,6 @@ export interface NetworkSource {
   deleteFlows(keys: string[]): Promise<string[]>;
   /** New dnsmasq query log lines since the last call. */
   dnsLines(): Promise<string[]>;
-}
-
-async function nft(args: string[], stdin?: string) {
-  const proc = Bun.spawn(["nft", ...args], {
-    stdin: stdin === undefined ? "ignore" : new TextEncoder().encode(stdin),
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-  const [out, err, code] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ]);
-  if (code !== 0) throw new Error(`nft ${args.join(" ")} failed: ${err.trim()}`);
-  return out;
 }
 
 const listSet = (name: string) => nft(["-j", "list", "set", "inet", "acct", name]);

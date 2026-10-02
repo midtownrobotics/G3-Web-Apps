@@ -3,14 +3,16 @@ import { api, getErrorMessage } from "../../shared/api";
 import { useAuthUser } from "../../shared/auth";
 import { Card, ErrorBanner, Loading, Page } from "../../shared/ui";
 import { useLoad } from "../../shared/use-load";
+import { PrinterAlerts } from "./alerts";
 import {
   type PrinterRow,
+  alertsFor,
   input,
   loadPrinters,
+  networkError,
   plainButton,
   primaryButton,
   printerStatus,
-  readableReasons,
 } from "./shared";
 
 type Discovered = {
@@ -42,10 +44,15 @@ export function PrintersPage() {
     fn: () => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>,
   ) {
     setBusy(key);
-    const res = await fn();
-    setActionError(res.ok ? null : await getErrorMessage(res));
-    setBusy(null);
-    reload();
+    try {
+      const res = await fn();
+      setActionError(res.ok ? null : await getErrorMessage(res));
+    } catch (err) {
+      setActionError(networkError(err));
+    } finally {
+      setBusy(null);
+      reload();
+    }
   }
 
   return (
@@ -94,7 +101,7 @@ function PrinterItem({
   ) => Promise<void>;
 }) {
   const status = printerStatus(p);
-  const reasons = readableReasons(p.stateReasons);
+  const alerts = alertsFor(p);
   const param = { param: { name: p.name } };
   const printerApi = api.print.printers[":name"];
   return (
@@ -114,10 +121,9 @@ function PrinterItem({
       <p className="text-xs text-secondary-400">
         {[p.makeAndModel, p.location, p.name].filter(Boolean).join(" · ")}
       </p>
-      {(reasons.length > 0 || p.stateMessage) && (
-        <p className="text-sm text-amber-700">
-          {[p.stateMessage, ...reasons].filter(Boolean).join(" · ")}
-        </p>
+      <PrinterAlerts alerts={alerts} />
+      {p.stateMessage && (
+        <p className="text-xs text-secondary-500">Printer says: {p.stateMessage}</p>
       )}
       {p.markers.length > 0 && (
         <div className="flex flex-wrap gap-4">
@@ -215,19 +221,36 @@ function AddPrinter({ onAdded, existing }: { onAdded: () => void; existing: Prin
   async function discover() {
     setSearching(true);
     setError(null);
-    const res = await api.print.discover.$post();
-    if (res.ok) setFound((await res.json()).printers);
-    else setError(await getErrorMessage(res));
-    setSearching(false);
+    try {
+      const res = await api.print.discover.$post();
+      if (res.ok) setFound((await res.json()).printers);
+      else setError(await getErrorMessage(res));
+    } catch (err) {
+      setError(networkError(err));
+    } finally {
+      setSearching(false);
+    }
   }
 
   async function add(uri: string, label: string) {
     setAdding(uri);
     setError(null);
-    const res = await api.print.printers.$post({
-      json: { name: queueName(label), uri, description: label, makeDefault: existing.length === 0 },
-    });
-    setAdding(null);
+    let res: Awaited<ReturnType<typeof api.print.printers.$post>>;
+    try {
+      res = await api.print.printers.$post({
+        json: {
+          name: queueName(label),
+          uri,
+          description: label,
+          makeDefault: existing.length === 0,
+        },
+      });
+    } catch (err) {
+      setError(networkError(err));
+      return;
+    } finally {
+      setAdding(null);
+    }
     if (!res.ok) {
       setError(await getErrorMessage(res));
       return;

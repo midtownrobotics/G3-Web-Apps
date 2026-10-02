@@ -18,7 +18,7 @@ migrations_dir = "src/db/migrations"
 
 [vars]
 FRONTEND_URL = "http://localhost:5183"
-# The mock agent (pnpm --filter @g3/edge-agent dev:mock).
+# The mock agent (pnpm --filter @g3/edge-agent run dev:mock).
 EDGE_AGENT_URL = "http://localhost:8700"
 # Secrets: EDGE_AGENT_KEY (shared with the agent; .dev.vars locally, `wrangler secret put` in prod)
 
