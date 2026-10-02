@@ -4,8 +4,6 @@
 /* G3 Sportsbook */
 .game-page {
   max-width: 1500px;
-  --sportsbook-green: #1fba72;
-  --sportsbook-gold: #f3c969;
 }
 
 .game-loading {
@@ -22,68 +20,9 @@
   gap: 24px;
   margin-bottom: 18px;
   padding: 28px;
-  border: 1px solid #236348;
+  border: 1px solid var(--line);
   border-radius: 18px;
-  background: linear-gradient(120deg, rgba(12, 64, 45, 0.96), rgba(10, 20, 27, 0.98) 62%),
-    var(--panel);
-  box-shadow: inset 4px 0 0 var(--sportsbook-green), 0 16px 38px rgba(0, 0, 0, 0.22);
-}
-
-.sportsbook-kicker {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0 0 5px !important;
-  color: #7de3ac !important;
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: 0.13em;
-  text-transform: uppercase;
-}
-
-.sportsbook-account {
-  display: flex;
-  align-items: flex-end;
-  flex-direction: column;
-  gap: 7px;
-}
-
-.sportsbook-market-status {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: #a8edc5;
-  font-size: 10px;
-  font-weight: 850;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.sportsbook-market-status i {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--sportsbook-green);
-  box-shadow: 0 0 0 4px rgba(31, 186, 114, 0.14);
-}
-
-.sportsbook-market-status.paused {
-  color: #ffaaa8;
-}
-
-.sportsbook-market-status.paused i {
-  background: #ef5350;
-  box-shadow: 0 0 0 4px rgba(239, 83, 80, 0.14);
-}
-
-.sportsbook-subhead {
-  display: block;
-  margin-bottom: 2px;
-  color: var(--sportsbook-green);
-  font-size: 9px;
-  font-weight: 900;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  background: var(--panel);
 }
 
 .game-hero h1,
@@ -91,6 +30,12 @@
 .game-leaderboard h2,
 .game-history h2 {
   margin: 4px 0;
+}
+
+.game-hero h1 {
+  font-family: Agency, sans-serif;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
 }
 
 .game-hero p,
@@ -105,10 +50,10 @@
   gap: 12px;
   min-width: 185px;
   padding: 16px 18px;
-  border: 1px solid rgba(243, 201, 105, 0.42);
+  border: 1px solid var(--line);
   border-radius: 14px;
-  color: var(--sportsbook-gold);
-  background: rgba(5, 18, 14, 0.72);
+  color: var(--coral);
+  background: var(--panel-2);
 }
 
 .game-balance span {
@@ -147,7 +92,6 @@
   border: 1px solid var(--line);
   border-radius: 14px;
   background: var(--panel);
-  box-shadow: inset 3px 0 0 rgba(31, 186, 114, 0.52);
 }
 .game-match-card > header {
   display: flex;
@@ -210,7 +154,7 @@ aside.game-sidebar {
   font-size: 12px;
 }
 .game-return strong {
-  color: var(--mint);
+  color: var(--coral);
 }
 .game-leaderboard h2 {
   display: flex;
@@ -251,8 +195,8 @@ aside.game-sidebar {
   text-transform: uppercase;
 }
 .bet-status.won {
-  color: #8ef1c3;
-  background: rgba(72, 219, 155, 0.14);
+  color: #ffd4d9;
+  background: rgba(167, 20, 51, 0.16);
 }
 .bet-status.lost {
   color: #ff9694;
@@ -302,7 +246,8 @@ aside.game-sidebar {
 
 .game-hero h1 {
   margin: 0;
-  font-size: 24px;
+  font-size: clamp(42px, 5vw, 58px);
+  line-height: 0.95;
 }
 
 .game-hero > div:first-child > span {
@@ -315,7 +260,7 @@ aside.game-sidebar {
   padding: 8px 11px;
   border: 1px solid var(--line);
   border-radius: 6px;
-  color: white;
+  color: var(--coral);
   background: #0d1520;
 }
 
@@ -440,13 +385,13 @@ aside.game-sidebar {
 }
 
 .sportsbook-row > button.selected {
-  border-color: var(--mint);
-  outline: 1px solid var(--mint);
-  background: rgba(72, 219, 155, 0.12);
+  border-color: var(--coral);
+  outline: 1px solid var(--coral);
+  background: rgba(167, 20, 51, 0.14);
 }
 
 .sportsbook-row > button b {
-  color: var(--sportsbook-gold);
+  color: var(--coral);
 }
 
 .game-slip,
@@ -514,7 +459,7 @@ aside.game-sidebar {
 }
 
 .parlay-odds strong {
-  color: var(--mint);
+  color: var(--coral);
 }
 
 .game-tabs {
@@ -535,7 +480,7 @@ aside.game-sidebar {
 }
 
 .game-tabs button.active {
-  border-bottom-color: var(--sportsbook-gold);
+  border-bottom-color: var(--coral);
   color: white;
 }
 
@@ -581,14 +526,6 @@ aside.game-sidebar {
   .game-hero {
     align-items: stretch;
     flex-direction: column;
-  }
-
-  .sportsbook-account {
-    align-items: stretch;
-  }
-
-  .sportsbook-market-status {
-    align-self: flex-start;
   }
 
   .game-leaderboard-head,

@@ -1,4 +1,4 @@
-import { Coins, Loader2, Radio, RefreshCw, Trophy } from "lucide-react";
+import { Coins, Loader2, RefreshCw, Trophy } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "./api";
 
@@ -166,28 +166,15 @@ export function Sportsbook() {
     <section className="page game-page">
       <div className="game-hero">
         <div>
-          <p className="sportsbook-kicker">
-            <Radio size={13} /> Live robotics markets
-          </p>
-          <h1>G3 Sportsbook</h1>
+          <h1>Sportsbook</h1>
           <span>{data?.eventKey ? `Event: ${data.eventKey}` : "No active event"}</span>
         </div>
-        <div className="sportsbook-account">
-          <span className={`sportsbook-market-status${data?.statsError ? " paused" : ""}`}>
-            <i />
-            {data?.statsError
-              ? "Markets paused"
-              : data?.matches.length
-                ? "Markets open"
-                : "Awaiting markets"}
+        <div className="game-balance" aria-label={`${data?.account.balance ?? 0} BoyleBucks`}>
+          <Coins size={18} />
+          <span>
+            <strong>{data?.account.balance ?? 0} BoyleBucks</strong>
+            <small>Balance</small>
           </span>
-          <div className="game-balance" aria-label={`${data?.account.balance ?? 0} Boyle Bucks`}>
-            <Coins size={18} />
-            <span>
-              <strong>{data?.account.balance ?? 0} BB</strong>
-              <small>Available balance</small>
-            </span>
-          </div>
         </div>
       </div>
 
@@ -213,7 +200,7 @@ export function Sportsbook() {
           className={section === "leaderboard" ? "active" : ""}
           onClick={() => setSection("leaderboard")}
         >
-          Boyle Bucks Standings
+          BoyleBucks Standings
         </button>
       </div>
 
@@ -221,10 +208,7 @@ export function Sportsbook() {
         <div className="game-layout">
           <div className="game-main">
             <div className="game-section-heading">
-              <div>
-                <span className="sportsbook-subhead">Upcoming markets</span>
-                <h2>Match Lines</h2>
-              </div>
+              <h2>Match Lines</h2>
               <button type="button" className="secondary-button" onClick={load}>
                 <RefreshCw size={16} /> Refresh
               </button>
@@ -347,7 +331,7 @@ export function Sportsbook() {
                             ? (stake * slipOdds) / 100
                             : (stake * 100) / Math.abs(slipOdds)),
                       )}{" "}
-                      BB
+                      BoyleBucks
                     </strong>
                   </div>
                   <button
@@ -369,7 +353,7 @@ export function Sportsbook() {
       ) : (
         <section className="game-leaderboard game-leaderboard-full" role="tabpanel">
           <h2>
-            <Trophy size={19} /> Boyle Bucks Standings
+            <Trophy size={19} /> BoyleBucks Standings
           </h2>
           <div className="game-leaderboard-table">
             <div className="game-leaderboard-head">
@@ -383,9 +367,9 @@ export function Sportsbook() {
               <div className="game-leaderboard-row" key={`${player.display_name}-${index}`}>
                 <b>#{index + 1}</b>
                 <strong>{player.display_name}</strong>
-                <span>{player.balance} BB</span>
-                <span>{player.earned} BB</span>
-                <span>{player.wagered} BB</span>
+                <span>{player.balance} BoyleBucks</span>
+                <span>{player.earned} BoyleBucks</span>
+                <span>{player.wagered} BoyleBucks</span>
               </div>
             ))}
           </div>
@@ -402,8 +386,8 @@ export function Sportsbook() {
                 <strong>{parlay.legs.length}-leg parlay</strong>
                 <span>{parlay.legs.map((leg) => leg.match_label).join(", ")}</span>
                 <b>
-                  {parlay.stake} BB at {signed(parlay.odds)}
-                  {parlay.payout > 0 ? ` → ${parlay.payout} BB` : ""}
+                  {parlay.stake} BoyleBucks at {signed(parlay.odds)}
+                  {parlay.payout > 0 ? ` → ${parlay.payout} BoyleBucks` : ""}
                 </b>
               </div>
             ))}
@@ -416,7 +400,8 @@ export function Sportsbook() {
                   {signed(bet.selection === "red" ? bet.line : -bet.line)} at {signed(bet.odds)}
                 </span>
                 <b>
-                  {bet.stake} BB{bet.payout > 0 ? ` → ${bet.payout} BB` : ""}
+                  {bet.stake} BoyleBucks
+                  {bet.payout > 0 ? ` → ${bet.payout} BoyleBucks` : ""}
                 </b>
               </div>
             ))}
