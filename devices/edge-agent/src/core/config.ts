@@ -22,6 +22,9 @@ export interface AgentConfig {
   /** Where the shop drive's web page listens: the box's LAN address only (never the tunnel). */
   driveHost: string;
   drivePort: number;
+  /** DigiKey API app for part lookup; optional (DigiKey links fail without it). */
+  digikeyClientId?: string;
+  digikeyClientSecret?: string;
 }
 
 function required(name: string) {
@@ -56,5 +59,7 @@ export function loadConfig(): AgentConfig {
     driveDir: process.env.EDGE_DRIVE_DIR ?? "/srv/g3-drive",
     driveHost: process.env.EDGE_DRIVE_HOST ?? "192.168.50.1",
     drivePort: int("EDGE_DRIVE_PORT", 80),
+    digikeyClientId: process.env.EDGE_DIGIKEY_CLIENT_ID || undefined,
+    digikeyClientSecret: process.env.EDGE_DIGIKEY_CLIENT_SECRET || undefined,
   };
 }

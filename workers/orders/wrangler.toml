@@ -1,0 +1,48 @@
+name = "orders"
+main = "src/index.ts"
+compatibility_date = "2026-05-17"
+
+[[services]]
+binding = "G3ID"
+service = "g3id"
+
+# Part lookups run on the shop's edge box, through the edge worker.
+[[services]]
+binding = "EDGE"
+service = "edge"
+
+[[d1_databases]]
+binding = "ORDERS_DB"
+database_name = "g3-orders-local"
+database_id = "00000000-0000-0000-0000-000000000004"
+migrations_dir = "src/db/migrations"
+
+[vars]
+FRONTEND_URL = "http://localhost:5184"
+# Optional secrets (.dev.vars locally, `wrangler secret put` in prod):
+#   SLACK_BOT_TOKEN: DMs requesters when a mentor approves; without it nothing is sent.
+
+[env.production]
+name = "orders-production"
+
+[[env.production.services]]
+binding = "G3ID"
+service = "g3id-production"
+
+[[env.production.services]]
+binding = "EDGE"
+service = "edge-production"
+
+# Create with `wrangler d1 create g3-orders-prod` and paste its ID here.
+[[env.production.d1_databases]]
+binding = "ORDERS_DB"
+database_name = "g3-orders-prod"
+database_id = "<run wrangler d1 create g3-orders-prod>"
+migrations_dir = "src/db/migrations"
+
+[[env.production.routes]]
+pattern = "api.orders.g3robotics.com"
+custom_domain = true
+
+[env.production.vars]
+FRONTEND_URL = "https://orders.g3robotics.com"

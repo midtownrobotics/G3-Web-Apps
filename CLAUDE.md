@@ -22,8 +22,8 @@ pnpm -r --if-present typecheck  # Ensure no type errors
 
 **Monorepo using pnpm workspaces:**
 
-- `apps/` — React frontends (g3id, web, shop, pit, attendance, scouting, edge)
-- `workers/` — Cloudflare Workers backends (g3id, shop, pit, skill-tree, attendance, scouting, edge)
+- `apps/` — React frontends (g3id, web, shop, pit, attendance, scouting, edge, orders)
+- `workers/` — Cloudflare Workers backends (g3id, shop, pit, skill-tree, attendance, scouting, edge, orders)
 - `packages/` — Shared libraries (auth, ui, slack)
 - `devices/` — Software that runs on physical hardware (edge-agent: Bun, compiled to an arm64 binary)
 - `infra/edge/` — Hand-applied system config for the shop edge box
@@ -63,10 +63,22 @@ Design brief: `docs/edge.md`. On-site Orange Pi 5 (hostname `orangepi5`, login u
 - Agent and app both use Hono RPC types from `@g3/worker-edge` (no shared schema package).
 - **Site data is admin-only** in both the worker and the UI (it is per-student browsing data). Hourly rows kept 30 days, then daily for a year.
 - **Blocking (Phase 2):** admin-made blocklists, time-limited grants, and UI switches (`enforce`, `dns_hardening`) live in D1; every change bumps `net_settings.state_version` and pokes the agent (`POST /sync` via the tunnel, `EDGE_AGENT_URL`). The agent fetches `GET /agent/network/state`, applies it to its own `inet g3` table and `/var/lib/g3-edge/dnsmasq/g3-edge.conf` (built in `devices/edge-agent/src/modules/network/enforce.ts`), and acks. The UI shows "pending" until the applied version matches. Enforcement survives offline and reboots (last state saved in agent.db).
-- **Single edge device, no HMAC, no Cloudflare Access, no SSH through the tunnel** (SSH on `wan0` is temporarily allowed by a `# TEMP` rule in `nftables.conf`). The agent never touches base netplan, nftables, or dnsmasq config; `nftables.conf` must not `flush ruleset` (it would delete `inet g3`). `POST /sync` and module routes (`/print/*`) require the shared key; `/health` is local-only (the tunnel forwards only `^/(print|sync)`).
+- **Single edge device, no HMAC, no Cloudflare Access, no SSH through the tunnel** (SSH on `wan0` is temporarily allowed by a `# TEMP` rule in `nftables.conf`). The agent never touches base netplan, nftables, or dnsmasq config; `nftables.conf` must not `flush ruleset` (it would delete `inet g3`). `POST /sync` and module routes (`/print/*`, `/lookup`) require the shared key; `/health` is local-only (the tunnel forwards only `^/(print|lookup|sync)`).
 - **Printing:** replaces the old shoppi-print server. Shop worker `/print` (unchanged API; forces one-sided black and white) → `EDGE` service binding → edge worker `/print/*` → `agentFetch` (`EDGE_AGENT_URL` + `EDGE_AGENT_KEY`, through the tunnel) → agent `modules/print` → CUPS (`lp`/`lpadmin` to change things, a small IPP client in `ipp.ts` to read printers and jobs). **Nothing is stored**: no R2, no job table; CUPS on the box is the source of truth, and an unreachable box is an immediate 503. Anyone logged in can print; admins manage printers; members cancel only their own jobs (jobs are submitted with `lp -U <G3ID user id>`). Wire types live in `workers/edge/src/modules/print/types.ts`, exported as `@g3/worker-edge/print-types`. The agent needs to be in the `lpadmin` group.
 - **Shop drive:** `devices/edge-agent/src/modules/drive` runs its own HTTP server on the box's LAN address, port 80 (`http://drive.local`, announced over mDNS by `g3-drive-mdns.service`; also `http://192.168.50.1`). It's a self-contained page plus `/api/files` and `/files/:name` (Range downloads). **No auth, by design**: anyone on the LAN can upload, download, and delete low-risk files. It's never exposed through the tunnel, so file traffic never crosses the internet. Storage is a 10 GB loop-mounted image at `/srv/g3-drive` (`infra/edge/setup-drive.sh`); the agent refuses to write if it isn't mounted. The dashboard's Drive page only links there: an https page can't call a plain-http LAN address.
 - Local dev: `pnpm --filter @g3/edge-agent run dev:mock` runs the agent with fake counters against the local worker (copy `workers/edge/.dev.vars.example` to `.dev.vars`).
+
+### G3 Orders (parts ordering)
+
+- Any member requests one line (vendor link, quantity, budget category, reason). **Only G3ID mentors** (`is_mentor`, never kiosk sessions; admin alone doesn't count) approve/deny, mark ordered (with actual cost) and manage budget categories. Statuses: requested → approved/denied → ordered → received, or cancelled (requester or mentor, before ordering). The requester can also mark their own order received.
+- `workers/orders` (Hono, Drizzle, D1 `ORDERS_DB`): `/requests` (list, detail with history, create, edit while requested, `POST /requests/:id/:action`), `/categories` (with spent/committed/pending totals), `/lookup?url=` (7-day cache in `lookup_cache`). Status changes are conditional updates on the expected status, and every change is logged in `request_events`.
+- Approval sends the requester a Slack DM (`SLACK_BOT_TOKEN`, optional); their Slack ID is captured from their G3ID identities when they submit.
+- Part lookup runs **on the edge box** so vendors see the shop connection, not a Workers IP: orders `/lookup` → `EDGE` service binding → edge worker `/lookup` → `agentFetch` → agent `modules/lookup/part-lookup.ts` (Shopify, BigCommerce, JSON-LD, Amazon, DigiKey API via `EDGE_DIGIKEY_*` in agent.env). The requester's browser headers (User-Agent, Accept-Language, Sec-CH-UA; never cookies) are forwarded for fetches that must look like a browser (Amazon); Shopify gets an honest user agent because a fake Chrome one gets 429s. McMaster's API is B2B-only, so McMaster links only yield the part number (and name when prerendered). Wire types: `@g3/worker-edge/lookup-types`. Box offline → lookup fails with 503 (no fallback); requesters can fill details by hand. The agent meters lookup traffic (compressed wire bytes + headers, via `fetch` with `decompress: false`) into the network usage buckets under the pseudo-client `_lookup`; the Network overview shows it as "Part lookups". Usage keys starting with `_` are never LAN clients. Local dev: run the mock agent (`pnpm --filter @g3/edge-agent run dev:mock`) and copy `workers/edge/.dev.vars.example` to `.dev.vars` (its key matches `mock.env`); without it lookups fail with 502 "rejected the worker's key".
+- `apps/orders`: plugin-based UI (from `apps/edge`): New Request, Requests, Approvals (mentors), Ordering (mentors: approved lines grouped by vendor; `POST /requests/order-batch` marks many ordered and splits an optional real order total across them by estimate), Budget.
+- Money: only placed vendor orders count against budgets (final qty × price, or an imported line's exact `line_total_cents`, plus the order's fee rows in `order_charges`: Shipping/Tax/Tariff per category; new orders split fees by item cost). `GET /orders/export.csv` writes the team's order-sheet columns; `POST /orders/import` (Budget page, `?dryRun=1` previews) reads the same format back, matching Budget Cat codes to categories and skipping rows imported before (`import_key`).
+- Fiscal years run July–June (`src/lib/fiscal.ts`, named by starting year: 2026 = "2026–27"). Budgets are per category per year (`category_budgets`); spending counts in the year an order was placed. The Budget page has a year picker and the team's summary table; exports are per year.
+- Vendors are matched by lowercased name (`vendors` table holds profiles: tax exemption, shipping thresholds, minimum, lead/shipping days, cutoff, payment, credits in `vendor_credits`). Students only get lead/shipping days (for place-by dates). The Ordering tab shows profile nudges and marks carts with Blocking or late items "Place today". Requests have `priority` (blocking/high/normal/nice, anyone can set) and `need_by`; place-by = need-by − lead − shipping days.
+- Lookup errors: the agent answers 422 when a vendor's site blocks or fails (never 502, which `agentFetch` reads as "box unreachable"); orders shows "This site isn't supported for automatic lookup".
 
 ### Color Implementation
 
@@ -181,6 +193,7 @@ Apps:
 - `apps/attendance` → 5181
 - `apps/scouting` → 5182
 - `apps/edge` → 5183
+- `apps/orders` → 5184
 
 Workers (Wrangler):
 - `workers/g3id` → 8787 (inspector: 9229)
@@ -190,6 +203,7 @@ Workers (Wrangler):
 - `workers/attendance` → 8791 (inspector: 9233)
 - `workers/scouting` → 8792 (inspector: 9234)
 - `workers/edge` → 8793 (inspector: 9235)
+- `workers/orders` → 8794 (inspector: 9236)
 - `devices/edge-agent` (mock) → 8700
 
 **Starting dev servers:**

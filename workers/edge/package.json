@@ -4,7 +4,8 @@
   "private": true,
   "exports": {
     ".": "./src/index.ts",
-    "./print-types": "./src/modules/print/types.ts"
+    "./print-types": "./src/modules/print/types.ts",
+    "./lookup-types": "./src/modules/lookup/types.ts"
   },
   "scripts": {
     "dev": "wrangler dev --port 8793 --inspector-port 9235",

@@ -39,6 +39,11 @@
       "port": 5183,
       "name": "Edge (Network)",
       "url": "http://localhost:5183"
+    },
+    "orders": {
+      "port": 5184,
+      "name": "Orders",
+      "url": "http://localhost:5184"
     }
   },
   "workers": {
@@ -83,6 +88,12 @@
       "inspectorPort": 9235,
       "name": "Edge Worker",
       "url": "http://localhost:8793"
+    },
+    "orders": {
+      "port": 8794,
+      "inspectorPort": 9236,
+      "name": "Orders Worker",
+      "url": "http://localhost:8794"
     }
   }
 }

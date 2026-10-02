@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "scripts": {
     "dev": "node scripts/print-dev-ports.js",
-    "dev:silent": "pnpm -r --parallel --if-present dev",
+    "dev:silent": "pnpm -r --parallel --no-bail --if-present dev",
     "lint": "biome ci .",
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "pnpm -r --if-present test",

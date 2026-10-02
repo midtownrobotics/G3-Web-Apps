@@ -7,6 +7,7 @@ import {
   FaInstagram,
   FaNetworkWired,
   FaRobot,
+  FaShoppingCart,
   FaSlack,
   FaToolbox,
   FaTrophy,
@@ -61,6 +62,12 @@ const APPS: App[] = [
     href: "https://edge.g3robotics.com",
     icon: FaNetworkWired,
     bg: "bg-red-300",
+  },
+  {
+    label: "Orders",
+    href: "https://orders.g3robotics.com",
+    icon: FaShoppingCart,
+    bg: "bg-emerald-600",
   },
   {
     label: "Public Site",
