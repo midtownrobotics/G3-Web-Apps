@@ -33,7 +33,7 @@ import {
   useState,
 } from "react";
 import { Analysis } from "./Analysis";
-import { Game } from "./Game";
+import { Sportsbook } from "./Game";
 import { Operations } from "./Operations";
 import { ScoutingAdminPage, ScoutingForms } from "./ScoutingForms";
 import { API_URL, G3ID_URL, api } from "./api";
@@ -49,7 +49,7 @@ import { type ParsedTrajectory, parseTrajectoryFile, trajectoryToPng } from "./t
 
 type Page =
   | "forms"
-  | "game"
+  | "sportsbook"
   | "admin"
   | "analysis"
   | "service"
@@ -2012,7 +2012,7 @@ export function App() {
 
   const adminNav = [
     { id: "forms" as const, label: "Scouting Forms" },
-    { id: "game" as const, label: "Game" },
+    { id: "sportsbook" as const, label: "Sportsbook" },
     { id: "admin" as const, label: "Admin" },
     { id: "analysis" as const, label: "Analysis" },
     { id: "service" as const, label: "Service Tickets" },
@@ -2022,7 +2022,7 @@ export function App() {
     ? adminNav
     : [
         { id: "forms" as const, label: "Scouting Forms" },
-        { id: "game" as const, label: "Game" },
+        { id: "sportsbook" as const, label: "Sportsbook" },
         ...(user.isHelper ? [{ id: "service" as const, label: "Service Tickets" }] : []),
       ];
 
@@ -2096,7 +2096,7 @@ export function App() {
             canManageServiceCrew={user.isAdmin || user.isHelper}
           />
         )}
-        {page === "game" && <Game />}
+        {page === "sportsbook" && <Sportsbook />}
         {page === "admin" && user.isAdmin && (
           <ScoutingAdminPage
             isG3IdAdmin={user.isG3IdAdmin}
