@@ -73,7 +73,7 @@ async function main() {
     console.log("🚀 Starting G3 Robotics development servers...\n");
 
     // Start the dev servers in background
-    const devProcess = spawn("pnpm", ["-r", "--parallel", "--if-present", "dev"], {
+    const devProcess = spawn("pnpm", ["-r", "--parallel", "--no-bail", "--if-present", "dev"], {
       cwd: path.join(__dirname, ".."),
       stdio: "inherit",
       shell: true,

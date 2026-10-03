@@ -80,7 +80,7 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
           {isLoggedIn && (
             <a
               className="relative text-sm font-medium text-gray-300 hover:text-white transition-colors py-4"
-              href="https://web.g3robotics.com"
+              href="https://gearbox.g3robotics.com"
             >
               All Apps
             </a>
@@ -133,7 +133,7 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
           {isLoggedIn && (
             <a
               className="text-2xl font-bold text-gray-300 hover:text-white transition-colors"
-              href="https://web.g3robotics.com"
+              href="https://gearbox.g3robotics.com"
             >
               All Apps
             </a>

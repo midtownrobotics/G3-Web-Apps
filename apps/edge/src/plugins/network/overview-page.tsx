@@ -84,7 +84,17 @@ export function OverviewPage() {
             ))}
             <li
               className="py-2 flex items-center gap-3 text-secondary-500"
-              title="WAN traffic not attributed to a LAN client: the edge box itself and protocol overhead."
+              title="Product pages the edge box fetched for G3 Orders part lookups (each link is cached for 7 days)."
+            >
+              <span className="italic">Part lookups (G3 Orders)</span>
+              <ShareBar share={(data.lookups.dl + data.lookups.ul) / Math.max(1, used)} />
+              <span className="text-sm tabular-nums w-20 text-right">
+                {formatBytes(data.lookups.dl + data.lookups.ul)}
+              </span>
+            </li>
+            <li
+              className="py-2 flex items-center gap-3 text-secondary-500"
+              title="WAN traffic not attributed to a LAN client or part lookups: the edge box itself and protocol overhead."
             >
               <span className="italic">Edge box &amp; overhead</span>
               <ShareBar share={data.unattributed / Math.max(1, used)} />

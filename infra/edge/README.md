@@ -117,6 +117,8 @@ Printing goes: Shop SW or Edge UI → `workers/edge` → Cloudflare Tunnel (`edg
 
 This replaces the old print server behind `shoppi-print.g3robotics.com`, which ran on a separate device (not this box) and is retired in step 10.
 
+Part lookup (G3 Orders) goes the same way: `workers/orders` → `workers/edge` `/lookup` → tunnel → the agent's lookup module, which fetches the vendor's product page over the shop connection (vendors block cloud IPs). The orders worker caches each result for 7 days; a lookup is roughly 10–400 KB, and the agent counts it into the usage data (shown on the Network overview as "Part lookups"). DigiKey links need `EDGE_DIGIKEY_CLIENT_ID`/`EDGE_DIGIKEY_CLIENT_SECRET` in `agent.env`.
+
 ### Box prerequisites
 
 1. **CUPS and printer discovery.** CUPS is probably already installed for shoppi-print. Install whatever is missing (one-time, about 50–100 MB over the hotspot):
@@ -133,7 +135,7 @@ The worker reaches the agent through a Cloudflare Tunnel. If shoppi-print alread
 2. **Create or reuse a tunnel.** In the Cloudflare dashboard, go to **Zero Trust → Networks → Tunnels**. To create one, choose **Cloudflared**, name it `g3-edge`, and run the `sudo cloudflared service install <token>` command it shows on the box. The token is a secret; don't commit it.
 3. **Add a public hostname** to the tunnel:
    - Subdomain `edge-agent`, domain `g3robotics.com`
-   - Path: `^/(print|switch|sync)(/.*)?$` (only these agent routes are reachable; `/health` stays local)
+   - Path: `^/(print|lookup|switch|sync)(/.*)?$` (only these agent routes are reachable; `/health` stays local)
    - Service: `HTTP`, URL `localhost:8700`
 4. **Check it** from any machine. You should get `401`: the tunnel reached the agent, and the agent refused because there's no key.
    ```bash
@@ -220,7 +222,7 @@ For a box already running everything above (Phase 1, printing, and the shop driv
 
 ### Tunnel
 
-4. **Nothing to set up.** Printing already uses the `edge-agent.g3robotics.com` tunnel hostname, and its path rule `^/(print|switch|sync)(/.*)?$` already covers `/sync`. Check it from any machine; it should return `401` (the tunnel reached the agent; there's no key):
+4. **Nothing to set up.** Printing already uses the `edge-agent.g3robotics.com` tunnel hostname, and its path rule `^/(print|lookup|switch|sync)(/.*)?$` already covers `/sync`. Check it from any machine; it should return `401` (the tunnel reached the agent; there's no key):
    ```bash
    curl -s -o /dev/null -w "%{http_code}\n" -X POST https://edge-agent.g3robotics.com/sync
    ```
@@ -292,7 +294,7 @@ without playing a startup sound.
    10 MB, then use **Test on Orange Pi** to confirm the selected audio output. Uploaded files join
    the door-opening rotation immediately and survive agent upgrades.
 5. In the Cloudflare tunnel's public-hostname route, ensure the path is
-   `^/(print|switch|sync)(/.*)?$`; older installs may still have a rule without `switch`.
+   `^/(print|lookup|switch|sync)(/.*)?$`; older installs may still have a rule without `lookup` or `switch`.
 
 `EDGE_SWITCH_SOUNDS` can additionally name comma-separated WAV paths outside the managed upload
 directory. Optional paths, polling, debounce, and player overrides are documented in

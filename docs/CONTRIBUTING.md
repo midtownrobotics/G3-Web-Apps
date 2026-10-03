@@ -6,7 +6,7 @@
 git clone https://github.com/g3robotics/g3-web-apps.git
 cd g3-web-apps
 pnpm install
-pnpm dev        # starts apps/web dev server
+pnpm dev        # starts apps/portal dev server
 ```
 
 ## Branch naming
@@ -52,12 +52,12 @@ pnpm test       # Tests across all packages
 
 All three must pass before a PR can merge. CI runs them automatically.
 
-## Adding a plugin to apps/web
+## Adding a plugin to apps/portal
 
-1. Create `apps/web/src/plugins/{name}/`
+1. Create `apps/portal/src/plugins/{name}/`
 2. Add `index.tsx` exporting a `Plugin` object (see `shared/plugin-types.ts`)
 3. Add `README.md` describing what the plugin does
-4. Add one import + one entry to `apps/web/src/plugins.config.ts`
+4. Add one import + one entry to `apps/portal/src/plugins.config.ts`
 
 Do not touch `app.tsx`.
 

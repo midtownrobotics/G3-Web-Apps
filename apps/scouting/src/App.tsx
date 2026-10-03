@@ -2070,7 +2070,7 @@ export function App() {
           {theme === "light" ? <Moon size={17} /> : <Sun size={17} />}
           {theme === "light" ? "Dark mode" : "Light mode"}
         </button>
-        <a className="all-apps-link" href="https://web.g3robotics.com">
+        <a className="all-apps-link" href="https://gearbox.g3robotics.com">
           All Apps
         </a>
       </aside>

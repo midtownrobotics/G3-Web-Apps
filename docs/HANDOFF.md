@@ -38,7 +38,7 @@ One session per major system area. Incoming student drives, outgoing student wat
 - [ ] Deployment process (wrangler, Pages, GitHub Actions)
 - [ ] Database: how to write and apply a migration
 - [ ] `workers/api`: how to add a module
-- [ ] `apps/web`: how to add a plugin
+- [ ] `apps/portal`: how to add a plugin
 - [ ] Cloudflare Access: adding/removing users
 
 ### 5. Verify the new student can deploy

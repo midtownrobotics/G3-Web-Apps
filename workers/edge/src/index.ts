@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { requireAgent, requireAuth } from "./middleware/auth";
+import { lookupRouter } from "./modules/lookup/routes";
 import { networkAgentRouter, networkRouter, networkScheduled } from "./modules/network";
 import { printRouter } from "./modules/print/routes";
 import { switchRouter } from "./modules/switch/routes";
@@ -42,6 +43,7 @@ const app = base
   .route("/status", statusRouter)
   .route("/network", networkRouter)
   .route("/print", printRouter)
+  .route("/lookup", lookupRouter)
   .route("/switch", switchRouter)
   // Agent-facing routes (shared-key auth), one prefix per module.
   // The agent calls this right after applying new state; requireAgent records the
