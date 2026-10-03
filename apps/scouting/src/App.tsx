@@ -1,3 +1,4 @@
+import { AppNavBar } from "@g3/ui";
 import {
   ArrowRight,
   Camera,
@@ -8,16 +9,13 @@ import {
   LogIn,
   Map as MapIcon,
   Maximize2,
-  Menu,
   Minimize2,
   Monitor,
-  Moon,
   Pencil,
   Plus,
   RotateCcw,
   Save,
   Search,
-  Sun,
   Target,
   Trash2,
   Upload,
@@ -1956,13 +1954,6 @@ export function App() {
   const [analysisReportId, setAnalysisReportId] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [theme, setTheme] = useState<"light" | "dark">("dark");
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-  }, [theme]);
-
   useEffect(() => {
     api<User>("/me")
       .then(setUser)
@@ -2028,67 +2019,31 @@ export function App() {
 
   return (
     <div className="app-shell">
-      <aside className={menuOpen ? "open" : ""}>
-        <div className="brand">
-          <span>
-            G3 STRATEGY
-            <small>Scouting workspace</small>
-          </span>
-          <button type="button" aria-label="Close menu" onClick={() => setMenuOpen(false)}>
-            <X size={20} />
-          </button>
-        </div>
-        <nav>
-          <span className="nav-label">Workspace</span>
-          {nav.map(({ id, label }) => (
-            <button
-              type="button"
-              key={id}
-              className={
-                page === id || (id === "other" && ["autos", "tiers", "maps"].includes(page))
-                  ? "active"
-                  : ""
-              }
-              onClick={() => {
-                setPage(id);
-                setMenuOpen(false);
-              }}
-            >
-              {label}
-              {(page === id || (id === "other" && ["autos", "tiers", "maps"].includes(page))) && (
-                <span className="active-dot" />
-              )}
-            </button>
-          ))}
-        </nav>
-        <button
-          type="button"
-          className="theme-toggle"
-          onClick={() => setTheme((current) => (current === "light" ? "dark" : "light"))}
-          aria-label={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
-        >
-          {theme === "light" ? <Moon size={17} /> : <Sun size={17} />}
-          {theme === "light" ? "Dark mode" : "Light mode"}
-        </button>
-        <a className="all-apps-link" href="https://gearbox.g3robotics.com">
-          All Apps
-        </a>
-      </aside>
-      {menuOpen && (
-        <button
-          type="button"
-          className="scrim"
-          onClick={() => setMenuOpen(false)}
-          aria-label="Close"
-        />
-      )}
+      <AppNavBar
+        title="G3 STRATEGY"
+        icon="/favicon.svg"
+        homeHref="#"
+        link={({ href, children, ...props }) => (
+          <a
+            href={href}
+            {...props}
+            onClick={(e) => {
+              e.preventDefault();
+              setPage("forms");
+              props.onClick?.();
+            }}
+          >
+            {children}
+          </a>
+        )}
+        items={nav.map(({ id, label }) => ({
+          key: id,
+          label,
+          onSelect: () => setPage(id),
+          active: page === id || (id === "other" && ["autos", "tiers", "maps"].includes(page)),
+        }))}
+      />
       <main>
-        <header className="mobile-header">
-          <button type="button" onClick={() => setMenuOpen(true)} aria-label="Open menu">
-            <Menu />
-          </button>
-          <span>G3 Strategy</span>
-        </header>
         <AnnouncementBanner />
         {page === "forms" && (
           <ScoutingForms

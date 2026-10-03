@@ -39,22 +39,22 @@ export function EmailLoginPage() {
     <main className="flex-1 flex items-center justify-center px-4">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
-          <h1 className="text-5xl font-bold text-white">
+          <h1 className="text-5xl font-bold text-secondary-900">
             <span className="text-primary-500">G3</span>ID
           </h1>
-          <p className="mt-2 text-secondary-200 text-sm">Sign in with email</p>
+          <p className="mt-2 text-secondary-600 text-sm">Sign in with email</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
-            <label className="text-sm text-gray-200" htmlFor="email">
+            <label className="text-sm text-secondary-700" htmlFor="email">
               Email
             </label>
             <input
               id="email"
               type="email"
               autoComplete="email"
-              className="w-full rounded-lg bg-secondary-700 border border-gray-600 px-4 py-2.5 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-primary-400"
+              className="w-full rounded-lg bg-white border border-secondary-300 px-4 py-2.5 text-secondary-900 text-sm placeholder-secondary-400 focus:outline-none focus:border-primary-500"
               placeholder="you@g3robotics.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -64,14 +64,14 @@ export function EmailLoginPage() {
           </div>
 
           <div className="space-y-1">
-            <label className="text-sm text-gray-200" htmlFor="password">
+            <label className="text-sm text-secondary-700" htmlFor="password">
               Password
             </label>
             <input
               id="password"
               type="password"
               autoComplete="current-password"
-              className="w-full rounded-lg bg-secondary-700 border border-gray-600 px-4 py-2.5 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-primary-400"
+              className="w-full rounded-lg bg-white border border-secondary-300 px-4 py-2.5 text-secondary-900 text-sm placeholder-secondary-400 focus:outline-none focus:border-primary-500"
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -80,7 +80,7 @@ export function EmailLoginPage() {
             />
           </div>
 
-          {error && <p className="text-sm text-primary-400">{error}</p>}
+          {error && <p className="text-sm text-primary-500">{error}</p>}
 
           <button
             type="submit"
@@ -93,7 +93,7 @@ export function EmailLoginPage() {
         </form>
 
         <p className="text-center text-sm">
-          <Link to="/login" className="text-secondary-200 hover:text-primary-400 transition-colors">
+          <Link to="/login" className="text-secondary-600 hover:text-primary-600 transition-colors">
             ← Other sign-in options
           </Link>
         </p>
