@@ -39,7 +39,7 @@ service = "edge-production"
 [[env.production.d1_databases]]
 binding = "ORDERS_DB"
 database_name = "g3-orders-prod"
-database_id = "<run wrangler d1 create g3-orders-prod>"
+database_id = "987cdb22-15a0-4a3b-88c1-44330ef725f8"
 migrations_dir = "src/db/migrations"
 
 [[env.production.routes]]
