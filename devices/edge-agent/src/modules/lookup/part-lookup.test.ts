@@ -75,3 +75,67 @@ describe("data metering", () => {
     expect(usage.ul).toBeGreaterThan(50);
   });
 });
+
+describe("shopify linked options (Itoris Dynamic Product Options)", () => {
+  test("lists the linked products a placeholder product's dropdowns stand for", async () => {
+    const item = (title: string, ids: string, sku: string, price: number, salable: number) =>
+      `{"title":${JSON.stringify(title)},"sku":"${ids}","sku_is_product_id_linked":1,"product_sku":"${sku}","price":${price},"is_salable":${salable}}`;
+    const options = `[{"title":"Aluminum Tube Plugs (New)","items":[${item('1"x1"x.062" Tube Plug', "11:111", "WCP-2066", 5.99, 1)},${item('2"x2"x.125" Tube Plug', "12:122", "WCP-2107", 7.99, 0)}]},{"title":"Bundles","items":[${item("Tube Plug Bundle", "13:133", "BND-0007", 499.99, 1)}]}]`;
+    const requested: string[] = [];
+    globalThis.fetch = (async (input: unknown) => {
+      const url = String(input);
+      requested.push(url);
+      const json = (body: unknown) =>
+        new Response(JSON.stringify(body), { headers: { "content-type": "application/json" } });
+      if (url.includes("/products/tube-plugs.json")) {
+        return json({
+          product: {
+            id: 6853378736288,
+            title: "Tube Plugs",
+            variants: [{ id: 1, title: "Default Title", price: "2.49" }],
+          },
+        });
+      }
+      if (url.endsWith("/meta.json"))
+        return json({ myshopify_domain: "wcp-robotics.myshopify.com" });
+      if (url.startsWith("https://node1.itoris.com/")) {
+        return new Response(
+          `<div></div><script>window.dpoOptions.initialize({"form_style":"table_sections","extra_js":""}, ${options}); </script>`,
+          { headers: { "content-type": "text/html" } },
+        );
+      }
+      return new Response("not found", { status: 404 });
+    }) as unknown as typeof fetch;
+
+    const result = await lookupPart(
+      "https://wcproducts.com/collections/cnc-hardware/products/tube-plugs",
+    );
+    expect(result.source).toBe("shopify");
+    expect(result.title).toBe("Tube Plugs");
+    expect(result.price).toBeUndefined(); // The placeholder's own $2.49 isn't a real price.
+    expect(result.variants).toEqual([
+      {
+        id: "111",
+        title: 'Aluminum Tube Plugs (New): 1"x1"x.062" Tube Plug',
+        sku: "WCP-2066",
+        price: 5.99,
+        available: true,
+      },
+      {
+        id: "122",
+        title: 'Aluminum Tube Plugs (New): 2"x2"x.125" Tube Plug',
+        sku: "WCP-2107",
+        price: 7.99,
+        available: false,
+      },
+      {
+        id: "133",
+        title: "Bundles: Tube Plug Bundle",
+        sku: "BND-0007",
+        price: 499.99,
+        available: true,
+      },
+    ]);
+    expect(requested.some((u) => u.includes("shop=wcp-robotics.myshopify.com"))).toBe(true);
+  });
+});

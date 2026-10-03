@@ -45,3 +45,26 @@ export const requireMentor = createMiddleware<AppEnv>(async (c, next) => {
   setUser(c, user);
   await next();
 });
+
+/** Whether this user may edit the catalog: mentors, and students mentors marked trusted. */
+export async function canEditCatalog(c: {
+  env: AppEnv["Bindings"];
+  get: <K extends keyof AppEnv["Variables"]>(key: K) => AppEnv["Variables"][K];
+}) {
+  if (c.get("userIsMentor")) return true;
+  const row = await c.env.ORDERS_DB.prepare("SELECT trusted FROM app_users WHERE id = ?")
+    .bind(c.get("userId"))
+    .first<{ trusted: number }>();
+  return row?.trusted === 1;
+}
+
+/** Mentors and trusted students: adding categories and adding, editing or deleting parts. */
+export const requireCatalogEditor = createMiddleware<AppEnv>(async (c, next) => {
+  const user = await loadUser(c);
+  if (!user) return c.json({ error: "Unauthorized." }, 401);
+  setUser(c, user);
+  if (!(await canEditCatalog(c))) {
+    return c.json({ error: "Only mentors and trusted students can change the catalogue." }, 403);
+  }
+  await next();
+});

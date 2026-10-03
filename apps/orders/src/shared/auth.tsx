@@ -7,6 +7,8 @@ export type AuthUser = {
   displayName: string;
   /** G3ID mentor flag: approves requests and manages budgets. */
   isMentor: boolean;
+  /** Mentors and trusted students: add catalogue categories and add, edit or delete parts. */
+  canEditCatalog: boolean;
 };
 
 const AuthUserContext = createContext<AuthUser | null>(null);

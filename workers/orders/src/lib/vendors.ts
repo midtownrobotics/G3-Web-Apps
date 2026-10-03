@@ -25,6 +25,11 @@ const VENDOR_NAMES: Record<string, string> = {
   "easyrulerplastic.com": "EasyRuler Plastic",
   "tekton.com": "TEKTON",
   "walmart.com": "Walmart",
+  "swyftrobotics.com": "SWYFT Robotics",
+  "lastanvil.com": "Last Anvil Innovations",
+  "reduxrobotics.com": "Redux Robotics",
+  "armabot.com": "ARMABOT",
+  "8020.net": "80/20",
 };
 
 /** A friendly vendor name for a hostname (or a name someone typed, which is kept). */

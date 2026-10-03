@@ -12,6 +12,7 @@ import {
   orderRequests,
   requestEvents,
 } from "../db/schema";
+import { type CatalogChoice, catalogItemFor } from "../lib/catalog";
 import { formatCents } from "../lib/money";
 import { vendorName } from "../lib/vendors";
 import { requireAuth } from "../middleware/auth";
@@ -31,6 +32,8 @@ type RequestFields = {
   reason: string;
   priority: Priority;
   needBy: number | null;
+  storePlatform: string | null;
+  storeVariantId: string | null;
 };
 
 const optionalText = (v: unknown, max: number): string | null | false => {
@@ -39,11 +42,11 @@ const optionalText = (v: unknown, max: number): string | null | false => {
   return v.trim() || null;
 };
 
-/** Validates a full request (create) or a partial one (edit). */
+/** Validates a full request (create) or a partial one (edit), plus its catalog choice. */
 const requestValidator = (partial: boolean) =>
-  validator("json", (value, c): Partial<RequestFields> => {
+  validator("json", (value, c): Partial<RequestFields> & CatalogChoice => {
     const v = (value ?? {}) as Record<string, unknown>;
-    const out: Partial<RequestFields> = {};
+    const out: Partial<RequestFields> & CatalogChoice = {};
     const fail = (error: string) => c.json({ error }, 400) as never;
     const has = (key: string) => !partial || v[key] !== undefined;
 
@@ -57,7 +60,8 @@ const requestValidator = (partial: boolean) =>
       if (url.protocol !== "https:" && url.protocol !== "http:")
         return fail("url must be http(s).");
       out.url = url.toString();
-      if (!partial && (typeof v.vendor !== "string" || !v.vendor.trim())) {
+      // No vendor given: name it from the link (also when an edit swaps in a new link).
+      if (typeof v.vendor !== "string" || !v.vendor.trim()) {
         out.vendor = vendorName(url.hostname);
       }
     }
@@ -74,6 +78,8 @@ const requestValidator = (partial: boolean) =>
       ["sku", 100],
       ["variant", 200],
       ["image", 2000],
+      ["storePlatform", 20],
+      ["storeVariantId", 60],
     ] as const) {
       if (v[key] === undefined && partial) continue;
       const text = optionalText(v[key], max);
@@ -130,8 +136,20 @@ const requestValidator = (partial: boolean) =>
       }
       out.needBy = v.needBy as number | null;
     }
+    if (v.catalogItemId !== undefined && v.catalogItemId !== null) {
+      if (!Number.isInteger(v.catalogItemId)) return fail("catalogItemId must be an id.");
+      out.catalogItemId = v.catalogItemId as number;
+    }
+    for (const key of ["catalogCategory", "catalogName"] as const) {
+      const text = optionalText(v[key], key === "catalogName" ? 300 : 100);
+      if (text === false) return fail(`${key} must be text.`);
+      out[key] = text;
+    }
     return out;
   });
+
+const NEEDS_CATALOG_CATEGORY =
+  "This part is new to the catalogue: pick a catalogue category for it.";
 
 const listValidator = validator("query", (value, c): { status?: RequestStatus; mine?: "true" } => {
   const status = value.status;
@@ -261,16 +279,26 @@ export const requestsRouter = new Hono<AppEnv>()
     return c.json({ ...row.request, categoryName: row.categoryName, events });
   })
   .post("/", requireAuth, requestValidator(false), async (c) => {
-    const body = c.req.valid("json") as RequestFields;
+    const {
+      catalogItemId: picked,
+      catalogCategory,
+      catalogName,
+      ...body
+    } = c.req.valid("json") as RequestFields & CatalogChoice;
+    const catalog = { catalogItemId: picked, catalogCategory, catalogName };
     const db = createOrdersDb(c.env.ORDERS_DB);
     if (!(await openCategory(db, body.categoryId))) {
       return c.json({ error: "That budget category doesn't exist or is archived." }, 400);
     }
+    // Every submitted link is in the catalog: the picked item, the one with this link, or new.
+    const catalogItemId = await catalogItemFor(db, catalog, body, c.get("userDisplayName"));
+    if (catalogItemId === null) return c.json({ error: NEEDS_CATALOG_CATEGORY }, 400);
     const now = Date.now();
     const row = await db
       .insert(orderRequests)
       .values({
         ...body,
+        catalogItemId,
         currency: body.currency ?? "USD",
         requesterId: c.get("userId"),
         requesterName: c.get("userDisplayName"),
@@ -290,10 +318,11 @@ export const requestsRouter = new Hono<AppEnv>()
     });
     return c.json(row, 201);
   })
-  /** Edit while still awaiting a mentor: the requester or any mentor. */
+  /** Edit while still awaiting a mentor (including swapping in another item): the requester or any mentor. */
   .patch("/:id", requireAuth, requestValidator(true), async (c) => {
     const id = Number(c.req.param("id"));
-    const body = c.req.valid("json");
+    const { catalogItemId: picked, catalogCategory, catalogName, ...body } = c.req.valid("json");
+    const catalog = { catalogItemId: picked, catalogCategory, catalogName };
     const db = createOrdersDb(c.env.ORDERS_DB);
     const current = await db.select().from(orderRequests).where(eq(orderRequests.id, id)).get();
     if (!current) return c.json({ error: "Request not found." }, 404);
@@ -307,19 +336,40 @@ export const requestsRouter = new Hono<AppEnv>()
       return c.json({ error: "That budget category doesn't exist or is archived." }, 400);
     }
     if (Object.keys(body).length === 0) return c.json({ error: "Nothing to update." }, 400);
+    // A different item (new link or option) is a different catalog item.
+    let catalogItemId = current.catalogItemId;
+    if (
+      (body.url !== undefined && body.url !== current.url) ||
+      (body.storeVariantId !== undefined && body.storeVariantId !== current.storeVariantId) ||
+      catalog.catalogItemId
+    ) {
+      catalogItemId = await catalogItemFor(
+        db,
+        catalog,
+        { ...current, ...body },
+        c.get("userDisplayName"),
+      );
+      if (catalogItemId === null) return c.json({ error: NEEDS_CATALOG_CATEGORY }, 400);
+    }
     const now = Date.now();
     const row = await db
       .update(orderRequests)
-      .set({ ...body, updatedAt: now })
+      .set({ ...body, catalogItemId, updatedAt: now })
       .where(and(eq(orderRequests.id, id), eq(orderRequests.status, "requested")))
       .returning()
       .get();
     if (!row) return c.json({ error: "This request was just decided; reload to see it." }, 409);
+    // A new link means a different item (a mentor fixing the wrong part or supplier): keep what
+    // it was in the history.
+    const replaced = body.url !== undefined && body.url !== current.url;
     await db.insert(requestEvents).values({
       requestId: id,
       userId: c.get("userId"),
       userName: c.get("userDisplayName"),
-      action: "edited",
+      action: replaced ? "replaced" : "edited",
+      note: replaced
+        ? `Was ${current.quantity}× ${current.title} from ${current.vendor}: ${current.url}`
+        : null,
       createdAt: now,
     });
     return c.json(row);

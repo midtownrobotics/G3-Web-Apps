@@ -9,3 +9,6 @@ export type Priority = OrderRequest["priority"];
 export type Vendor = InferResponseType<typeof api.vendors.$get, 200>[number];
 /** A vendor as mentors see it (with payment, account, notes and credits). */
 export type VendorProfile = Extract<Vendor, { credits: unknown }>;
+export type CatalogItem = InferResponseType<typeof api.catalog.items.$get, 200>[number];
+export type CatalogData = InferResponseType<typeof api.catalog.$get, 200>;
+export type CatalogFamily = CatalogData["families"][number];

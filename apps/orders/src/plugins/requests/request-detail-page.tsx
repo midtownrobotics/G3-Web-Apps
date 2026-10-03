@@ -18,7 +18,11 @@ import { useLoad } from "../../shared/use-load";
 import { useVendors } from "../../shared/vendors";
 import { RequestActions } from "./request-actions";
 
-const EVENT_LABELS: Record<string, string> = { created: "Requested", edited: "Edited" };
+const EVENT_LABELS: Record<string, string> = {
+  created: "Requested",
+  edited: "Edited",
+  replaced: "Replaced item",
+};
 
 export function RequestDetailPage() {
   const { id = "" } = useParams();

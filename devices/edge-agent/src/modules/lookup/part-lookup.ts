@@ -9,7 +9,9 @@
  * API to B2B customers, so its lookups return the part number from the URL (plus
  * the name when the page is prerendered). Everything else is tried in order,
  * most reliable first:
- *   1. Shopify: `/products/<handle>.json` (WCP, AndyMark, ThriftyBot, ...)
+ *   1. Shopify: `/products/<handle>.json` (WCP, AndyMark, ThriftyBot, ...), plus the
+ *      linked products of Itoris "Dynamic Product Options" when a product is just a
+ *      placeholder for them (WCP's tube plugs, etc.)
  *   2. BigCommerce: storefront GraphQL, using the token every page embeds (REV)
  *   3. JSON-LD `Product` blocks in the page
  *   4. Open Graph / product meta tags
@@ -187,6 +189,7 @@ export async function lookupPart(rawUrl: string, options: LookupOptions = {}): P
 // --- Shopify ---------------------------------------------------------------
 
 type ShopifyProduct = {
+  id: number;
   title: string;
   body_html?: string;
   image?: { src: string } | null;
@@ -217,6 +220,24 @@ async function tryShopify(url: URL) {
   const product = body?.product;
   if (!product?.variants?.length) return null;
 
+  // A product with no options of its own may be a placeholder whose choices are other products,
+  // listed by an options app (WCP's type/size dropdowns); those choices are what gets bought.
+  const linked =
+    product.variants.length === 1 && product.variants[0].title === "Default Title"
+      ? await itorisLinkedProducts(url.origin, product.id)
+      : [];
+  if (linked.length > 0) {
+    return {
+      source: "shopify" as const,
+      title: product.title,
+      description: truncate(stripHtml(product.body_html)),
+      image: product.image?.src ?? product.images?.[0]?.src,
+      currency: product.variants[0].price_currency || undefined,
+      available: linked.some((v) => v.available !== false),
+      variants: linked,
+    };
+  }
+
   const variants: PartVariant[] = product.variants.map((v) => ({
     id: String(v.id),
     title: v.title,
@@ -236,6 +257,119 @@ async function tryShopify(url: URL) {
     available: variants.some((v) => v.available !== false),
     variants,
   };
+}
+
+// --- Itoris Dynamic Product Options (Shopify app) ---------------------------
+
+const ITORIS_URL = "https://node1.itoris.com/dpo/storefront/include.js";
+
+/** Store origin → its *.myshopify.com name, or null when the store doesn't use the app. */
+const itorisShops = new Map<string, string | null>();
+
+type ItorisOption = {
+  title?: string;
+  items?: {
+    title?: string;
+    price?: number;
+    /** "<product id>:<variant id>" when the item is a linked product. */
+    sku?: string;
+    sku_is_product_id_linked?: number;
+    product_sku?: string;
+    is_salable?: number | null;
+  }[];
+};
+
+/**
+ * The products a placeholder product's option dropdowns stand for, as variants (the linked
+ * product's variant id, so cart links work). Empty when the store doesn't use the app or the
+ * product has no linked options.
+ */
+async function itorisLinkedProducts(origin: string, productId: number): Promise<PartVariant[]> {
+  let shop = itorisShops.get(origin);
+  if (shop === undefined) {
+    const res = await get(new URL("/meta.json", origin), {
+      "User-Agent": HONEST_UA,
+      Accept: "application/json",
+    });
+    const meta = res.ok
+      ? ((await res.json().catch(() => null)) as { myshopify_domain?: string } | null)
+      : null;
+    shop = meta?.myshopify_domain ?? null;
+    itorisShops.set(origin, shop);
+  }
+  if (!shop) return [];
+
+  const endpoint = new URL(ITORIS_URL);
+  endpoint.search = new URLSearchParams({ controller: "GetOptionConfig", shop }).toString();
+  let html: string;
+  try {
+    const res = await meteredFetch(endpoint, {
+      method: "POST",
+      headers: {
+        "User-Agent": HONEST_UA,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({ product_id: String(productId) }).toString(),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    if (!res.ok) return [];
+    html = await res.text();
+  } catch {
+    return []; // The app's server being down shouldn't fail the lookup.
+  }
+  if (html.includes("Service not registered")) {
+    itorisShops.set(origin, null);
+    return [];
+  }
+
+  // The options are the second argument of `dpoOptions.initialize({config}, [options])`.
+  const call = html.indexOf("dpoOptions.initialize(");
+  const start = call === -1 ? -1 : html.indexOf(", [{", call);
+  const options = start === -1 ? null : jsonArrayAt<ItorisOption>(html, start + 2);
+  if (!options) return [];
+
+  const groups = options.filter((o) => o.items?.some((i) => i.sku_is_product_id_linked));
+  return groups.flatMap((group) =>
+    (group.items ?? []).flatMap((item) => {
+      const variantId = item.sku_is_product_id_linked ? item.sku?.split(":")[1] : undefined;
+      if (!variantId || !item.title) return [];
+      return [
+        {
+          id: variantId,
+          // Several sections ("New", "Legacy", "Sleeves"): say which one each choice is from.
+          title: groups.length > 1 && group.title ? `${group.title}: ${item.title}` : item.title,
+          sku: item.product_sku || undefined,
+          price: typeof item.price === "number" ? item.price : undefined,
+          available: item.is_salable === 0 ? false : item.is_salable === 1 ? true : undefined,
+        },
+      ];
+    }),
+  );
+}
+
+/** Parses the JSON array starting at `text[start]` (which must be "["), ignoring what follows. */
+function jsonArrayAt<T>(text: string, start: number): T[] | null {
+  let depth = 0;
+  let inString = false;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      if (ch === "\\") i++;
+      else if (ch === '"') inString = false;
+    } else if (ch === '"') inString = true;
+    else if (ch === "[" || ch === "{") depth++;
+    else if (ch === "]" || ch === "}") {
+      depth--;
+      if (depth === 0) {
+        try {
+          return JSON.parse(text.slice(start, i + 1)) as T[];
+        } catch {
+          return null;
+        }
+      }
+    }
+  }
+  return null;
 }
 
 // --- BigCommerce -----------------------------------------------------------

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, lt } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, lt } from "drizzle-orm";
 import { Hono } from "hono";
 import { validator } from "hono/validator";
 import { createOrdersDb } from "../db";
@@ -10,11 +10,12 @@ import {
   vendorOrders,
 } from "../db/schema";
 import { chargesByCategory, lineTotal, orderFees } from "../lib/accounting";
+import { recordPrices } from "../lib/catalog";
 import { csvDate, csvMoney, csvRow } from "../lib/csv";
 import { fiscalLabel, fiscalRange, fiscalYearOf } from "../lib/fiscal";
 import { importSheet } from "../lib/sheet-import";
 import { vendorName } from "../lib/vendors";
-import { requireMentor } from "../middleware/auth";
+import { requireAuth, requireMentor } from "../middleware/auth";
 import type { AppEnv } from "../types";
 import { describeChanges } from "./requests";
 
@@ -88,7 +89,164 @@ const CSV_HEADER = [
   "Received By",
 ];
 
+const RECENT_DAYS = 14;
+
+const receiveValidator = validator("json", (value, c): { ids: number[] } => {
+  const ids = (value as { ids?: unknown })?.ids;
+  if (
+    !Array.isArray(ids) ||
+    ids.length === 0 ||
+    ids.length > 200 ||
+    !ids.every((id) => Number.isInteger(id) && id > 0)
+  ) {
+    return c.json({ error: "ids must be 1–200 request ids." }, 400) as never;
+  }
+  return { ids: [...new Set(ids as number[])] };
+});
+
+const trackingValidator = validator("json", (value, c): { tracking: string | null } => {
+  const t = (value as { tracking?: unknown })?.tracking;
+  if (t !== null && (typeof t !== "string" || t.length > 100)) {
+    return c.json({ error: "tracking must be up to 100 characters, or null." }, 400) as never;
+  }
+  return { tracking: typeof t === "string" && t.trim() ? t.trim() : null };
+});
+
 export const ordersRouter = new Hono<AppEnv>()
+  /**
+   * For the Receiving page: vendor orders with items still on the way (oldest first), and orders
+   * fully received in the last two weeks (newest first), each with its lines and who received what.
+   */
+  .get("/receiving", requireAuth, async (c) => {
+    const db = createOrdersDb(c.env.ORDERS_DB);
+    const lines = await db
+      .select()
+      .from(orderRequests)
+      .where(
+        and(
+          isNotNull(orderRequests.orderId),
+          inArray(orderRequests.status, ["ordered", "received"]),
+        ),
+      )
+      .all();
+    const orderIds = [...new Set(lines.map((l) => l.orderId as number))];
+    if (orderIds.length === 0) return c.json({ open: [], recent: [] });
+    const [orders, receipts] = await Promise.all([
+      db.select().from(vendorOrders).where(inArray(vendorOrders.id, orderIds)).all(),
+      db
+        .select()
+        .from(requestEvents)
+        .where(
+          and(
+            eq(requestEvents.action, "received"),
+            inArray(
+              requestEvents.requestId,
+              lines.map((l) => l.id),
+            ),
+          ),
+        )
+        .orderBy(desc(requestEvents.createdAt))
+        .all(),
+    ]);
+    const receipt = new Map<number, { at: number; by: string }>();
+    for (const e of receipts)
+      if (!receipt.has(e.requestId)) receipt.set(e.requestId, { at: e.createdAt, by: e.userName });
+
+    const shaped = orders.map((o) => {
+      const mine = lines
+        .filter((l) => l.orderId === o.id)
+        .sort((a, b) => a.title.localeCompare(b.title))
+        .map((l) => ({
+          id: l.id,
+          title: l.title,
+          variant: l.variant,
+          sku: l.sku,
+          url: l.url,
+          quantity: l.quantity,
+          status: l.status as "ordered" | "received",
+          requesterId: l.requesterId,
+          requesterName: l.requesterName,
+          receivedAt: receipt.get(l.id)?.at ?? null,
+          receivedBy: receipt.get(l.id)?.by ?? null,
+        }));
+      const waiting = mine.filter((l) => l.status === "ordered").length;
+      const lastReceived = Math.max(0, ...mine.map((l) => l.receivedAt ?? 0));
+      return {
+        id: o.id,
+        vendor: o.vendor,
+        placedAt: o.placedAt,
+        placedByName: o.placedByName,
+        tracking: o.tracking,
+        waiting,
+        lastReceived,
+        lines: mine,
+      };
+    });
+    const since = Date.now() - RECENT_DAYS * 86_400_000;
+    return c.json({
+      open: shaped.filter((o) => o.waiting > 0).sort((a, b) => a.placedAt - b.placedAt),
+      recent: shaped
+        .filter((o) => o.waiting === 0 && o.lastReceived >= since)
+        .sort((a, b) => b.lastReceived - a.lastReceived),
+    });
+  })
+  /**
+   * Marks ordered items received. Mentors can receive anything; others only what they requested.
+   * Items not on order (or not yours) are skipped and reported.
+   */
+  .post("/receive", requireAuth, receiveValidator, async (c) => {
+    const { ids } = c.req.valid("json");
+    const db = createOrdersDb(c.env.ORDERS_DB);
+    const isMentor = c.get("userIsMentor");
+    const userId = c.get("userId");
+    const rows = await db
+      .select({
+        id: orderRequests.id,
+        requesterId: orderRequests.requesterId,
+        status: orderRequests.status,
+      })
+      .from(orderRequests)
+      .where(inArray(orderRequests.id, ids))
+      .all();
+    const allowed = rows
+      .filter((r) => r.status === "ordered" && (isMentor || r.requesterId === userId))
+      .map((r) => r.id);
+    if (allowed.length === 0)
+      return c.json({ error: "None of those items are on order and yours to receive." }, 409);
+    const now = Date.now();
+    const received = await db
+      .update(orderRequests)
+      .set({ status: "received", updatedAt: now })
+      .where(and(inArray(orderRequests.id, allowed), eq(orderRequests.status, "ordered")))
+      .returning({ id: orderRequests.id })
+      .all();
+    for (let i = 0; i < received.length; i += 15) {
+      await db.insert(requestEvents).values(
+        received.slice(i, i + 15).map((r) => ({
+          requestId: r.id,
+          userId,
+          userName: c.get("userDisplayName"),
+          action: "received",
+          note: null,
+          createdAt: now,
+        })),
+      );
+    }
+    const done = received.map((r) => r.id);
+    return c.json({ received: done, skipped: ids.filter((id) => !done.includes(id)) });
+  })
+  /** Sets or clears a placed order's tracking number. */
+  .patch("/:id/tracking", requireMentor, trackingValidator, async (c) => {
+    const db = createOrdersDb(c.env.ORDERS_DB);
+    const row = await db
+      .update(vendorOrders)
+      .set({ tracking: c.req.valid("json").tracking })
+      .where(eq(vendorOrders.id, Number(c.req.param("id"))))
+      .returning()
+      .get();
+    if (!row) return c.json({ error: "Order not found." }, 404);
+    return c.json({ id: row.id, tracking: row.tracking });
+  })
   /**
    * Imports the order sheet (CSV, same columns as the export) so past orders and spending show
    * up. Body: the CSV text. `?dryRun=1` returns the summary without saving anything; rows
@@ -207,6 +365,15 @@ export const ordersRouter = new Hono<AppEnv>()
     }
     const [first, ...rest] = statements;
     if (first) await db.batch([first, ...rest]);
+    // What we paid becomes the catalog price (good for 7 days before it's looked up again).
+    await recordPrices(
+      db,
+      lines.map((l) => ({
+        catalogItemId: (byId.get(l.requestId) as (typeof approved)[number]).catalogItemId,
+        unitPriceCents: l.unitPriceCents,
+      })),
+      now,
+    );
 
     return c.json({
       orderId: order.id,

@@ -160,8 +160,8 @@ function SummaryTable({ categories, fiscalYear }: { categories: Category[]; fisc
         <table className="w-full text-sm tabular-nums">
           <thead>
             <tr className="text-left text-xs text-secondary-500 border-b border-secondary-200">
-              <th className="py-2 pr-3 font-semibold">Budget Category</th>
-              <th className="py-2 pr-3 font-semibold">Line Item Description</th>
+              <th className="py-2 pr-3 font-semibold text-left">Budget Category</th>
+              <th className="py-2 pr-3 font-semibold text-left">Line Item Description</th>
               <th className="py-2 pr-3 font-semibold text-right">Spend To Date</th>
               <th className="py-2 pr-3 font-semibold text-right">Budget</th>
               <th className="py-2 pr-3 font-semibold text-right">% of Budget</th>

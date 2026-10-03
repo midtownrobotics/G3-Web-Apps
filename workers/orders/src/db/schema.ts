@@ -144,6 +144,12 @@ export const orderRequests = sqliteTable(
     orderId: integer("order_id").references(() => vendorOrders.id),
     /** Exact line total when it isn't quantity × unit price (imported rows with rounded prices). */
     lineTotalCents: integer("line_total_cents"),
+    /** The platform the lookup detected ("shopify", "amazon", ...), for one-click carts. */
+    storePlatform: text("store_platform"),
+    /** The store's id for the chosen option (a Shopify variant id). */
+    storeVariantId: text("store_variant_id"),
+    /** The catalog item this line is (set when it's submitted; new links join the catalog). */
+    catalogItemId: integer("catalog_item_id"),
     /** Fingerprint of the order-sheet row this was imported from (re-imports skip it). */
     importKey: text("import_key").unique(),
     createdAt: integer("created_at").notNull(),
@@ -178,4 +184,88 @@ export const lookupCache = sqliteTable("lookup_cache", {
   url: text("url").primaryKey(),
   result: text("result").notNull(),
   fetchedAt: integer("fetched_at").notNull(),
+});
+
+/** Team-wide settings, one value per key (e.g. "naming_template"). */
+export const appSettings = sqliteTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+});
+
+/** A keyword that suggests a budget category for new requests whose name contains it. */
+export const categoryRules = sqliteTable("category_rules", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  keyword: text("keyword").notNull(),
+  categoryId: integer("category_id")
+    .notNull()
+    .references(() => budgetCategories.id),
+  createdAt: integer("created_at").notNull(),
+});
+
+/** A product family from the FRCDesign library (one part in its sizes and types). */
+export const catalogFamilies = sqliteTable("catalog_families", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  category: text("category").notNull(),
+  sourceId: text("source_id").unique(),
+  sourceUrl: text("source_url"),
+  createdAt: integer("created_at").notNull(),
+});
+
+export const LINK_KINDS = ["product", "search", "homepage"] as const;
+export type LinkKind = (typeof LINK_KINDS)[number];
+
+/** One buyable part in the catalog: seeded from FRCDesign, or added by a request. */
+export const catalogItems = sqliteTable(
+  "catalog_items",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    familyId: integer("family_id").references(() => catalogFamilies.id),
+    category: text("category").notNull(),
+    name: text("name").notNull(),
+    vendor: text("vendor").notNull(),
+    sku: text("sku"),
+    /** JSON object of configuration choices ({"Length": "1/2\""}). */
+    options: text("options").notNull().default("{}"),
+    url: text("url").notNull(),
+    /** "product" page, vendor "search" for the SKU, or the vendor's "homepage". */
+    linkKind: text("link_kind", { enum: LINK_KINDS }).notNull().default("product"),
+    /** catalogKey() of a product link, for matching requests to items. */
+    productKey: text("product_key"),
+    image: text("image"),
+    /** Last price paid (set when an order is placed); older than 7 days gets looked up again. */
+    priceCents: integer("price_cents"),
+    priceAt: integer("price_at"),
+    storePlatform: text("store_platform"),
+    storeVariantId: text("store_variant_id"),
+    source: text("source", { enum: ["frcdesign", "request"] }).notNull(),
+    sourceId: text("source_id").unique(),
+    requestCount: integer("request_count").notNull().default(0),
+    lastRequestedAt: integer("last_requested_at"),
+    createdBy: text("created_by"),
+    createdAt: integer("created_at").notNull(),
+    updatedBy: text("updated_by"),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (t) => [
+    index("catalog_items_family_idx").on(t.familyId),
+    index("catalog_items_product_key_idx").on(t.productKey),
+  ],
+);
+
+/** The catalog's categories; parts must be in one. Trusted students and mentors add them. */
+export const catalogCategories = sqliteTable("catalog_categories", {
+  name: text("name").primaryKey(),
+  createdBy: text("created_by"),
+  createdAt: integer("created_at").notNull(),
+});
+
+/** People who have opened G3 Orders; mentors mark trusted students (catalog editors). */
+export const appUsers = sqliteTable("app_users", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  trusted: integer("trusted").notNull().default(0),
+  trustedBy: text("trusted_by"),
+  trustedAt: integer("trusted_at"),
+  lastSeenAt: integer("last_seen_at").notNull(),
 });

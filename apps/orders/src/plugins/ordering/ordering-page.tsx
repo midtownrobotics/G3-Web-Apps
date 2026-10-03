@@ -2,6 +2,7 @@ import { chargesByCategory } from "@g3/worker-orders/split";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, getErrorMessage } from "../../shared/api";
+import { cartLinks } from "../../shared/cart";
 import { Deadline, isLate } from "../../shared/deadline";
 import { ExportCsvButton } from "../../shared/export-csv";
 import { formatCents, formatDate, parseDollars, startOfToday } from "../../shared/format";
@@ -23,12 +24,27 @@ type LineEdit = { quantity: string; price: string };
 const vendorKey = (vendor: string) => vendor.trim().toLowerCase();
 const dollars = (cents: number | null) => (cents === null ? "" : (cents / 100).toFixed(2));
 
+/** The team's sales tax rate, charged by every vendor that doesn't have our exemption on file. */
+const TAX_RATE = 0.089;
+
+/** Whether the vendor has an unexpired tax-exempt certificate on file. */
+const isTaxExempt = (vendor: Vendor | undefined) =>
+  !!vendor &&
+  "taxExempt" in vendor &&
+  vendor.taxExempt &&
+  (vendor.taxExemptExpires === null || vendor.taxExemptExpires >= startOfToday());
+
 /**
  * Approved requests grouped by vendor, for placing orders (mentors). Quantities and prices can be
  * corrected to what the vendor actually charges; with shipping and tax, those are the only numbers
  * that count against budgets.
  */
 export function OrderingPage() {
+  const sac = useLoad(async () => {
+    const res = await api["share-a-cart"].status.$get();
+    if (!res.ok) throw new Error(await getErrorMessage(res));
+    return res.json();
+  }, []);
   const { data, error, reload } = useLoad(async () => {
     const res = await api.requests.$get({ query: { status: "approved" } });
     if (!res.ok) throw new Error(await getErrorMessage(res));
@@ -94,10 +110,19 @@ export function OrderingPage() {
             <VendorOrder
               key={vendorKey(g.vendor)}
               group={g}
+              shareACart={
+                sac.data?.vendors.includes(vendorKey(g.vendor))
+                  ? { connected: sac.data.connected }
+                  : null
+              }
               onPlaced={(message) => {
                 setDone(message);
                 reload();
                 window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
+              onRemoved={(message) => {
+                setDone(message);
+                reload();
               }}
             />
           ))}
@@ -107,7 +132,21 @@ export function OrderingPage() {
   );
 }
 
-function VendorOrder({ group, onPlaced }: { group: Group; onPlaced: (message: string) => void }) {
+function VendorOrder({
+  group,
+  shareACart,
+  onPlaced,
+  onRemoved,
+}: {
+  group: Group;
+  /** Set when Share-A-Cart supports this vendor. */
+  shareACart: { connected: boolean } | null;
+  onPlaced: (message: string) => void;
+  /** A line was cancelled (trashed) instead of ordered. */
+  onRemoved: (message: string) => void;
+}) {
+  const [sacBusy, setSacBusy] = useState(false);
+  const [sacLink, setSacLink] = useState<string | null>(null);
   const [edits, setEdits] = useState<Record<number, LineEdit>>(() =>
     Object.fromEntries(
       group.items.map((r) => [
@@ -118,7 +157,8 @@ function VendorOrder({ group, onPlaced }: { group: Group; onPlaced: (message: st
   );
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [shipping, setShipping] = useState("");
-  const [tax, setTax] = useState("");
+  // null until someone types in the Tax box; until then it shows (and uses) the default.
+  const [tax, setTax] = useState<string | null>(null);
   const [tracking, setTracking] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -137,11 +177,25 @@ function VendorOrder({ group, onPlaced }: { group: Group; onPlaced: (message: st
       ok: Number.isInteger(quantity) && quantity >= 1 && price !== null && !Number.isNaN(price),
     };
   });
+  // One-click cart for the lines in this order, at the quantities entered here.
+  const cart = cartLinks(
+    parsed.map((l) => ({
+      url: l.r.url,
+      sku: l.r.sku,
+      storePlatform: l.r.storePlatform,
+      storeVariantId: l.r.storeVariantId,
+      quantity: Number.isInteger(l.quantity) && l.quantity > 0 ? l.quantity : l.r.quantity,
+    })),
+  );
   const shippingCents = parseDollars(shipping) ?? 0;
-  const taxCents = parseDollars(tax) ?? 0;
+  const itemsTotal = parsed.reduce((n, l) => n + (l.ok ? l.quantity * (l.price as number) : 0), 0);
+  // Tax starts at 8.9% of the items (nothing at tax-exempt vendors) and follows the items total
+  // until someone types their own amount.
+  const defaultTaxCents = isTaxExempt(group.profile) ? 0 : Math.round(itemsTotal * TAX_RATE);
+  const taxText = tax ?? dollars(defaultTaxCents);
+  const taxCents = parseDollars(taxText) ?? 0;
   const feesOk = !Number.isNaN(shippingCents) && !Number.isNaN(taxCents);
   const valid = parsed.every((l) => l.ok) && feesOk;
-  const itemsTotal = parsed.reduce((n, l) => n + (l.ok ? l.quantity * (l.price as number) : 0), 0);
   const charges = valid
     ? chargesByCategory(
         parsed.map((l) => ({
@@ -165,6 +219,26 @@ function VendorOrder({ group, onPlaced }: { group: Group; onPlaced: (message: st
       return next;
     });
   const allSelected = selected.size === group.items.length;
+
+  /** Takes a line off the order list by cancelling the request (the requester sees why). */
+  async function trash(r: OrderRequest) {
+    const reason = window.prompt(
+      `Remove “${r.title}” and cancel ${r.requesterName}'s request? Say why (shown to them):`,
+    );
+    if (reason === null) return;
+    setError(null);
+    const res = await api.requests[":id"][":action"].$post({
+      param: { id: String(r.id), action: "cancel" },
+      json: { note: reason.trim() || null },
+    });
+    if (!res.ok) return setError(await getErrorMessage(res));
+    setSelected((s) => {
+      const next = new Set(s);
+      next.delete(r.id);
+      return next;
+    });
+    onRemoved(`Removed “${r.title}” (request cancelled).`);
+  }
 
   async function place() {
     if (!valid) {
@@ -207,6 +281,35 @@ function VendorOrder({ group, onPlaced }: { group: Group; onPlaced: (message: st
     );
   }
 
+  /** Builds the cart at Share-A-Cart (lines and quantities as on screen) and opens it. */
+  async function openShareACart() {
+    // Open the tab now, while this still counts as the click; browsers block it after the await.
+    const tab = window.open("", "_blank");
+    setSacBusy(true);
+    setError(null);
+    const res = await api["share-a-cart"].carts.$post({
+      json: {
+        vendor: group.vendor,
+        lines: parsed.map((l) => ({
+          requestId: l.r.id,
+          quantity: Number.isInteger(l.quantity) && l.quantity > 0 ? l.quantity : l.r.quantity,
+        })),
+      },
+    });
+    setSacBusy(false);
+    if (!res.ok) {
+      tab?.close();
+      return setError(await getErrorMessage(res));
+    }
+    const body = await res.json();
+    setSacLink(body.url);
+    if (tab) tab.location.href = body.url;
+    else window.open(body.url, "_blank");
+    if (body.skipped.length > 0) {
+      setError(`Left out (no store item number): ${body.skipped.join(", ")}. Add those by hand.`);
+    }
+  }
+
   async function copyList() {
     const text = group.items
       .map((r) => {
@@ -233,26 +336,85 @@ function VendorOrder({ group, onPlaced }: { group: Group; onPlaced: (message: st
   return (
     <section className="bg-white border border-secondary-200 rounded-xl overflow-hidden">
       <header className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 bg-secondary-50 border-b border-secondary-200">
-        <h2 className="font-semibold text-secondary-900">{group.vendor}</h2>
+        <h2
+          className="min-w-0 max-w-full truncate font-semibold text-secondary-900"
+          title={group.vendor}
+        >
+          {group.vendor}
+        </h2>
         {group.placeToday && (
           <span className="rounded-full border border-primary-300 bg-primary-50 px-2 py-0.5 text-xs font-semibold text-primary-700">
             ⛔ Place today
           </span>
         )}
-        <p className="text-sm text-secondary-600">
+        <p className="text-sm text-secondary-600 whitespace-nowrap">
           {group.items.length} {group.items.length === 1 ? "item" : "items"}
           {selected.size > 0 && ` · ${selected.size} selected`}
         </p>
-        <Button variant="secondary" onClick={copyList} className="ml-auto !py-1.5">
-          {copied ? "Copied ✓" : "Copy list"}
-        </Button>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          {cart.links.map((link) => (
+            <a
+              key={link.href}
+              href={link.href}
+              target="_blank"
+              rel="noreferrer"
+              title={
+                cart.manual > 0
+                  ? `${cart.manual} item(s) can't be added automatically; add those by hand.`
+                  : "Opens the store with these items and quantities in the cart"
+              }
+              className="rounded-lg bg-primary-500 px-3 py-1.5 text-sm font-semibold text-white hover:bg-primary-600"
+            >
+              🛒 Add {link.count} to {link.label} ↗
+            </a>
+          ))}
+          {shareACart &&
+            (shareACart.connected ? (
+              <Button className="!py-1.5" disabled={sacBusy} onClick={openShareACart}>
+                {sacBusy ? "Building cart…" : "🛒 Share-A-Cart ↗"}
+              </Button>
+            ) : (
+              <Link to="/settings" className="text-xs underline text-secondary-500">
+                Connect Share-A-Cart for one-click carts
+              </Link>
+            ))}
+          {sacLink && (
+            <a
+              href={sacLink}
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs underline text-primary-600"
+            >
+              Open cart again
+            </a>
+          )}
+          {!shareACart && cart.links.length > 0 && cart.manual > 0 && (
+            <span className="text-xs text-secondary-500">+{cart.manual} by hand</span>
+          )}
+          <Button variant="secondary" onClick={copyList} className="!py-1.5">
+            {copied ? "Copied ✓" : "Copy list"}
+          </Button>
+        </div>
       </header>
       <Nudges vendor={group.profile} itemsTotal={itemsTotal} />
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        {/* Fixed column widths: long names wrap inside their column instead of squeezing the
+            others; on narrow screens the table scrolls sideways. */}
+        <table className="w-full min-w-[55rem] table-fixed text-sm">
+          <colgroup>
+            <col className="w-10" />
+            <col className="w-20" />
+            <col />
+            <col className="w-32" />
+            <col className="w-28" />
+            <col className="w-24" />
+            <col className="w-40" />
+            <col className="w-28" />
+            <col className="w-10" />
+          </colgroup>
           <thead>
-            <tr className="text-left text-xs text-secondary-500 border-b border-secondary-100">
-              <th className="py-2 pl-4 pr-2 w-8">
+            <tr className="text-xs text-secondary-500 border-b border-secondary-100">
+              <th className="py-2 pl-4 pr-2 text-left">
                 <input
                   type="checkbox"
                   checked={allSelected}
@@ -262,13 +424,16 @@ function VendorOrder({ group, onPlaced }: { group: Group; onPlaced: (message: st
                   aria-label="Select all"
                 />
               </th>
-              <th className="py-2 pr-3 font-semibold w-20">Qty</th>
-              <th className="py-2 pr-3 font-semibold">Item</th>
-              <th className="py-2 pr-3 font-semibold">SKU</th>
-              <th className="py-2 pr-3 font-semibold w-28">Each $</th>
+              <th className="py-2 pr-3 font-semibold text-left">Qty</th>
+              <th className="py-2 pr-3 font-semibold text-left">Item</th>
+              <th className="py-2 pr-3 font-semibold text-left">SKU</th>
+              <th className="py-2 pr-3 font-semibold text-left">Each $</th>
               <th className="py-2 pr-3 font-semibold text-right">Total</th>
-              <th className="py-2 pr-3 font-semibold">Budget</th>
-              <th className="py-2 pr-4 font-semibold">For</th>
+              <th className="py-2 pr-3 font-semibold text-left">Budget</th>
+              <th className="py-2 pr-4 font-semibold text-left">For</th>
+              <th className="py-2 pr-3">
+                <span className="sr-only">Remove</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -302,21 +467,29 @@ function VendorOrder({ group, onPlaced }: { group: Group; onPlaced: (message: st
                       aria-label={`${r.title} quantity`}
                     />
                   </td>
-                  <td className="py-1.5 pr-3 max-w-md">
+                  <td className="py-1.5 pr-3">
                     {r.url ? (
                       <a
                         href={r.url}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-secondary-900 hover:text-primary-500 font-medium"
+                        title={r.title}
+                        className="line-clamp-2 break-words text-secondary-900 hover:text-primary-500 font-medium"
                       >
                         {r.title} ↗
                       </a>
                     ) : (
-                      <span className="text-secondary-900 font-medium">{r.title}</span>
+                      <span
+                        title={r.title}
+                        className="line-clamp-2 break-words text-secondary-900 font-medium"
+                      >
+                        {r.title}
+                      </span>
                     )}
                     {r.variant && (
-                      <span className="block text-xs text-secondary-500">{r.variant}</span>
+                      <span className="block truncate text-xs text-secondary-500" title={r.variant}>
+                        {r.variant}
+                      </span>
                     )}
                     {(r.priority !== "normal" || r.needBy !== null) && (
                       <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-secondary-500">
@@ -330,8 +503,8 @@ function VendorOrder({ group, onPlaced }: { group: Group; onPlaced: (message: st
                       <button
                         type="button"
                         onClick={() => navigator.clipboard.writeText(r.sku ?? "")}
-                        className="font-mono text-xs text-secondary-700 hover:text-primary-500"
-                        title="Copy SKU"
+                        className="block max-w-full truncate font-mono text-xs text-secondary-700 hover:text-primary-500"
+                        title={`Copy ${r.sku}`}
                       >
                         {r.sku}
                       </button>
@@ -352,13 +525,30 @@ function VendorOrder({ group, onPlaced }: { group: Group; onPlaced: (message: st
                   <td className="py-1.5 pr-3 text-right tabular-nums">
                     {formatCents(line, r.currency)}
                   </td>
-                  <td className="py-1.5 pr-3 text-secondary-600 whitespace-nowrap">
-                    {r.categoryName}
+                  <td className="py-1.5 pr-3 text-secondary-600">
+                    <span className="block truncate" title={r.categoryName}>
+                      {r.categoryName}
+                    </span>
                   </td>
-                  <td className="py-1.5 pr-4 text-secondary-600 whitespace-nowrap">
-                    <Link to={`/requests/${r.id}`} className="hover:text-primary-500">
+                  <td className="py-1.5 pr-4 text-secondary-600">
+                    <Link
+                      to={`/requests/${r.id}`}
+                      title={r.requesterName}
+                      className="block truncate hover:text-primary-500"
+                    >
                       {r.requesterName}
                     </Link>
+                  </td>
+                  <td className="py-1.5 pr-3 text-right">
+                    <button
+                      type="button"
+                      onClick={() => trash(r)}
+                      className="rounded px-1.5 py-1 text-secondary-400 hover:bg-primary-50 hover:text-primary-600"
+                      title="Remove from the order (cancels the request)"
+                      aria-label={`Remove ${r.title}`}
+                    >
+                      🗑
+                    </button>
                   </td>
                 </tr>
               );
@@ -389,9 +579,14 @@ function VendorOrder({ group, onPlaced }: { group: Group; onPlaced: (message: st
             <input
               className={`${small} !w-24`}
               inputMode="decimal"
-              value={tax}
+              value={taxText}
               onChange={(e) => setTax(e.target.value)}
               placeholder="0.00"
+              title={
+                isTaxExempt(group.profile)
+                  ? "Tax exempt: starts at $0"
+                  : "Starts at 8.9% of the items; type to change it"
+              }
             />
           </label>
           <label className="space-y-1">

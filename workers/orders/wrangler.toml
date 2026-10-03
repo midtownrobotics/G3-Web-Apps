@@ -19,6 +19,8 @@ migrations_dir = "src/db/migrations"
 
 [vars]
 FRONTEND_URL = "http://localhost:5184"
+# How the browser reaches this worker (through the app's /api proxy in dev); used for OAuth callbacks.
+PUBLIC_API_URL = "http://localhost:5184/api"
 # Optional secrets (.dev.vars locally, `wrangler secret put` in prod):
 #   SLACK_BOT_TOKEN: DMs requesters when a mentor approves; without it nothing is sent.
 
@@ -46,3 +48,4 @@ custom_domain = true
 
 [env.production.vars]
 FRONTEND_URL = "https://orders.g3robotics.com"
+PUBLIC_API_URL = "https://api.orders.g3robotics.com"

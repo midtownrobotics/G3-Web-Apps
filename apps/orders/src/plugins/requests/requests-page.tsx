@@ -1,13 +1,15 @@
-import { Link, useSearchParams } from "react-router-dom";
+import { type FormEvent, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api, getErrorMessage } from "../../shared/api";
 import { Deadline } from "../../shared/deadline";
 import { formatCents, formatDate } from "../../shared/format";
 import { PriorityBadge } from "../../shared/priority";
 import { STATUS, StatusBadge } from "../../shared/status-badge";
 import type { OrderRequest, RequestStatus } from "../../shared/types";
-import { Card, ErrorBanner, Loading, Page } from "../../shared/ui";
+import { Button, Card, ErrorBanner, Loading, Page, inputClass } from "../../shared/ui";
 import { useLoad } from "../../shared/use-load";
 import { useVendors } from "../../shared/vendors";
+import { ReplaceItem } from "./replace-item";
 import { RequestActions } from "./request-actions";
 
 const FILTERS: (RequestStatus | "all")[] = [
@@ -49,6 +51,7 @@ export function RequestsPage() {
 
   return (
     <Page title="Requests">
+      <QuickAdd />
       <div className="flex flex-wrap items-center gap-2">
         {FILTERS.map((f) => (
           <button
@@ -162,8 +165,24 @@ export function RequestList({
                 {showActions && (
                   <>
                     <p className="text-sm text-secondary-700 line-clamp-3">“{r.reason}”</p>
-                    <div className="pt-1">
-                      <RequestActions request={r} onChanged={onChanged} compact />
+                    <div className="pt-1 space-y-2">
+                      <div className="flex flex-wrap gap-2">
+                        {r.url && (
+                          <a
+                            href={r.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 rounded-lg border border-secondary-300 bg-white px-3.5 py-2 text-sm font-semibold text-secondary-800 hover:bg-secondary-50"
+                          >
+                            Open link ↗
+                          </a>
+                        )}
+                        {r.status === "requested" && (
+                          <ReplaceItem request={r} onReplaced={onChanged} />
+                        )}
+                      </div>
+                      {/* Keyed by the last edit so a replaced item's quantity and price show here. */}
+                      <RequestActions key={r.updatedAt} request={r} onChanged={onChanged} compact />
                     </div>
                   </>
                 )}
@@ -173,5 +192,29 @@ export function RequestList({
         );
       })}
     </div>
+  );
+}
+
+/** Paste a link (or several) here to start requesting it; New Request looks it up right away. */
+function QuickAdd() {
+  const navigate = useNavigate();
+  const [value, setValue] = useState("");
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    if (value.trim()) navigate(`/new?urls=${encodeURIComponent(value.trim())}`);
+  };
+  return (
+    <form onSubmit={submit} className="flex gap-2">
+      <input
+        className={inputClass}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder="Paste a product link to request it…"
+        aria-label="Quick add a product link"
+      />
+      <Button type="submit" className="shrink-0" disabled={!value.trim()}>
+        Request
+      </Button>
+    </form>
   );
 }

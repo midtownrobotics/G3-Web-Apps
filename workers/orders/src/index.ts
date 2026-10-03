@@ -1,10 +1,14 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { requireAuth } from "./middleware/auth";
+import { canEditCatalog, requireAuth } from "./middleware/auth";
+import { catalogRouter } from "./routes/catalog";
 import { categoriesRouter } from "./routes/categories";
+import { categoryRulesRouter, settingsRouter, suggestRouter } from "./routes/fast-entry";
 import { lookupRouter } from "./routes/lookup";
 import { ordersRouter } from "./routes/orders";
 import { requestsRouter } from "./routes/requests";
+import { shareACartRouter } from "./routes/share-a-cart";
+import { trustedRouter } from "./routes/trusted";
 import { vendorsRouter } from "./routes/vendors";
 import type { AppEnv } from "./types";
 
@@ -33,18 +37,32 @@ base.use(
 
 const app = base
   .get("/health", (c) => c.json({ status: "ok", service: "orders", version: "v0.1.0" }))
-  .get("/me", requireAuth, (c) =>
-    c.json({
+  .get("/me", requireAuth, async (c) => {
+    // Remembered so mentors can find people to mark trusted on the Settings page.
+    await c.env.ORDERS_DB.prepare(
+      `INSERT INTO app_users (id, name, last_seen_at) VALUES (?1, ?2, ?3)
+       ON CONFLICT (id) DO UPDATE SET name = ?2, last_seen_at = ?3`,
+    )
+      .bind(c.get("userId"), c.get("userDisplayName"), Date.now())
+      .run();
+    return c.json({
       userId: c.get("userId"),
       displayName: c.get("userDisplayName"),
       isMentor: c.get("userIsMentor"),
-    }),
-  )
+      canEditCatalog: await canEditCatalog(c),
+    });
+  })
   .route("/lookup", lookupRouter)
   .route("/categories", categoriesRouter)
   .route("/requests", requestsRouter)
   .route("/orders", ordersRouter)
-  .route("/vendors", vendorsRouter);
+  .route("/vendors", vendorsRouter)
+  .route("/settings", settingsRouter)
+  .route("/category-rules", categoryRulesRouter)
+  .route("/suggest", suggestRouter)
+  .route("/share-a-cart", shareACartRouter)
+  .route("/catalog", catalogRouter)
+  .route("/trusted", trustedRouter);
 
 export type OrdersApp = typeof app;
 export type { ImportSummary } from "./lib/sheet-import";
