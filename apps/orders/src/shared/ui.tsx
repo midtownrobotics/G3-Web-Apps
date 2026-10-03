@@ -14,7 +14,7 @@ export function Page({
   children,
 }: { title: string; actions?: ReactNode; children: ReactNode }) {
   return (
-    <main className="min-h-[calc(100vh-3.5rem)] bg-secondary-50">
+    <main className="flex-1 bg-secondary-50">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-5">
         <div className="flex items-end justify-between gap-4">
           <h1 className="text-4xl text-secondary-900">{title}</h1>

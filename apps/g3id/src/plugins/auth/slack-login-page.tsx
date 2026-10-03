@@ -127,7 +127,7 @@ export function SlackLoginPage() {
     <main className="flex-1 flex items-center justify-center px-4">
       <div className="w-full max-w-sm space-y-6 text-center">
         <div>
-          <h1 className="text-5xl font-bold text-white">
+          <h1 className="text-5xl font-bold text-secondary-900">
             <span className="text-primary-500">G3</span>ID
           </h1>
         </div>
@@ -137,7 +137,7 @@ export function SlackLoginPage() {
             <div className="space-y-4">
               {botInfo && (
                 <div className="space-y-2">
-                  <p className="text-sm text-gray-200">
+                  <p className="text-sm text-secondary-700">
                     EASIEST: Click to copy the code and open the Slack DM:
                   </p>
                   <button
@@ -152,18 +152,18 @@ export function SlackLoginPage() {
               )}
 
               <div className="space-y-2">
-                <p className="text-sm text-gray-200">
+                <p className="text-sm text-secondary-700">
                   Or DM this code to the {""}
-                  <span className="text-primary-400 font-medium">"G3 Bot"</span> user:
+                  <span className="text-primary-500 font-medium">"G3 Bot"</span> user:
                 </p>
-                <div className="bg-secondary-700 border border-secondary-600 rounded-xl px-6 py-4 flex items-center justify-center gap-3">
-                  <p className="text-5xl font-mono font-bold text-white tracking-widest">
+                <div className="bg-white border border-secondary-200 rounded-xl px-6 py-4 flex items-center justify-center gap-3">
+                  <p className="text-5xl font-mono font-bold text-secondary-900 tracking-widest">
                     {formattedCode}
                   </p>
                   <button
                     type="button"
                     onClick={handleCopyCode}
-                    className="p-2 rounded-lg hover:bg-secondary-600 transition-colors text-secondary-300 hover:text-primary-400 shrink-0"
+                    className="p-2 rounded-lg hover:bg-secondary-50 transition-colors text-secondary-500 hover:text-primary-600 shrink-0"
                     title={copiedCode ? "Copied!" : "Copy code"}
                   >
                     {copiedCode ? <Check size={24} /> : <Copy size={24} />}
@@ -172,15 +172,15 @@ export function SlackLoginPage() {
               </div>
 
               <div className="space-y-2">
-                <p className="text-sm text-gray-200">Or run this command in any channel:</p>
-                <div className="bg-secondary-700 border border-secondary-600 rounded-xl px-6 py-4 flex items-center justify-center gap-3">
-                  <p className="font-mono text-3xl font-bold text-primary-400 tracking-wide">
+                <p className="text-sm text-secondary-700">Or run this command in any channel:</p>
+                <div className="bg-white border border-secondary-200 rounded-xl px-6 py-4 flex items-center justify-center gap-3">
+                  <p className="font-mono text-3xl font-bold text-primary-500 tracking-wide">
                     /signin {formattedCode}
                   </p>
                   <button
                     type="button"
                     onClick={handleCopy}
-                    className="p-2 rounded-lg hover:bg-secondary-600 transition-colors text-secondary-300 hover:text-primary-400 shrink-0"
+                    className="p-2 rounded-lg hover:bg-secondary-50 transition-colors text-secondary-500 hover:text-primary-600 shrink-0"
                     title={copied ? "Copied!" : "Copy command"}
                   >
                     {copied ? <Check size={24} /> : <Copy size={24} />}
@@ -189,7 +189,7 @@ export function SlackLoginPage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-center gap-2 text-sm text-secondary-300 mb-2">
+            <div className="flex items-center justify-center gap-2 text-sm text-secondary-500 mb-2">
               <Loader2 size={16} className="animate-spin" />
               Waiting for Slack confirmation…
             </div>
@@ -198,7 +198,7 @@ export function SlackLoginPage() {
 
         {isTerminal && (
           <div className="space-y-4">
-            <p className="text-sm text-primary-400">
+            <p className="text-sm text-primary-500">
               {pollStatus.status === "expired" ? "This code has expired." : pollStatus.message}
             </p>
             <button
@@ -215,7 +215,7 @@ export function SlackLoginPage() {
           <button
             type="button"
             onClick={handleCancel}
-            className="text-sm text-secondary-300 hover:text-primary-400 transition-colors"
+            className="text-sm text-secondary-500 hover:text-primary-600 transition-colors"
           >
             ← Go back
           </button>

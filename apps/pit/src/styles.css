@@ -3,6 +3,6 @@
 
 html,
 body {
-  background-color: #111827;
+  background-color: var(--color-gray-100);
   overscroll-behavior: none;
 }

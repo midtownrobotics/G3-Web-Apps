@@ -1,113 +1,93 @@
 import { useEffect, useState } from "react";
 import type { IconType } from "react-icons";
-import {
-  FaChartLine,
-  FaGithub,
-  FaHardHat,
-  FaInstagram,
-  FaNetworkWired,
-  FaRobot,
-  FaShoppingCart,
-  FaSlack,
-  FaToolbox,
-  FaTrophy,
-  FaUserShield,
-} from "react-icons/fa";
-import { LuGitBranch } from "react-icons/lu";
+import { FaChartLine, FaGithub, FaInstagram, FaSlack, FaTrophy } from "react-icons/fa";
+import edgeIcon from "../../assets/app-icons/edge.svg";
+import idIcon from "../../assets/app-icons/id.svg";
+import ordersIcon from "../../assets/app-icons/orders.svg";
+import pitIcon from "../../assets/app-icons/pit.svg";
+import scoutingIcon from "../../assets/app-icons/scouting.svg";
+import shopIcon from "../../assets/app-icons/shop.svg";
+import skillsIcon from "../../assets/app-icons/skills.svg";
 import g3Logo from "../../assets/g3.png";
 import { g3id } from "../../lib/api";
 
+// G3 apps show their own app icon. Other links are drawn to match it: a black tile with a white
+// symbol, and a burgundy ↗ for sites outside G3. (`bg-black` isn't touched by dark mode.)
 type App = {
   label: string;
   href: string;
-  icon?: IconType;
-  bg: string;
   external?: boolean;
-  logoSrc?: string;
-};
+} & ({ tile: string } | { icon?: IconType; logoSrc?: string });
 
 const APPS: App[] = [
   {
     label: "G3ID",
     href: "https://g3id.g3robotics.com",
-    icon: FaUserShield,
-    bg: "bg-red-600",
+    tile: idIcon,
   },
   {
     label: "Shop",
     href: "https://shop.g3robotics.com",
-    icon: FaToolbox,
-    bg: "bg-orange-600",
+    tile: shopIcon,
   },
   {
     label: "Pit",
     href: "https://pit.g3robotics.com",
-    icon: FaHardHat,
-    bg: "bg-yellow-600",
+    tile: pitIcon,
   },
   {
     label: "Skill Tree",
     href: "https://skilltree.g3robotics.com",
-    icon: LuGitBranch,
-    bg: "bg-amber-900",
+    tile: skillsIcon,
   },
   {
     label: "Strategy",
     href: "https://scouting.g3robotics.com",
-    icon: FaRobot,
-    bg: "bg-slate-900",
+    tile: scoutingIcon,
   },
   {
     label: "Orders",
     href: "https://orders.g3robotics.com",
-    icon: FaShoppingCart,
-    bg: "bg-emerald-600",
+    tile: ordersIcon,
   },
   {
     label: "Edge",
     href: "https://edge.g3robotics.com",
-    icon: FaNetworkWired,
-    bg: "bg-cyan-600",
+    tile: edgeIcon,
   },
   {
     label: "Public Site",
     href: "https://www.g3robotics.com",
-    bg: "bg-neutral-800",
     logoSrc: g3Logo,
   },
   {
     label: "Slack",
     href: "https://g3robotics.slack.com",
     icon: FaSlack,
-    bg: "bg-[#4A154B]",
     external: true,
   },
   {
     label: "The Blue Alliance",
     href: "https://www.thebluealliance.com/team/1648",
     icon: FaTrophy,
-    bg: "bg-blue-600",
     external: true,
   },
   {
     label: "Statbotics",
     href: "https://www.statbotics.io/team/1648",
     icon: FaChartLine,
-    bg: "bg-purple-400",
     external: true,
   },
   {
     label: "GitHub",
     href: "https://github.com/midtownrobotics",
     icon: FaGithub,
-    bg: "bg-gray-700",
     external: true,
   },
   {
     label: "Instagram",
     href: "https://www.instagram.com/g3robotics1648/",
     icon: FaInstagram,
-    bg: "bg-gradient-to-br from-yellow-400 via-pink-500 to-purple-600",
     external: true,
   },
 ];
@@ -194,17 +174,31 @@ export function HomePage() {
                 rel={app.external ? "noopener noreferrer" : undefined}
                 className="flex flex-col items-center gap-2 group"
               >
-                <div
-                  className={`w-16 h-16 rounded-2xl ${app.bg} flex items-center justify-center shadow-lg transition-transform duration-150 group-hover:scale-110`}
-                >
-                  {app.logoSrc ? (
-                    <img src={app.logoSrc} alt={app.label} className="w-10 h-10 object-contain" />
-                  ) : app.icon ? (
-                    <span className="text-white text-3xl">
-                      <app.icon />
-                    </span>
-                  ) : null}
-                </div>
+                {"tile" in app ? (
+                  <img
+                    src={app.tile}
+                    alt=""
+                    className="w-16 h-16 shadow-lg rounded-[14px] transition-transform duration-150 group-hover:scale-110"
+                  />
+                ) : (
+                  <div className="relative w-16 h-16 rounded-[14px] bg-black flex items-center justify-center shadow-lg transition-transform duration-150 group-hover:scale-110">
+                    {app.logoSrc ? (
+                      <img src={app.logoSrc} alt="" className="w-11 h-11 object-contain" />
+                    ) : app.icon ? (
+                      <span className="text-white text-[34px]">
+                        <app.icon />
+                      </span>
+                    ) : null}
+                    {app.external && (
+                      <span
+                        className="absolute top-1.5 right-2 text-[11px] font-bold leading-none text-[#A32035]"
+                        aria-hidden
+                      >
+                        ↗
+                      </span>
+                    )}
+                  </div>
+                )}
                 <span className="text-xs text-center leading-tight transition-colors text-gray-600 group-hover:text-gray-900">
                   {app.label}
                 </span>
