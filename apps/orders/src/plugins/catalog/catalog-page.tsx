@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { api, getErrorMessage } from "../../shared/api";
 import { useAuthUser } from "../../shared/auth";
 import { formatCents } from "../../shared/format";
@@ -42,6 +42,14 @@ export function CatalogPage() {
   const [adding, setAdding] = useState(false);
   const [newCategory, setNewCategory] = useState(false);
   const { canEditCatalog } = useAuthUser();
+  // Opened from a list (?list=…): parts requested from here go on it.
+  const [params] = useSearchParams();
+  const fromList = useLoad(async () => {
+    const id = params.get("list");
+    if (!id) return null;
+    const res = await api.lists[":id"].$get({ param: { id } });
+    return res.ok ? res.json() : null;
+  }, [params.get("list")]);
 
   // Back to the first page of results whenever the search changes.
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset on these changes only
@@ -98,7 +106,7 @@ export function CatalogPage() {
 
   return (
     <Page
-      title="Catalogue"
+      title="Catalog"
       actions={
         canEditCatalog && (
           <div className="flex gap-2">
@@ -112,6 +120,14 @@ export function CatalogPage() {
         )
       }
     >
+      {fromList.data && (
+        <p className="text-sm text-sky-900 bg-sky-50 border border-sky-200 rounded-lg px-4 py-2.5">
+          Parts you request from here go on <strong>{fromList.data.name}</strong>.{" "}
+          <Link to={`/lists/${fromList.data.id}`} className="underline">
+            Back to the list
+          </Link>
+        </p>
+      )}
       {error && <ErrorBanner message={error} />}
       {newCategory && (
         <NewCategory
@@ -137,7 +153,7 @@ export function CatalogPage() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder='Search parts: "1/2 hex bearing", "10-32 button head 3/4", "WCP-0320", "neo"…'
-          aria-label="Search the catalogue"
+          aria-label="Search the catalog"
           // biome-ignore lint/a11y/noAutofocus: the page is for searching
           autoFocus
         />
@@ -381,6 +397,8 @@ function ItemRow({
 }) {
   const [editing, setEditing] = useState(false);
   const { canEditCatalog } = useAuthUser();
+  const [params] = useSearchParams();
+  const listId = params.get("list");
   if (editing) {
     return (
       <li className="py-2">
@@ -439,7 +457,7 @@ function ItemRow({
         </button>
       )}
       <Link
-        to={`/new?catalog=${item.id}`}
+        to={`/new?catalog=${item.id}${listId ? `&list=${listId}` : ""}`}
         className="rounded-lg bg-primary-500 px-3 py-1 text-sm font-semibold text-white hover:bg-primary-600"
       >
         Request
@@ -448,7 +466,7 @@ function ItemRow({
   );
 }
 
-/** A new catalogue category (mentors and trusted students). */
+/** A new catalog category (mentors and trusted students). */
 function NewCategory({ onDone }: { onDone: (name: string | null) => void }) {
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);

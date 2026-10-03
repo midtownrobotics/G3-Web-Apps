@@ -36,7 +36,7 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
               </span>
             )}
             {groupItems.map((item) => (
-              <NavLink key={item.to} to={item.to} end className={linkClass}>
+              <NavLink key={item.to} to={item.to} className={linkClass}>
                 {item.label}
               </NavLink>
             ))}

@@ -5,12 +5,14 @@ import { type OrdersDb, createOrdersDb } from "../db";
 import {
   appSettings,
   budgetCategories,
+  catalogCategories,
   catalogItems,
   categoryRules,
   orderRequests,
   vendors,
 } from "../db/schema";
 import { productKey } from "../lib/catalog";
+import { guessCatalogCategory, matchesKeyword } from "../lib/category-guess";
 import { DEFAULT_TEMPLATE, applyTemplate } from "../lib/naming";
 import { vendorKey, vendorName } from "../lib/vendors";
 import { requireAuth, requireMentor } from "../middleware/auth";
@@ -119,17 +121,11 @@ const suggestValidator = validator("json", (value, c): SuggestInput => {
   };
 });
 
-/** "bolt" matches "Bolt", "bolts" and "hex bolt", not "Boltzmann": a whole word, plural allowed. */
-const matchesKeyword = (text: string, keyword: string) =>
-  new RegExp(
-    `(^|[^a-z0-9])${keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:e?s)?(?![a-z0-9])`,
-    "i",
-  ).test(text);
-
 /**
  * POST /suggest: for a product being requested, the name the team template gives it, a budget
- * category guess (last purchase of this product → the vendor's default → keyword rules), and
- * past requests for the same link or SKU.
+ * category guess (last purchase of this product → the vendor's default → keyword rules), the
+ * catalog category (the catalog's own, or a guess from built-in keywords for a part new to it),
+ * and past requests for the same link or SKU.
  */
 export const suggestRouter = new Hono<AppEnv>().post(
   "/",
@@ -185,6 +181,15 @@ export const suggestRouter = new Hono<AppEnv>().post(
           )
           .get()
       : undefined;
+    // A part new to the catalog gets a category guessed from its name; the requester checks it.
+    const catalogCategoryGuess = inCatalog
+      ? null
+      : guessCatalogCategory(
+          input.title,
+          (await db.select({ name: catalogCategories.name }).from(catalogCategories).all()).map(
+            (r) => r.name,
+          ),
+        );
     const vendor = vendorKey(input.vendor);
     const sku = input.sku?.toLowerCase();
     const history = past
@@ -237,6 +242,7 @@ export const suggestRouter = new Hono<AppEnv>().post(
 
     return c.json({
       catalogCategory: inCatalog?.category ?? null,
+      catalogCategoryGuess,
       name: applyTemplate(template, input),
       vendor: input.vendor,
       category,

@@ -36,7 +36,7 @@ export function normalize(text: string): string {
 }
 
 /** Words of normalized text: hyphenated ones (10-32, wcp-2073) also as their parts. */
-function tokenize(text: string): string[] {
+export function tokenize(text: string): string[] {
   const words = normalize(text)
     .split(/[\s,;:()[\]{}"'#|+/*]+/)
     .map((w) => w.replace(/^[-.]+|[-.]+$/g, ""))
@@ -49,9 +49,9 @@ function tokenize(text: string): string[] {
   return out;
 }
 
-const isNumber = (term: string) => /^\d*\.?\d+$/.test(term);
+export const isNumber = (term: string) => /^\d*\.?\d+$/.test(term);
 
-function processTerm(term: string): string | null {
+export function processTerm(term: string): string | null {
   if (STOP_WORDS.has(term)) return null;
   // 0.500 and 0.5 are the same size.
   return isNumber(term) ? decimal(Number(term)) : term;

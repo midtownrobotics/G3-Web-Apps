@@ -97,7 +97,7 @@ const nameValidator = validator("json", (value, c): { name: string } => {
   return { name };
 });
 
-const NO_CATEGORY = { error: "Pick one of the catalogue's categories." };
+const NO_CATEGORY = { error: "Pick one of the catalog's categories." };
 
 /** The catalog's categories, A–Z. */
 async function categoryNames(db: OrdersDb) {
@@ -214,7 +214,7 @@ export const catalogRouter = new Hono<AppEnv>()
       .where(eq(catalogItems.id, id))
       .returning(itemColumns)
       .get();
-    if (!row) return c.json({ error: "Catalogue part not found." }, 404);
+    if (!row) return c.json({ error: "Catalog part not found." }, 404);
     return c.json(parsed(row));
   })
   /** Deleting an item keeps the requests for it (they just stop pointing at the catalog). */
@@ -228,6 +228,6 @@ export const catalogRouter = new Hono<AppEnv>()
         .where(eq(orderRequests.catalogItemId, id)),
       db.delete(catalogItems).where(eq(catalogItems.id, id)).returning({ id: catalogItems.id }),
     ]);
-    if (deleted.length === 0) return c.json({ error: "Catalogue part not found." }, 404);
+    if (deleted.length === 0) return c.json({ error: "Catalog part not found." }, 404);
     return c.json({ ok: true });
   });

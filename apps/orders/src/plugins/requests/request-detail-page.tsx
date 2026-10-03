@@ -16,6 +16,7 @@ import type { Priority, RequestDetail, RequestStatus } from "../../shared/types"
 import { Button, Card, ErrorBanner, Field, Loading, Page, inputClass } from "../../shared/ui";
 import { useLoad } from "../../shared/use-load";
 import { useVendors } from "../../shared/vendors";
+import { RequestLists } from "../lists/request-lists";
 import { RequestActions } from "./request-actions";
 
 const EVENT_LABELS: Record<string, string> = {
@@ -125,6 +126,8 @@ export function RequestDetailPage() {
           )}
         </div>
       </Card>
+
+      <RequestLists requestId={r.id} />
 
       {editing && (
         <EditForm

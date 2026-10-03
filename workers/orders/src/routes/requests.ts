@@ -10,9 +10,11 @@ import {
   type RequestStatus,
   budgetCategories,
   orderRequests,
+  partLists,
   requestEvents,
 } from "../db/schema";
 import { type CatalogChoice, catalogItemFor } from "../lib/catalog";
+import { addToList } from "../lib/lists";
 import { formatCents } from "../lib/money";
 import { vendorName } from "../lib/vendors";
 import { requireAuth } from "../middleware/auth";
@@ -43,10 +45,13 @@ const optionalText = (v: unknown, max: number): string | null | false => {
 };
 
 /** Validates a full request (create) or a partial one (edit), plus its catalog choice. */
+/** A new request can go straight onto a list. */
+type ListChoice = { listId?: number | null };
+
 const requestValidator = (partial: boolean) =>
-  validator("json", (value, c): Partial<RequestFields> & CatalogChoice => {
+  validator("json", (value, c): Partial<RequestFields> & CatalogChoice & ListChoice => {
     const v = (value ?? {}) as Record<string, unknown>;
-    const out: Partial<RequestFields> & CatalogChoice = {};
+    const out: Partial<RequestFields> & CatalogChoice & ListChoice = {};
     const fail = (error: string) => c.json({ error }, 400) as never;
     const has = (key: string) => !partial || v[key] !== undefined;
 
@@ -145,11 +150,14 @@ const requestValidator = (partial: boolean) =>
       if (text === false) return fail(`${key} must be text.`);
       out[key] = text;
     }
+    if (!partial && v.listId !== undefined && v.listId !== null) {
+      if (!Number.isInteger(v.listId)) return fail("listId must be a list id.");
+      out.listId = v.listId as number;
+    }
     return out;
   });
 
-const NEEDS_CATALOG_CATEGORY =
-  "This part is new to the catalogue: pick a catalogue category for it.";
+const NEEDS_CATALOG_CATEGORY = "This part is new to the catalog: pick a catalog category for it.";
 
 const listValidator = validator("query", (value, c): { status?: RequestStatus; mine?: "true" } => {
   const status = value.status;
@@ -227,7 +235,7 @@ export function describeChanges(
   return parts.length ? parts.join(", ") : null;
 }
 
-/** Request rows with their category name, newest first. */
+/** Request rows with their category name. */
 function selectRequests(db: OrdersDb) {
   return db
     .select({ request: orderRequests, categoryName: budgetCategories.name })
@@ -283,12 +291,19 @@ export const requestsRouter = new Hono<AppEnv>()
       catalogItemId: picked,
       catalogCategory,
       catalogName,
+      listId,
       ...body
-    } = c.req.valid("json") as RequestFields & CatalogChoice;
+    } = c.req.valid("json") as RequestFields & CatalogChoice & ListChoice;
     const catalog = { catalogItemId: picked, catalogCategory, catalogName };
     const db = createOrdersDb(c.env.ORDERS_DB);
     if (!(await openCategory(db, body.categoryId))) {
       return c.json({ error: "That budget category doesn't exist or is archived." }, 400);
+    }
+    if (
+      listId &&
+      !(await db.select({ id: partLists.id }).from(partLists).where(eq(partLists.id, listId)).get())
+    ) {
+      return c.json({ error: "That list doesn't exist anymore." }, 400);
     }
     // Every submitted link is in the catalog: the picked item, the one with this link, or new.
     const catalogItemId = await catalogItemFor(db, catalog, body, c.get("userDisplayName"));
@@ -316,6 +331,7 @@ export const requestsRouter = new Hono<AppEnv>()
       action: "created",
       createdAt: now,
     });
+    if (listId) await addToList(db, listId, [row.id], c.get("userDisplayName"));
     return c.json(row, 201);
   })
   /** Edit while still awaiting a mentor (including swapping in another item): the requester or any mentor. */

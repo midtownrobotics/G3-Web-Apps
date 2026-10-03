@@ -50,6 +50,14 @@ export function NewRequestPage() {
     if (!res.ok) throw new Error(await getErrorMessage(res));
     return res.json();
   }, []);
+  const lists = useLoad(async () => {
+    const res = await api.lists.$get();
+    if (!res.ok) throw new Error(await getErrorMessage(res));
+    return (await res.json()).filter((l) => !l.isArchived);
+  }, []);
+  // Arriving from a list (?list=…) puts everything submitted here on it.
+  const [listId, setListId] = useState(() => params.get("list") ?? "");
+  const listName = lists.data?.find((l) => String(l.id) === listId)?.name;
 
   const [links, setLinks] = useState("");
   const [drafts, setDrafts] = useState<Draft[]>([]);
@@ -85,7 +93,7 @@ export function NewRequestPage() {
     await addCatalogItems(await res.json());
   }
 
-  /** Rows for catalogue parts: filled from the catalogue (looked up again if the price is old). */
+  /** Rows for catalog parts: filled from the catalog (looked up again if the price is old). */
   async function addCatalogItems(items: CatalogItem[]) {
     setSubmitted(null);
     const rows = items.map((item) => ({
@@ -98,15 +106,15 @@ export function NewRequestPage() {
     );
   }
 
-  // Links handed over from the Requests page's quick-add box (?urls=…) or parts picked in the
-  // Catalog (?catalog=…) are filled in right away.
+  // Links handed over in the address (?urls=…) or parts picked in the Catalog (?catalog=…) are
+  // filled in right away.
   // biome-ignore lint/correctness/useExhaustiveDependencies: run once on arrival
   useEffect(() => {
     const handed = params.get("urls");
     const picked = params.get("catalog");
     if ((!handed && !picked) || started.current) return;
     started.current = true;
-    setParams({}, { replace: true });
+    setParams(listId ? { list: listId } : {}, { replace: true });
     if (handed) void lookUp(handed);
     if (picked) void fromCatalog(picked);
   }, []);
@@ -129,7 +137,9 @@ export function NewRequestPage() {
         failed.push({ ...d, submitError: problem });
         continue;
       }
-      const res = await api.requests.$post({ json: draftFields(d, sharedReason) });
+      const res = await api.requests.$post({
+        json: { ...draftFields(d, sharedReason), listId: listId ? Number(listId) : null },
+      });
       if (res.ok) done++;
       else failed.push({ ...d, submitError: await getErrorMessage(res) });
     }
@@ -137,9 +147,9 @@ export function NewRequestPage() {
     setDrafts([...failed, ...drafts.filter((d) => d.state === "loading")]);
     if (done > 0) {
       setSubmitted(
-        `${done === 1 ? "Your request was" : `${done} requests were`} submitted for review.${
-          failed.length ? ` ${failed.length} still need attention below.` : ""
-        }`,
+        `${done === 1 ? "Your request was" : `${done} requests were`} submitted for review${
+          listName ? ` and added to ${listName}` : ""
+        }.${failed.length ? ` ${failed.length} still need attention below.` : ""}`,
       );
       if (failed.length === 0) setSharedReason("");
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -155,12 +165,24 @@ export function NewRequestPage() {
   const readyCount = drafts.filter((d) => d.state === "ready").length;
 
   return (
-    <Page title="New Request">
+    <Page
+      title="New Request"
+      actions={
+        listName && (
+          <Link
+            to={`/lists/${listId}`}
+            className="text-sm text-secondary-500 hover:text-secondary-800"
+          >
+            ← Back to {listName}
+          </Link>
+        )
+      }
+    >
       {submitted && <SuccessBanner message={submitted} />}
       <div className="space-y-2">
         <CatalogSearch
           onPick={(item) => void addCatalogItems([item])}
-          placeholder='Find a part in the catalogue: "1/2 hex bearing", "WCP-0320"…'
+          placeholder='Find a part in the catalog: "1/2 hex bearing", "WCP-0320"…'
         />
         <textarea
           className={`${inputClass} min-h-20`}
@@ -224,13 +246,30 @@ export function NewRequestPage() {
               <p className="text-xs text-secondary-500">
                 You'll get a Slack DM when a mentor approves each one.
               </p>
-              <Button onClick={submitAll} disabled={busy || readyCount === 0}>
-                {busy
-                  ? "Submitting…"
-                  : readyCount > 1
-                    ? `Submit all ${readyCount}`
-                    : "Submit request"}
-              </Button>
+              <div className="flex items-center gap-2">
+                {(lists.data?.length ?? 0) > 0 && (
+                  <select
+                    className="rounded-lg border border-secondary-300 bg-white px-3 py-2 text-sm text-secondary-700 focus:outline-none focus:border-primary-500"
+                    value={listId}
+                    onChange={(e) => setListId(e.target.value)}
+                    aria-label="List"
+                  >
+                    <option value="">No list</option>
+                    {lists.data?.map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {l.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <Button onClick={submitAll} disabled={busy || readyCount === 0}>
+                  {busy
+                    ? "Submitting…"
+                    : readyCount > 1
+                      ? `Submit all ${readyCount}`
+                      : "Submit request"}
+                </Button>
+              </div>
             </div>
           </div>
         </Card>

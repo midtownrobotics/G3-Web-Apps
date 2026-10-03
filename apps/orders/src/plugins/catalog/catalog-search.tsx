@@ -9,12 +9,12 @@ import { searchIds } from "./search";
 const SHOWN = 8;
 
 /**
- * A small catalogue search: type loosely ("1/2 hex bearing"), pick a part from the best matches.
- * Arrow keys move, Enter picks, Esc closes. Any page can use it; the catalogue loads once.
+ * A small catalog search: type loosely ("1/2 hex bearing"), pick a part from the best matches.
+ * Arrow keys move, Enter picks, Esc closes. Any page can use it; the catalog loads once.
  */
 export function CatalogSearch({
   onPick,
-  placeholder = "Search the catalogue…",
+  placeholder = "Search the catalog…",
   autoFocus = false,
 }: {
   onPick: (item: CatalogItem) => void;
@@ -70,7 +70,7 @@ export function CatalogSearch({
           }
         }}
         placeholder={placeholder}
-        aria-label="Search the catalogue"
+        aria-label="Search the catalog"
         // biome-ignore lint/a11y/noAutofocus: callers turn it on where search is the next step
         autoFocus={autoFocus}
       />
@@ -79,7 +79,7 @@ export function CatalogSearch({
           {catalog.error ? (
             <li className="px-3 py-2 text-sm text-primary-700">{catalog.error}</li>
           ) : !catalog.data ? (
-            <li className="px-3 py-2 text-sm text-secondary-500">Loading the catalogue…</li>
+            <li className="px-3 py-2 text-sm text-secondary-500">Loading the catalog…</li>
           ) : results.length === 0 ? (
             <li className="px-3 py-2 text-sm text-secondary-500">No parts match.</li>
           ) : (

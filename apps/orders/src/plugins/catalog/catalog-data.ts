@@ -8,11 +8,11 @@ export type LoadedCatalog = Omit<CatalogData, "families"> & {
   families: Map<number, CatalogFamily>;
 };
 
-/** How long a loaded catalogue is reused before the next search box fetches it again. */
+/** How long a loaded catalog is reused before the next search box fetches it again. */
 const FRESH_MS = 5 * 60_000;
 let cached: { at: number; promise: Promise<LoadedCatalog> } | null = null;
 
-/** The whole catalogue with its search index, shared by every search box on the page. */
+/** The whole catalog with its search index, shared by every search box on the page. */
 export function loadCatalog(): Promise<LoadedCatalog> {
   if (cached && Date.now() - cached.at < FRESH_MS) return cached.promise;
   const promise = (async () => {
@@ -34,7 +34,7 @@ export function loadCatalog(): Promise<LoadedCatalog> {
   return promise;
 }
 
-/** After the catalogue changes, the next search box loads it fresh. */
+/** After the catalog changes, the next search box loads it fresh. */
 export function invalidateCatalog() {
   cached = null;
 }

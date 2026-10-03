@@ -18,7 +18,7 @@ import {
 
 /**
  * Lets a mentor swap a request's item for another (wrong supplier, wrong part): pick it from the
- * catalogue or paste its link, and it's filled in like a new request, keeping the quantity, budget
+ * catalog or paste its link, and it's filled in like a new request, keeping the quantity, budget
  * category, priority, need-by and reason. Everything can be changed before saving; the request
  * keeps its id and requester.
  */
@@ -200,7 +200,7 @@ function ReplaceDialog({
             {!draft ? (
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1">
-                  <p className="text-sm font-semibold text-secondary-700">From the catalogue</p>
+                  <p className="text-sm font-semibold text-secondary-700">From the catalog</p>
                   <CatalogSearch
                     onPick={fromCatalog}
                     placeholder='e.g. "1/2 hex bearing"'

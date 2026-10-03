@@ -107,14 +107,27 @@ export function Button({
 export function Field({
   label,
   hint,
+  warn = false,
   children,
-}: { label: string; hint?: string; children: ReactNode }) {
+}: {
+  label: string;
+  hint?: string;
+  /** Show the hint as something to check (a guessed value), not just help text. */
+  warn?: boolean;
+  children: ReactNode;
+}) {
   return (
     // biome-ignore lint/a11y/noLabelWithoutControl: the control is passed as children
     <label className="block space-y-1">
       <span className="text-sm font-medium text-secondary-700">{label}</span>
       {children}
-      {hint && <span className="block text-xs text-secondary-500">{hint}</span>}
+      {hint && (
+        <span
+          className={`block text-xs ${warn ? "text-amber-700 font-medium" : "text-secondary-500"}`}
+        >
+          {hint}
+        </span>
+      )}
     </label>
   );
 }
