@@ -1,14 +1,15 @@
-# G3 Web Apps
+# G3 Gearbox
 ### All of the G3 Robotics internal tools created with React, Vite, and Hono then deployed to Cloudflare via Wrangler.
 
 ### The Apps:
 - Main Dashboard
-- G3ID SSO System
+- G3ID SSO System: Google, Github, Slack, and even Steam logins all linking to your team account all in one place.
 - Pit Software
 - Shop Production Tracking Software
-- Skill Tree Software
+- Skill Tree Software: Tracking the skills that our members acquire in their subteams.
 - Strategy and Scouting Software
 - Edge: The connection between hardware in the shop and our Cloudflare setup.
+- Order Software: A heavily [frctools.com](https://orders.frctools.com/) inspired team ordering system with our own twists.
 
 ## Q/A
 

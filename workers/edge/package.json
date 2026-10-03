@@ -5,7 +5,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./print-types": "./src/modules/print/types.ts",
-    "./lookup-types": "./src/modules/lookup/types.ts"
+    "./lookup-types": "./src/modules/lookup/types.ts",
+    "./switch-types": "./src/modules/switch/types.ts"
   },
   "scripts": {
     "dev": "wrangler dev --port 8793 --inspector-port 9235",

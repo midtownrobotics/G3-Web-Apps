@@ -8,6 +8,7 @@ import { createDriveModule } from "./modules/drive";
 import { createLookupModule } from "./modules/lookup";
 import { createNetworkModule } from "./modules/network";
 import { createPrintModule } from "./modules/print";
+import { createSwitchModule } from "./modules/switch";
 
 const config = loadConfig();
 const startedAt = Math.floor(Date.now() / 1000);
@@ -21,6 +22,7 @@ const ctx: ModuleContext = {
 };
 
 const modules: EdgeModule[] = [
+  createSwitchModule(ctx),
   createNetworkModule(ctx),
   createPrintModule(ctx),
   createDriveModule(ctx),

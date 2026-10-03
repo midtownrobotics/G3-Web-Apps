@@ -1,4 +1,4 @@
-import { eq, isNull } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { Hono } from "hono";
 import { createDb } from "../db";
 import { coreUserIdentities, coreUserPins, coreUsers } from "../db/schema";
@@ -21,6 +21,17 @@ export type UserWithPin = BasicUserInfo & {
 };
 
 export const usersRouter = new Hono<AppEnv>()
+  .get("/attendance-eligible", requireAuth, async (c) => {
+    const db = createDb(c.env.DB);
+    const users = await db
+      .select({ id: coreUsers.id, displayName: coreUsers.displayName })
+      .from(coreUsers)
+      .where(and(eq(coreUsers.status, "active"), isNull(coreUsers.deletedAt)))
+      .all();
+    return c.json({
+      users: users.filter((user) => user.displayName.trim().toLowerCase() !== "admin"),
+    });
+  })
   .get("/", requireAdmin, async (c) => {
     const db = createDb(c.env.DB);
 

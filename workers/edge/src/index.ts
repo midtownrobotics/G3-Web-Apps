@@ -4,6 +4,7 @@ import { requireAgent, requireAuth } from "./middleware/auth";
 import { lookupRouter } from "./modules/lookup/routes";
 import { networkAgentRouter, networkRouter, networkScheduled } from "./modules/network";
 import { printRouter } from "./modules/print/routes";
+import { switchRouter } from "./modules/switch/routes";
 import { statusRouter } from "./routes/status";
 import type { AppEnv } from "./types";
 
@@ -43,6 +44,7 @@ const app = base
   .route("/network", networkRouter)
   .route("/print", printRouter)
   .route("/lookup", lookupRouter)
+  .route("/switch", switchRouter)
   // Agent-facing routes (shared-key auth), one prefix per module.
   // The agent calls this right after applying new state; requireAgent records the
   // applied version (X-G3-Agent-State-Version) so the UI can clear "pending".

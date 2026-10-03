@@ -3,6 +3,9 @@ account_id = "e54a97a23069e7889e8e820c00e520d8"
 main = "src/index.ts"
 compatibility_date = "2026-05-17"
 
+[triggers]
+crons = ["*/5 * * * *"]
+
 [ai]
 binding = "AI"
 
@@ -34,6 +37,9 @@ custom_domain = true
 # that invoke `wrangler deploy --env production`.
 [env.production]
 name = "scouting-production"
+
+[env.production.triggers]
+crons = ["*/5 * * * *"]
 
 [env.production.ai]
 binding = "AI"
