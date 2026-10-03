@@ -58,28 +58,28 @@ const APPS: App[] = [
     bg: "bg-slate-900",
   },
   {
-    label: "Edge",
-    href: "https://edge.g3robotics.com",
-    icon: FaNetworkWired,
-    bg: "bg-red-300",
-  },
-  {
     label: "Orders",
     href: "https://orders.g3robotics.com",
     icon: FaShoppingCart,
     bg: "bg-emerald-600",
   },
   {
+    label: "Edge",
+    href: "https://edge.g3robotics.com",
+    icon: FaNetworkWired,
+    bg: "bg-cyan-600",
+  },
+  {
     label: "Public Site",
     href: "https://www.g3robotics.com",
-    bg: "bg-red-300",
+    bg: "bg-neutral-800",
     logoSrc: g3Logo,
   },
   {
     label: "Slack",
     href: "https://g3robotics.slack.com",
     icon: FaSlack,
-    bg: "bg-blue-300",
+    bg: "bg-[#4A154B]",
     external: true,
   },
   {
@@ -149,7 +149,7 @@ export function HomePage() {
             <p className="text-red-600 font-semibold text-lg tracking-widest uppercase mb-2">
               FRC Team 1648
             </p>
-            <h1 className="text-4xl font-bold text-gray-900 mb-2">G3 Robotics</h1>
+            <h1 className="text-4xl font-bold text-gray-900 mb-2">G3 Gearbox</h1>
             <p className="text-gray-600">FIRST Robotics Competition</p>
           </div>
 
@@ -181,7 +181,7 @@ export function HomePage() {
           <p className="text-red-600 text-sm font-semibold uppercase tracking-widest mb-1">
             Team 1648
           </p>
-          <h1 className="text-4xl font-bold text-gray-900">Member Apps</h1>
+          <h1 className="text-4xl font-bold text-gray-900">G3 Gearbox</h1>
         </div>
 
         <div className="grid grid-cols-4 sm:grid-cols-5 gap-x-4 gap-y-8">

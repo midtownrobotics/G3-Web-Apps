@@ -51,7 +51,7 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
     <>
       {/* z-50 keeps the navbar on top of the overlay so the hamburger/X stays in place */}
       <nav className="relative z-50 bg-white border-b border-gray-200 px-6 py-4 flex items-center gap-6">
-        <span className="font-bold text-red-600 mr-4 tracking-tight">G3 Robotics</span>
+        <span className="font-bold text-red-600 mr-4 tracking-tight">G3 Gearbox</span>
 
         {/* Desktop links */}
         <div className="hidden md:flex items-center gap-6">

@@ -15,9 +15,9 @@
       "name": "Pit App",
       "url": "http://localhost:5175"
     },
-    "web": {
+    "portal": {
       "port": 5178,
-      "name": "Web (Members Portal)",
+      "name": "G3 Gearbox (Portal)",
       "url": "http://localhost:5178"
     },
     "skill-tree": {

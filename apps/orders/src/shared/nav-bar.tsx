@@ -45,7 +45,7 @@ export function NavBar({ items }: { items: PluginNavItem[] }) {
       ))}
       <a
         className="ml-auto text-sm font-medium text-secondary-500 hover:text-secondary-900 transition-colors whitespace-nowrap"
-        href="https://web.g3robotics.com"
+        href="https://gearbox.g3robotics.com"
       >
         All Apps
       </a>

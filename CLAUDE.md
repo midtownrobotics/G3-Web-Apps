@@ -22,7 +22,7 @@ pnpm -r --if-present typecheck  # Ensure no type errors
 
 **Monorepo using pnpm workspaces:**
 
-- `apps/` — React frontends (g3id, web, shop, pit, attendance, scouting, edge, orders)
+- `apps/` — React frontends (g3id, portal, shop, pit, attendance, scouting, edge, orders)
 - `workers/` — Cloudflare Workers backends (g3id, shop, pit, skill-tree, attendance, scouting, edge, orders)
 - `packages/` — Shared libraries (auth, ui, slack)
 - `devices/` — Software that runs on physical hardware (edge-agent: Bun, compiled to an arm64 binary)
@@ -192,7 +192,7 @@ Apps:
 - `apps/g3id` → 5173
 - `apps/shop` → 5174
 - `apps/pit` → 5175
-- `apps/web` → 5178
+- `apps/portal` → 5178
 - `apps/skill-tree` → 5180
 - `apps/attendance` → 5181
 - `apps/scouting` → 5182
@@ -231,7 +231,7 @@ killall -9 workerd wrangler node
 
 **Add a new app (React frontend):**
 1. Create directory: `apps/<app-name>/`
-2. Copy structure from an existing app (e.g., `apps/web/`)
+2. Copy structure from an existing app (e.g., `apps/portal/`)
 3. Add unique port to `apps/<app-name>/vite.config.ts` (check `.dev-ports.json` for available ports)
 4. Create `apps/<app-name>/package.json` with at minimum: `name`, `type: "module"`, `dev` script
 5. Update `.dev-ports.json` with the new app and port

@@ -1,6 +1,6 @@
-# @g3/web
+# @g3/portal
 
-Public team website — Vite + React + React Router + Tailwind.
+G3 Gearbox (gearbox.g3robotics.com), the members portal: Vite + React + React Router + Tailwind.
 
 ## Dev
 
