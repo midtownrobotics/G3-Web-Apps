@@ -12,3 +12,6 @@ export type VendorProfile = Extract<Vendor, { credits: unknown }>;
 export type CatalogItem = InferResponseType<typeof api.catalog.items.$get, 200>[number];
 export type CatalogData = InferResponseType<typeof api.catalog.$get, 200>;
 export type CatalogFamily = CatalogData["families"][number];
+export type PartList = InferResponseType<typeof api.lists.$get, 200>[number];
+export type PartListDetail = InferResponseType<(typeof api.lists)[":id"]["$get"], 200>;
+export type ListProgress = PartList["progress"];

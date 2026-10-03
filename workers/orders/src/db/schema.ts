@@ -269,3 +269,34 @@ export const appUsers = sqliteTable("app_users", {
   trustedAt: integer("trusted_at"),
   lastSeenAt: integer("last_seen_at").notNull(),
 });
+
+/** A named list of requests (a mechanism's parts, a restock, ...) to follow together. */
+export const partLists = sqliteTable("part_lists", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  description: text("description"),
+  createdById: text("created_by_id").notNull(),
+  createdByName: text("created_by_name").notNull(),
+  isArchived: integer("is_archived").notNull().default(0),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+/** A request on a list. A request can be on several lists. */
+export const partListItems = sqliteTable(
+  "part_list_items",
+  {
+    listId: integer("list_id")
+      .notNull()
+      .references(() => partLists.id, { onDelete: "cascade" }),
+    requestId: integer("request_id")
+      .notNull()
+      .references(() => orderRequests.id),
+    addedByName: text("added_by_name").notNull(),
+    addedAt: integer("added_at").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.listId, t.requestId] }),
+    index("part_list_items_request_idx").on(t.requestId),
+  ],
+);

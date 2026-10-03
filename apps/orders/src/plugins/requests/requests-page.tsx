@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api, getErrorMessage } from "../../shared/api";
 import { Deadline } from "../../shared/deadline";
@@ -105,11 +106,14 @@ export function RequestList({
   onChanged,
   showActions = false,
   empty = "No requests here yet.",
+  extra,
 }: {
   requests: OrderRequest[];
   onChanged: () => void;
   showActions?: boolean;
   empty?: string;
+  /** More for each row (a list's "Remove" button), under its details. */
+  extra?: (request: OrderRequest) => ReactNode;
 }) {
   const { vendorFor } = useVendors();
   if (requests.length === 0) return <p className="text-sm text-secondary-500">{empty}</p>;
@@ -160,6 +164,7 @@ export function RequestList({
                     </>
                   )}
                 </p>
+                {extra?.(r)}
                 {showActions && (
                   <>
                     <p className="text-sm text-secondary-700 line-clamp-3">“{r.reason}”</p>
