@@ -250,8 +250,8 @@ function ShareACart() {
 }
 
 /**
- * Trusted students: besides mentors, the only people who add catalogue categories and add, edit
- * or delete catalogue parts. The trusted ones show as chips; others are found by name (anyone who
+ * Trusted students: besides mentors, the only people who add catalog categories and add, edit
+ * or delete catalog parts. The trusted ones show as chips; others are found by name (anyone who
  * has opened G3 Orders), so a team of 60 stays one line plus a search box.
  */
 function TrustedStudents() {
@@ -281,8 +281,8 @@ function TrustedStudents() {
     <Card title="Trusted students">
       <div className="space-y-3 text-sm">
         <p className="text-secondary-600">
-          Like mentors, they can add catalogue categories and add, edit or delete parts. Everyone
-          else browses and requests.
+          Like mentors, they can add catalog categories and add, edit or delete parts. Everyone else
+          browses and requests.
         </p>
         {error && <ErrorBanner message={error} />}
         {!people.data ? (

@@ -85,7 +85,7 @@ export function NewRequestPage() {
     await addCatalogItems(await res.json());
   }
 
-  /** Rows for catalogue parts: filled from the catalogue (looked up again if the price is old). */
+  /** Rows for catalog parts: filled from the catalog (looked up again if the price is old). */
   async function addCatalogItems(items: CatalogItem[]) {
     setSubmitted(null);
     const rows = items.map((item) => ({
@@ -160,7 +160,7 @@ export function NewRequestPage() {
       <div className="space-y-2">
         <CatalogSearch
           onPick={(item) => void addCatalogItems([item])}
-          placeholder='Find a part in the catalogue: "1/2 hex bearing", "WCP-0320"…'
+          placeholder='Find a part in the catalog: "1/2 hex bearing", "WCP-0320"…'
         />
         <textarea
           className={`${inputClass} min-h-20`}

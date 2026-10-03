@@ -1,12 +1,11 @@
-import { type FormEvent, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { api, getErrorMessage } from "../../shared/api";
 import { Deadline } from "../../shared/deadline";
 import { formatCents, formatDate } from "../../shared/format";
 import { PriorityBadge } from "../../shared/priority";
 import { STATUS, StatusBadge } from "../../shared/status-badge";
 import type { OrderRequest, RequestStatus } from "../../shared/types";
-import { Button, Card, ErrorBanner, Loading, Page, inputClass } from "../../shared/ui";
+import { Card, ErrorBanner, Loading, Page } from "../../shared/ui";
 import { useLoad } from "../../shared/use-load";
 import { useVendors } from "../../shared/vendors";
 import { ReplaceItem } from "./replace-item";
@@ -51,7 +50,6 @@ export function RequestsPage() {
 
   return (
     <Page title="Requests">
-      <QuickAdd />
       <div className="flex flex-wrap items-center gap-2">
         {FILTERS.map((f) => (
           <button
@@ -192,29 +190,5 @@ export function RequestList({
         );
       })}
     </div>
-  );
-}
-
-/** Paste a link (or several) here to start requesting it; New Request looks it up right away. */
-function QuickAdd() {
-  const navigate = useNavigate();
-  const [value, setValue] = useState("");
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    if (value.trim()) navigate(`/new?urls=${encodeURIComponent(value.trim())}`);
-  };
-  return (
-    <form onSubmit={submit} className="flex gap-2">
-      <input
-        className={inputClass}
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        placeholder="Paste a product link to request it…"
-        aria-label="Quick add a product link"
-      />
-      <Button type="submit" className="shrink-0" disabled={!value.trim()}>
-        Request
-      </Button>
-    </form>
   );
 }

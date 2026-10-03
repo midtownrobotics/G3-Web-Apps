@@ -98,7 +98,7 @@ export function CatalogPage() {
 
   return (
     <Page
-      title="Catalogue"
+      title="Catalog"
       actions={
         canEditCatalog && (
           <div className="flex gap-2">
@@ -137,7 +137,7 @@ export function CatalogPage() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder='Search parts: "1/2 hex bearing", "10-32 button head 3/4", "WCP-0320", "neo"…'
-          aria-label="Search the catalogue"
+          aria-label="Search the catalog"
           // biome-ignore lint/a11y/noAutofocus: the page is for searching
           autoFocus
         />
@@ -448,7 +448,7 @@ function ItemRow({
   );
 }
 
-/** A new catalogue category (mentors and trusted students). */
+/** A new catalog category (mentors and trusted students). */
 function NewCategory({ onDone }: { onDone: (name: string | null) => void }) {
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);

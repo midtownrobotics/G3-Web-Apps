@@ -71,7 +71,7 @@ export const requireCatalogEditor = createMiddleware<AppEnv>(async (c, next) => 
   if (!user) return c.json({ error: "Unauthorized." }, 401);
   setUser(c, user);
   if (!(await canEditCatalog(c))) {
-    return c.json({ error: "Only mentors and trusted students can change the catalogue." }, 403);
+    return c.json({ error: "Only mentors and trusted students can change the catalog." }, 403);
   }
   await next();
 });

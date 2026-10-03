@@ -148,8 +148,7 @@ const requestValidator = (partial: boolean) =>
     return out;
   });
 
-const NEEDS_CATALOG_CATEGORY =
-  "This part is new to the catalogue: pick a catalogue category for it.";
+const NEEDS_CATALOG_CATEGORY = "This part is new to the catalog: pick a catalog category for it.";
 
 const listValidator = validator("query", (value, c): { status?: RequestStatus; mine?: "true" } => {
   const status = value.status;

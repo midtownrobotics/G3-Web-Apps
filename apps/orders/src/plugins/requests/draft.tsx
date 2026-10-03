@@ -52,6 +52,8 @@ export type Draft = {
   catalogCategory: string;
   /** The catalog already has this product, so no category needs picking. */
   catalogKnown: boolean;
+  /** catalogCategory was guessed from the name's keywords and the requester hasn't changed it. */
+  catalogCategoryGuessed: boolean;
   /** Why the link isn't a product page (a catalog item with only a vendor search or homepage). */
   linkNote: string | null;
 };
@@ -86,6 +88,7 @@ export const blank = (url = ""): Draft => ({
   catalogItemId: null,
   catalogCategory: "",
   catalogKnown: false,
+  catalogCategoryGuessed: false,
   linkNote: null,
 });
 
@@ -170,8 +173,9 @@ function suggestionFields(suggestion: Suggestion | null): Partial<Draft> {
         }`
       : null,
     history: suggestion?.history ?? [],
-    catalogCategory: suggestion?.catalogCategory ?? "",
+    catalogCategory: suggestion?.catalogCategory ?? suggestion?.catalogCategoryGuess ?? "",
     catalogKnown: !!suggestion?.catalogCategory,
+    catalogCategoryGuessed: !suggestion?.catalogCategory && !!suggestion?.catalogCategoryGuess,
   };
 }
 
@@ -190,6 +194,7 @@ export async function catalogDraft(item: CatalogItem): Promise<Partial<Draft>> {
     catalogItemId: item.id,
     catalogCategory: item.category,
     catalogKnown: true,
+    catalogCategoryGuessed: false,
     linkNote:
       item.linkKind === "search"
         ? "This link is the vendor's search for the part number. Paste the product page if you find it."
@@ -214,9 +219,7 @@ export async function catalogDraft(item: CatalogItem): Promise<Partial<Draft>> {
         : {}),
       ...fromCatalog,
       // A failed lookup still knows what the part is.
-      lookupError: found.lookupError
-        ? `${found.lookupError} Details are from the catalogue.`
-        : null,
+      lookupError: found.lookupError ? `${found.lookupError} Details are from the catalog.` : null,
       vendor: found.vendor || item.vendor,
       name: found.name || item.name,
       sourceTitle: found.sourceTitle || item.name,
@@ -287,7 +290,7 @@ export function draftProblem(d: Draft, fallbackReason = ""): string | null {
     (!d.categoryId && "Pick a budget category.") ||
     (!d.catalogItemId &&
       !d.catalogCategory.trim() &&
-      "This part is new to the catalogue: pick a catalogue category for it.") ||
+      "This part is new to the catalog: pick a catalog category for it.") ||
     (!(d.reason.trim() || fallbackReason.trim()) && "Say why it's needed.") ||
     null
   );
@@ -468,7 +471,12 @@ export function DraftCard({
             <div className="col-span-2">
               <Field
                 label="Budget category"
-                hint={d.categoryHint ? `Guessed: ${d.categoryHint}` : undefined}
+                hint={
+                  d.categoryHint
+                    ? `Guessed (${d.categoryHint}). Check it's right and change it if not.`
+                    : undefined
+                }
+                warn={!!d.categoryHint}
               >
                 <select
                   className={inputClass}
@@ -510,13 +518,20 @@ export function DraftCard({
             {!d.catalogItemId && !d.catalogKnown && (
               <div className="col-span-2">
                 <Field
-                  label="Catalogue category"
-                  hint="New to the catalogue: where should others find it?"
+                  label="Catalog category"
+                  hint={
+                    d.catalogCategoryGuessed
+                      ? "Guessed from the name. Check it's right and change it if not."
+                      : "New to the catalog: where should others find it?"
+                  }
+                  warn={d.catalogCategoryGuessed}
                 >
                   <CatalogCategoryPicker
                     value={d.catalogCategory}
                     categories={catalogCategories}
-                    onChange={(catalogCategory) => onChange({ catalogCategory })}
+                    onChange={(catalogCategory) =>
+                      onChange({ catalogCategory, catalogCategoryGuessed: false })
+                    }
                     onAdded={onCategoryAdded}
                   />
                 </Field>
@@ -565,7 +580,7 @@ export function DraftCard({
 const NEW_CATEGORY = "\u0000new";
 
 /**
- * The catalogue category for a part new to the catalogue. Mentors and trusted students can also
+ * The catalog category for a part new to the catalog. Mentors and trusted students can also
  * make a new category right here.
  */
 function CatalogCategoryPicker({

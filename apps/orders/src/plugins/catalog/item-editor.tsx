@@ -62,7 +62,7 @@ export function ItemEditor({
   }
 
   async function remove() {
-    if (!item || !window.confirm(`Delete “${item.name}” from the catalogue?`)) return;
+    if (!item || !window.confirm(`Delete “${item.name}” from the catalog?`)) return;
     setBusy(true);
     const res = await api.catalog.items[":id"].$delete({ param: { id: String(item.id) } });
     setBusy(false);
@@ -135,7 +135,7 @@ export function ItemEditor({
       {error && <ErrorBanner message={error} />}
       <div className="mt-3 flex flex-wrap gap-2">
         <Button onClick={save} disabled={busy}>
-          {busy ? "Saving…" : item ? "Save" : "Add to catalogue"}
+          {busy ? "Saving…" : item ? "Save" : "Add to catalog"}
         </Button>
         <Button variant="secondary" onClick={() => onDone(false)} disabled={busy}>
           Cancel
